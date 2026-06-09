@@ -135,3 +135,17 @@ func TestBookJSONRoundTrip(t *testing.T) {
 		t.Fatalf("LastTxID = %d", back.LastTxID)
 	}
 }
+
+func TestHasImportHash(t *testing.T) {
+	b := sampleBook(t)
+	d, _ := ParseDate("2026-06-01")
+	b.Add(Transaction{Date: d, Account: "pea-bforbank", Kind: Deposit,
+		Amount:     Money{Amount: decimal.NewFromInt(100), Currency: EUR},
+		ImportHash: "abcd1234"})
+	if !b.HasImportHash("abcd1234") {
+		t.Error("hash présent non détecté")
+	}
+	if b.HasImportHash("ffff0000") || b.HasImportHash("") {
+		t.Error("hash absent ou vide ne doit jamais matcher")
+	}
+}
