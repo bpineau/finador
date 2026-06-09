@@ -32,7 +32,8 @@ func New() *cobra.Command {
 	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "fichier de données chiffré")
 	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "ne pas mémoriser le mot de passe")
 	root.AddCommand(initCmd(a), accountCmd(a), assetCmd(a), addCmd(a), sellCmd(a),
-		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a))
+		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a),
+		configCmd(a), lockCmd(a))
 	return root
 }
 
