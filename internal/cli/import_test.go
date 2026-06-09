@@ -60,3 +60,17 @@ func TestImportCSVBadLine(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestImportPropagatesAmbiguity(t *testing.T) {
+	b := domain.NewBook()
+	// Injection directe des deux actifs pour simuler un livre legacy/corrompu
+	// avec des alias en collision — AddAsset les refuserait désormais.
+	b.Assets = append(b.Assets,
+		&domain.Asset{ID: "a1", Kind: domain.Security, Name: "Un", Aliases: []string{"dup"}, Currency: domain.EUR},
+		&domain.Asset{ID: "a2", Kind: domain.Security, Name: "Deux", Aliases: []string{"dup"}, Currency: domain.EUR},
+	)
+	csv := "date,kind,account,asset,quantity,price,currency\n2026-01-15,buy,PEA,dup,1,10,EUR\n"
+	if _, _, err := importCSV(b, strings.NewReader(csv)); err == nil || !strings.Contains(err.Error(), "ambiguë") {
+		t.Fatalf("err = %v, attendu ambiguïté propagée", err)
+	}
+}

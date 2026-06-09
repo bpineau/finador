@@ -51,12 +51,26 @@ func TestResolveAssetTiers(t *testing.T) {
 	}
 }
 
+func TestAddAssetRejectsAnyCollidingReference(t *testing.T) {
+	b := sampleBook(t)
+	for _, dup := range []*Asset{
+		{ID: "autre1", Kind: Security, Name: "X", Ticker: "cw8.pa", Currency: EUR},           // ticker, casse différente
+		{ID: "autre2", Kind: Security, Name: "amundi msci world", Currency: EUR},             // nom
+		{ID: "autre3", Kind: Security, Name: "Y", Aliases: []string{"WORLD"}, Currency: EUR}, // alias
+		{ID: "autre4", Kind: Security, Name: "Z", ISIN: "LU1681043599", Currency: EUR},       // isin
+	} {
+		if err := b.AddAsset(dup); !errors.Is(err, ErrDuplicate) {
+			t.Errorf("AddAsset(%s) = %v, attendu ErrDuplicate", dup.ID, err)
+		}
+	}
+}
+
 func TestResolveAmbiguous(t *testing.T) {
 	b := sampleBook(t)
-	if err := b.AddAsset(&Asset{ID: "cw8-cto", Kind: Security, Name: "CW8 bis",
-		Aliases: []string{"world"}, Currency: EUR}); err != nil {
-		t.Fatal(err)
-	}
+	// Injection directe pour simuler un livre corrompu/legacy :
+	// AddAsset rejette désormais toute collision d'alias.
+	b.Assets = append(b.Assets, &Asset{ID: "cw8-cto", Kind: Security, Name: "CW8 bis",
+		Aliases: []string{"world"}, Currency: EUR})
 	if _, err := b.Asset("world"); !errors.Is(err, ErrAmbiguous) {
 		t.Errorf("Asset(world): %v, attendu ErrAmbiguous", err)
 	}

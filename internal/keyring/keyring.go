@@ -3,6 +3,7 @@
 package keyring
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -32,6 +33,9 @@ func Key(dbPath string) string { return dbPath + "@" + ttyID() }
 
 // Prompt reads a password without echo from the controlling terminal.
 func Prompt(label string) (string, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return "", errors.New("aucun terminal pour saisir le mot de passe : utilisez FINADOR_PASSWORD")
+	}
 	fmt.Fprint(os.Stderr, label)
 	defer fmt.Fprintln(os.Stderr)
 	pw, err := term.ReadPassword(int(os.Stdin.Fd()))
