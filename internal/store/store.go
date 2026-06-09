@@ -85,6 +85,13 @@ func decodeHeader(path string, raw []byte) (header, error) {
 		Threads:  rest[9],
 	}
 	copy(h.Salt[:], rest[10:26])
+	// Les paramètres sont lus avant toute authentification (la clé en dérive) :
+	// des bornes strictes évitent panique et bombe mémoire sur fichier forgé.
+	if h.Time < 1 || h.Time > 16 ||
+		h.MemoryKB < 8 || h.MemoryKB > 1<<20 || // ≤ 1 GiB
+		h.Threads < 1 || h.Threads > 16 {
+		return header{}, fmt.Errorf("%s: paramètres Argon2 hors bornes", path)
+	}
 	if h.Version != 1 {
 		return header{}, fmt.Errorf("%s: version %d non gérée (finador trop ancien ?)", path, h.Version)
 	}
@@ -154,11 +161,14 @@ func (f *File) Save() error {
 		return err
 	}
 
-	out := f.hdr.encode()
+	hdr := f.hdr.encode()
+	out := append([]byte(nil), hdr...)
+	// Nonce aléatoire de 96 bits par sauvegarde : sous la clé propre au fichier,
+	// le risque de collision reste négligeable jusqu'à ~2^32 écritures (NIST).
 	nonce := make([]byte, nonceSize)
 	mustRand(nonce)
 	out = append(out, nonce...)
-	out = f.gcm().Seal(out, nonce, plain.Bytes(), f.hdr.encode())
+	out = f.gcm().Seal(out, nonce, plain.Bytes(), hdr)
 
 	tmp := f.Path + ".tmp"
 	w, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)

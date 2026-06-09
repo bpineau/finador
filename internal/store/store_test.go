@@ -84,6 +84,45 @@ func TestCreateRefusesExisting(t *testing.T) {
 	}
 }
 
+func TestTamperedHeader(t *testing.T) {
+	path := tmpPath(t)
+	if _, err := Create(path, "s3cret"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw[headerSize-1] ^= 0xFF // altère un octet du sel, dans l'AAD
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(path, "s3cret"); !errors.Is(err, domain.ErrBadPassword) {
+		t.Fatalf("attendu ErrBadPassword, eu: %v", err)
+	}
+}
+
+func TestForgedParamsRejectedCleanly(t *testing.T) {
+	path := tmpPath(t)
+	if _, err := Create(path, "s3cret"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// memKiB forgé à 0xFFFFFFFF (offset: magic 8 + version 1 + time 4 = 13)
+	for i := 13; i < 17; i++ {
+		raw[i] = 0xFF
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(path, "s3cret"); err == nil || !strings.Contains(err.Error(), "hors bornes") {
+		t.Fatalf("attendu erreur de bornes, eu: %v", err)
+	}
+}
+
 func TestSaveKeepsBackup(t *testing.T) {
 	path := tmpPath(t)
 	f, err := Create(path, "s3cret")
