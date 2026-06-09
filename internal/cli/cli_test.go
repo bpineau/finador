@@ -84,3 +84,41 @@ func TestAccountAddAndList(t *testing.T) {
 		t.Fatal("doublon accepté")
 	}
 }
+
+func TestAddTradeCashAndFlows(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+
+	out := run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	for _, want := range []string{"buy", "5500 EUR", "PEA Zephyr"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("achat: %q manquant dans %q", want, out)
+		}
+	}
+	out = run(t, db, "sell", "cw8", "4", "2310", "2026-06-05") // vente, montant total
+	if !strings.Contains(out, "sell") || !strings.Contains(out, "2310 EUR") {
+		t.Errorf("vente: %q", out)
+	}
+	// quantité négative possible via add, derrière -- (sinon pflag lit -4 comme un flag)
+	out = run(t, db, "add", "--", "cw8", "-2", "@577", "2026-06-06")
+	if !strings.Contains(out, "sell") || !strings.Contains(out, "1154 EUR") {
+		t.Errorf("vente via qté négative: %q", out)
+	}
+	if _, err := tryRun(t, db, "add", "cw8", "5"); err == nil {
+		t.Fatal("prix manquant accepté")
+	}
+
+	out = run(t, db, "cash", "set", "pea-zephyr", "12500")
+	if !strings.Contains(out, "12500 EUR") {
+		t.Errorf("cash set: %q", out)
+	}
+	out = run(t, db, "deposit", "PEA Zephyr", "5000", "2026-01-10")
+	if !strings.Contains(out, "deposit") || !strings.Contains(out, "5000 EUR") {
+		t.Errorf("deposit: %q", out)
+	}
+	out = run(t, db, "withdraw", "PEA Zephyr", "1000")
+	if !strings.Contains(out, "withdraw") {
+		t.Errorf("withdraw: %q", out)
+	}
+}
