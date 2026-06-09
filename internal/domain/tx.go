@@ -37,7 +37,13 @@ func ParseTxKind(s string) (TxKind, error) {
 
 func (k TxKind) String() string { return txKindNames[k] }
 
-func (k TxKind) MarshalText() ([]byte, error) { return []byte(k.String()), nil }
+func (k TxKind) MarshalText() ([]byte, error) {
+	name, ok := txKindNames[k]
+	if !ok {
+		return nil, fmt.Errorf("TxKind %d non défini", uint8(k))
+	}
+	return []byte(name), nil
+}
 
 func (k *TxKind) UnmarshalText(b []byte) error {
 	parsed, err := ParseTxKind(string(b))
