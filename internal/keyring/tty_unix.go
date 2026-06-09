@@ -18,5 +18,8 @@ func ttyID() string {
 	if !ok {
 		return "notty"
 	}
+	// Les numéros de device peuvent être recyclés entre terminaux : au pire un
+	// autre terminal du même utilisateur hérite du cache — même frontière de
+	// confiance que le Keychain lui-même.
 	return fmt.Sprintf("tty%d", st.Rdev)
 }
