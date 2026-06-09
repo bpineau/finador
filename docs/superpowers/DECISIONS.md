@@ -50,3 +50,11 @@ les clés ; pas de verrou inter-processus (à revoir en phase D quand `serve` co
 la CLI) ; fenêtre de crash entre les deux renames du Save (récupérable via .bak/.tmp) ;
 `Statement` sur un titre coté accepté (la sémantique sera fixée par la valorisation en
 phase B).
+
+## D7 — Le fichier .fin reste en version 1 avec le cache marché
+
+**Contexte :** la phase B ajoute prices/fx/dividends dans le JSON du Book. Un binaire
+phase A qui réécrirait ce fichier perdrait silencieusement ces champs. **Choix :** pas de
+bump de version — ces champs sont des caches refetchables (un `finador refresh` les
+reconstruit), et toutes les phases sont livrées ensemble. **Alternative si refusé :**
+bump l'octet de version à 2 et refuser les versions inconnues.
