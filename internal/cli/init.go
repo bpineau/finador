@@ -24,10 +24,11 @@ func initCmd(a *app) *cobra.Command {
 					return err
 				}
 			}
-			if _, err := store.Create(a.dbPath, pw); err != nil {
+			f, err := store.Create(a.dbPath, pw)
+			if err != nil {
 				return err
 			}
-			a.cache().Put(keyring.Key(a.dbPath), pw, defaultTTL)
+			a.cache().Put(keyring.Key(a.dbPath), pw, configTTL(f.Book)) // best-effort
 			fmt.Fprintf(cmd.OutOrStdout(), "Créé %s\n", a.dbPath)
 			return nil
 		},
