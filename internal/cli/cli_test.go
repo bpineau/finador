@@ -2,16 +2,20 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"finador/internal/cli"
+	"finador/internal/domain"
+	"finador/internal/market"
 )
 
 // tryRun exécute finador contre db, mot de passe fourni par l'environnement,
 // Keychain désactivé pour ne jamais toucher le vrai trousseau en test.
+// --offline est toujours ajouté : aucun test du harnais offline ne touche le réseau.
 func tryRun(t *testing.T, db string, args ...string) (string, error) {
 	t.Helper()
 	t.Setenv("FINADOR_PASSWORD", "secret-de-test")
@@ -19,7 +23,7 @@ func tryRun(t *testing.T, db string, args ...string) (string, error) {
 	cmd := cli.New()
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs(append([]string{"--db", db, "--no-keychain"}, args...))
+	cmd.SetArgs(append([]string{"--db", db, "--no-keychain", "--offline"}, args...))
 	err := cmd.Execute()
 	return out.String(), err
 }
@@ -149,6 +153,143 @@ func TestCurrencyNormalized(t *testing.T) {
 	}
 	if _, err := tryRun(t, db, "account", "add", "Compte X", "--ccy", "banana"); err == nil {
 		t.Fatal("devise invalide acceptée")
+	}
+}
+
+// fakeSource sert des données de marché déterministes aux tests CLI.
+type fakeSource struct{}
+
+func (fakeSource) Resolve(_ context.Context, q string) (market.SymbolInfo, error) {
+	if strings.EqualFold(q, "CW8.PA") {
+		return market.SymbolInfo{Symbol: "CW8.PA", Name: "Amundi MSCI World UCITS ETF"}, nil
+	}
+	return market.SymbolInfo{}, domain.ErrNotFound
+}
+
+func (fakeSource) Daily(_ context.Context, sym string, _ domain.Date) (market.DailyData, error) {
+	day := func(s string) domain.Date {
+		d, err := domain.ParseDate(s)
+		if err != nil {
+			panic(err)
+		}
+		return d
+	}
+	switch sym {
+	case "CW8.PA":
+		return market.DailyData{Currency: domain.EUR, Closes: []domain.PricePoint{
+			{Date: day("2026-06-01"), Close: 550},
+			{Date: day("2026-06-05"), Close: 560},
+		}}, nil
+	case "EURUSD=X":
+		return market.DailyData{Currency: domain.USD, Closes: []domain.PricePoint{
+			{Date: day("2026-01-01"), Close: 1.10},
+			{Date: day("2026-06-01"), Close: 1.10},
+			{Date: day("2026-06-05"), Close: 1.10},
+		}}, nil
+	case "GBPUSD=X":
+		return market.DailyData{Currency: domain.USD, Closes: []domain.PricePoint{
+			{Date: day("2026-01-01"), Close: 1.25},
+			{Date: day("2026-06-01"), Close: 1.25},
+			{Date: day("2026-06-05"), Close: 1.25},
+		}}, nil
+	}
+	return market.DailyData{}, domain.ErrNotFound
+}
+
+// tryRunNet exécute finador SANS --offline, avec la Source factice.
+func tryRunNet(t *testing.T, db string, args ...string) (string, error) {
+	t.Helper()
+	t.Setenv("FINADOR_PASSWORD", "secret-de-test")
+	var out bytes.Buffer
+	cmd := cli.New(cli.WithSource(fakeSource{}))
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append([]string{"--db", db, "--no-keychain"}, args...))
+	err := cmd.Execute()
+	return out.String(), err
+}
+
+func runNet(t *testing.T, db string, args ...string) string {
+	t.Helper()
+	out, err := tryRunNet(t, db, args...)
+	if err != nil {
+		t.Fatalf("finador %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+	return out
+}
+
+func TestValueEndToEnd(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	out := runNet(t, db, "value", "--net", "--at", "2026-06-05")
+	// 10 × 560 = 5600 ; cash suivi = 5000 − 5500 = −500 → brut 5100
+	// base d'enveloppe 5000 → gain 100 → impôt 17.20 → net 5082.80
+	for _, want := range []string{"5100.00 EUR", "17.20 EUR", "5082.80 EUR"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("value --net: %q manquant dans:\n%s", want, out)
+		}
+	}
+
+	out = runNet(t, db, "value", "--ccy", "USD", "--at", "2026-06-05")
+	if !strings.Contains(out, "5610.00 USD") { // 5100 × 1.10
+		t.Errorf("value USD:\n%s", out)
+	}
+
+	// le cache permet ensuite le hors-ligne
+	out = run(t, db, "value", "--at", "2026-06-05")
+	if !strings.Contains(out, "5100.00 EUR") {
+		t.Errorf("value --offline après cache:\n%s", out)
+	}
+}
+
+func TestRefreshCommand(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8")
+	out := runNet(t, db, "refresh")
+	if !strings.Contains(out, "rafraîchie") {
+		t.Errorf("refresh: %q", out)
+	}
+	if _, err := tryRun(t, db, "refresh"); err == nil {
+		t.Fatal("refresh en --offline aurait dû échouer")
+	}
+}
+
+func TestAssetAddResolvesFromYahoo(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA")
+	out := runNet(t, db, "asset", "add", "cw8.pa", "--group", "actions/monde")
+	if !strings.Contains(out, "Amundi MSCI World UCITS ETF") {
+		t.Errorf("résolution Yahoo absente: %q", out)
+	}
+	list := run(t, db, "asset", "list")
+	if !strings.Contains(list, "CW8.PA") { // ticker canonique résolu
+		t.Errorf("asset list:\n%s", list)
+	}
+}
+
+func TestValueDisplayFXMissing(t *testing.T) {
+	// fakeSource ne sert pas GBPUSD=X → ensureDisplayFX émet un avertissement
+	// et value échoue avec "GBP" mentionné dans l'erreur.
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	// D'abord on remplit le cache EUR (nécessaire pour avoir des prix)
+	runNet(t, db, "value", "--at", "2026-06-05")
+
+	// Un fakeSource sans GBPUSD=X : on utilise le fakeSource standard qui le sert maintenant,
+	// mais la série GBP n'est pas dans le cache initialement → ensureDisplayFX la fetche.
+	out := runNet(t, db, "value", "--ccy", "GBP", "--at", "2026-06-05")
+	// 5100 EUR × 1.10/1.25 = 4488.00 GBP
+	if !strings.Contains(out, "4488.00 GBP") {
+		t.Errorf("value --ccy GBP: %q", out)
 	}
 }
 

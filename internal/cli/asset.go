@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"text/tabwriter"
 
@@ -28,30 +29,26 @@ func assetAdd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			parsedCcy, err := domain.ParseCurrency(ccy)
+			ccyParsed, err := domain.ParseCurrency(ccy)
 			if err != nil {
 				return err
 			}
-			assetName := name
-			if assetName == "" {
-				assetName = args[0]
-			}
 			asset := &domain.Asset{
 				Kind:     k,
-				Name:     assetName,
+				Name:     cmp.Or(name, args[0]),
 				ISIN:     isin,
 				Aliases:  aliases,
-				Currency: parsedCcy,
+				Currency: ccyParsed,
 				Group:    group,
 			}
 			if k == domain.Security {
 				asset.Ticker = args[0]
+				if !a.offline {
+					enrichFromMarket(cmd, a, asset, args[0],
+						cmd.Flags().Changed("name"), cmd.Flags().Changed("ccy"))
+				}
 			}
-			assetID := id
-			if assetID == "" {
-				assetID = domain.Slugify(asset.Name)
-			}
-			asset.ID = domain.AssetID(assetID)
+			asset.ID = domain.AssetID(cmp.Or(id, domain.Slugify(asset.Name)))
 			return a.mutate(func(b *domain.Book) error {
 				if err := b.AddAsset(asset); err != nil {
 					return err
@@ -130,5 +127,25 @@ func assetList(a *app) *cobra.Command {
 			}
 			return w.Flush()
 		},
+	}
+}
+
+// enrichFromMarket completes ticker/name/currency from Yahoo; explicit flags
+// always win, and any network failure downgrades to a warning.
+func enrichFromMarket(cmd *cobra.Command, a *app, asset *domain.Asset, query string, nameSet, ccySet bool) {
+	src := a.marketSource()
+	info, err := src.Resolve(cmd.Context(), query)
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "avertissement: résolution %q: %v\n", query, err)
+		return
+	}
+	asset.Ticker = info.Symbol
+	if !nameSet && info.Name != "" {
+		asset.Name = info.Name
+	}
+	if data, err := src.Daily(cmd.Context(), asset.Ticker, domain.Today().AddDays(-7)); err == nil {
+		if !ccySet && data.Currency != "" {
+			asset.Currency = data.Currency
+		}
 	}
 }
