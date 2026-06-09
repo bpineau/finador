@@ -1,0 +1,62 @@
+package cli
+
+import (
+	"strings"
+	"testing"
+
+	"finador/internal/domain"
+)
+
+const sampleCSV = `date,kind,account,asset,quantity,price,amount,currency,group,note
+2026-01-15,buy,PEA Zephyr,CW8.PA,10,550,,EUR,actions/monde,premier achat
+2026-01-20,deposit,PEA Zephyr,,,,5000,EUR,,
+2026-02-01,statement,Livret A,,,,12000,EUR,,
+`
+
+func TestImportCSV(t *testing.T) {
+	b := domain.NewBook()
+	added, skipped, err := importCSV(b, strings.NewReader(sampleCSV))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added != 3 || skipped != 0 {
+		t.Fatalf("added=%d skipped=%d", added, skipped)
+	}
+	// comptes et actif créés à la volée
+	if _, err := b.Account("pea-zephyr"); err != nil {
+		t.Error(err)
+	}
+	if _, err := b.Account("Livret A"); err != nil {
+		t.Error(err)
+	}
+	asset, err := b.Asset("CW8.PA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asset.Group != "actions/monde" {
+		t.Errorf("group = %q", asset.Group)
+	}
+	// price unitaire × quantité → montant total
+	if got := b.Transactions[0].Amount.Amount.String(); got != "5500" {
+		t.Errorf("amount = %s", got)
+	}
+}
+
+func TestImportCSVIdempotent(t *testing.T) {
+	b := domain.NewBook()
+	if _, _, err := importCSV(b, strings.NewReader(sampleCSV)); err != nil {
+		t.Fatal(err)
+	}
+	added, skipped, err := importCSV(b, strings.NewReader(sampleCSV))
+	if err != nil || added != 0 || skipped != 3 {
+		t.Fatalf("ré-import: added=%d skipped=%d err=%v", added, skipped, err)
+	}
+}
+
+func TestImportCSVBadLine(t *testing.T) {
+	b := domain.NewBook()
+	bad := "date,kind,account,amount,currency\n2026-13-45,buy,X,100,EUR\n"
+	if _, _, err := importCSV(b, strings.NewReader(bad)); err == nil || !strings.Contains(err.Error(), "ligne 2") {
+		t.Fatalf("err = %v", err)
+	}
+}

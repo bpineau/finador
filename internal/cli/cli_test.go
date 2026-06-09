@@ -114,6 +114,22 @@ func TestTxListEditRm(t *testing.T) {
 	}
 }
 
+func TestImportCommand(t *testing.T) {
+	db := newDB(t)
+	csvPath := filepath.Join(t.TempDir(), "txs.csv")
+	content := "date,kind,account,asset,quantity,price,amount,currency,group,note\n" +
+		"2026-01-15,buy,PEA,CW8.PA,10,550,,EUR,actions/monde,\n"
+	if err := os.WriteFile(csvPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out := run(t, db, "import", csvPath); !strings.Contains(out, "1 importée(s), 0 ignorée(s)") {
+		t.Fatalf("import: %q", out)
+	}
+	if out := run(t, db, "import", csvPath); !strings.Contains(out, "0 importée(s), 1 ignorée(s)") {
+		t.Fatalf("ré-import: %q", out)
+	}
+}
+
 func TestAddTradeCashAndFlows(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
