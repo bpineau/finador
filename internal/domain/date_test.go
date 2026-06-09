@@ -45,3 +45,22 @@ func TestDateJSON(t *testing.T) {
 		t.Fatalf("unmarshal = %+v, err=%v", back.D, err)
 	}
 }
+
+func TestDateAsJSONMapKey(t *testing.T) {
+	d, _ := ParseDate("2026-06-01")
+	raw, err := json.Marshal(map[Date]int{d: 1})
+	if err != nil || string(raw) != `{"2026-06-01":1}` {
+		t.Fatalf("marshal = %s, err=%v", raw, err)
+	}
+	var back map[Date]int
+	if err := json.Unmarshal(raw, &back); err != nil || back[d] != 1 {
+		t.Fatalf("unmarshal = %v, err=%v", back, err)
+	}
+}
+
+func TestDateUnmarshalRejectsGarbage(t *testing.T) {
+	var d Date
+	if err := json.Unmarshal([]byte(`"pas-une-date"`), &d); err == nil {
+		t.Fatal("unmarshal aurait dû échouer")
+	}
+}
