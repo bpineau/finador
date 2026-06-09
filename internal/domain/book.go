@@ -18,6 +18,8 @@ type Book struct {
 
 func NewBook() *Book { return &Book{Config: map[string]string{}} }
 
+// AddAccount rejects an ID or name that collides with any existing resolvable
+// reference (ID or name): allowing it would create a permanently shadowed entry.
 func (b *Book) AddAccount(a *Account) error {
 	if a.ID == "" {
 		return fmt.Errorf("compte %q: identifiant vide: %w", a.Name, ErrNotFound)
