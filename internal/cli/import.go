@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
@@ -99,7 +98,10 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 	if err != nil {
 		return zero, err
 	}
-	ccy := domain.Currency(cmp.Or(get("currency"), string(acc.Currency)))
+	ccy, err := currencyOr(get("currency"), acc.Currency)
+	if err != nil {
+		return zero, err
+	}
 
 	tx := domain.Transaction{Date: date, Account: acc.ID, Kind: kind, Note: get("note")}
 
@@ -155,15 +157,23 @@ func ensureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
 	}
 	if acc, err := b.Account(ref); err == nil {
 		return acc, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return nil, err // ambiguïté : ne pas masquer en création
+	}
+	parsedCcy, err := currencyOr(ccy, domain.EUR)
+	if err != nil {
+		return nil, err
 	}
 	acc := &domain.Account{ID: domain.AccountID(domain.Slugify(ref)), Name: ref,
-		Currency: domain.Currency(cmp.Or(ccy, "EUR"))}
+		Currency: parsedCcy}
 	return acc, b.AddAccount(acc)
 }
 
 func ensureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) (*domain.Asset, error) {
 	if asset, err := b.Asset(ref); err == nil {
 		return asset, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return nil, err // ambiguïté : ne pas masquer en création
 	}
 	asset := &domain.Asset{ID: domain.AssetID(domain.Slugify(ref)), Kind: domain.Security,
 		Name: ref, Ticker: ref, Currency: ccy, Group: group}

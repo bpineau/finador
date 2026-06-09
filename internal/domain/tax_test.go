@@ -20,6 +20,8 @@ func TestParseTaxRule(t *testing.T) {
 		{"gains:30", true, TaxOnGains, "0.3"}, // le % est optionnel
 		{"plusvalue:30%", false, 0, ""},
 		{"gains:abc%", false, 0, ""},
+		{"gains:-5%", false, 0, ""},
+		{"value:250%", false, 0, ""},
 	} {
 		r, err := ParseTaxRule(tc.in)
 		if (err == nil) != tc.ok {
