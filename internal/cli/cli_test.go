@@ -50,6 +50,26 @@ func TestInitCreatesFile(t *testing.T) {
 	}
 }
 
+func TestAssetAddSetList(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "Patrimoine")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--name", "Amundi MSCI World", "--group", "actions/monde")
+	run(t, db, "asset", "add", "Maison à Achères", "--kind", "property", "--group", "immo")
+	out := run(t, db, "asset", "list")
+	for _, want := range []string{"cw8", "CW8.PA", "actions/monde", "maison-a-acheres", "property"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("asset list: %q manquant dans:\n%s", want, out)
+		}
+	}
+	// estimation datée ; l'enveloppe par défaut est l'unique compte existant
+	out = run(t, db, "asset", "set", "maison-a-acheres", "450000", "--at", "2026-06-01")
+	for _, want := range []string{"450000 EUR", "2026-06-01"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("asset set: %q manquant dans %q", want, out)
+		}
+	}
+}
+
 func TestAccountAddAndList(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
