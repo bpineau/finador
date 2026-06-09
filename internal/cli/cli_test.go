@@ -130,6 +130,17 @@ func TestImportCommand(t *testing.T) {
 	}
 }
 
+func TestConfigSetGet(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "config", "set", "risk-free", "2.4%")
+	if out := run(t, db, "config", "get", "risk-free"); !strings.Contains(out, "2.4%") {
+		t.Fatalf("config get: %q", out)
+	}
+	if out := run(t, db, "config", "get"); !strings.Contains(out, "risk-free = 2.4%") {
+		t.Fatalf("config get (tout): %q", out)
+	}
+}
+
 func TestAddTradeCashAndFlows(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
