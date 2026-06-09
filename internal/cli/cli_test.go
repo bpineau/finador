@@ -85,6 +85,35 @@ func TestAccountAddAndList(t *testing.T) {
 	}
 }
 
+func TestTxListEditRm(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "set", "pea-zephyr", "12500", "--at", "2026-06-02")
+
+	out := run(t, db, "tx", "list")
+	if !strings.Contains(out, "buy") || !strings.Contains(out, "statement") {
+		t.Fatalf("tx list:\n%s", out)
+	}
+	if out = run(t, db, "tx", "list", "--kind", "buy"); strings.Contains(out, "statement") {
+		t.Fatalf("filtre --kind inopérant:\n%s", out)
+	}
+
+	run(t, db, "tx", "edit", "1", "--qty", "12", "--total", "6600")
+	if out = run(t, db, "tx", "list", "--kind", "buy"); !strings.Contains(out, "6600 EUR") {
+		t.Fatalf("edit inopérant:\n%s", out)
+	}
+
+	run(t, db, "tx", "rm", "2")
+	if out = run(t, db, "tx", "list"); strings.Contains(out, "statement") {
+		t.Fatalf("rm inopérant:\n%s", out)
+	}
+	if _, err := tryRun(t, db, "tx", "rm", "99"); err == nil {
+		t.Fatal("rm d'un ID inconnu aurait dû échouer")
+	}
+}
+
 func TestAddTradeCashAndFlows(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
