@@ -19,6 +19,12 @@ contiennent le code complet : travail mécanique), revue qualité en Opus, revue
 chaque phase par le modèle le plus capable. Rationale : coût/vitesse d'un run de nuit sans
 sacrifier la qualité aux points de contrôle.
 
+## D3 — Plans des phases B/C/D
+
+**Choix :** écrits par le contrôleur (cette session) juste avant chaque phase, en suivant
+les conventions du plan A (TDD, code complet par étape), pour coller au code réellement
+produit. L'UI web de la phase D passe par le skill frontend-design comme demandé.
+
 ## D4 — Mot de passe en argv de security(1)
 
 **Contexte :** le cache Keychain passe par `/usr/bin/security add-generic-password -w <payload>`
@@ -28,9 +34,3 @@ lecture stdin non-interactive propre. **Choix :** trade-off assumé pour un outi
 mono-utilisateur (la frontière de confiance est déjà la session utilisateur). **Alternative si
 refusé :** lib Keychain CGo (casse la contrainte pur-Go), ou pas de cache du tout
 (`--no-keychain` existe déjà).
-
-## D3 — Plans des phases B/C/D
-
-**Choix :** écrits par le contrôleur (cette session) juste avant chaque phase, en suivant
-les conventions du plan A (TDD, code complet par étape), pour coller au code réellement
-produit. L'UI web de la phase D passe par le skill frontend-design comme demandé.
