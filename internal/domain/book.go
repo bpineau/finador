@@ -13,6 +13,7 @@ type Book struct {
 	Assets       []*Asset          `json:"assets"`
 	Transactions []*Transaction    `json:"transactions"`
 	Config       map[string]string `json:"config,omitempty"`
+	Market       MarketData        `json:"market"`
 	LastTxID     TxID              `json:"lastTxId"`
 }
 

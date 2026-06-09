@@ -39,9 +39,18 @@ func (d Date) Time() time.Time {
 func (d Date) Before(o Date) bool { return d.Time().Before(o.Time()) }
 func (d Date) IsZero() bool       { return d == Date{} }
 
-func (d Date) MarshalText() ([]byte, error) { return []byte(d.String()), nil }
+func (d Date) MarshalText() ([]byte, error) {
+	if d.IsZero() {
+		return []byte(""), nil
+	}
+	return []byte(d.String()), nil
+}
 
 func (d *Date) UnmarshalText(b []byte) error {
+	if len(b) == 0 {
+		*d = Date{}
+		return nil
+	}
 	parsed, err := ParseDate(string(b))
 	if err != nil {
 		return err
