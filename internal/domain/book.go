@@ -31,9 +31,9 @@ func (b *Book) AddAccount(a *Account) error {
 	return nil
 }
 
-// Account resolves a reference: ID first (exact), then free-form name (exact).
+// Account resolves a reference: ID first, then free-form name — both case-insensitive.
 func (b *Book) Account(ref string) (*Account, error) {
-	return resolveExact(ref, "compte", b.Accounts,
+	return resolve(ref, "compte", b.Accounts,
 		func(a *Account) []string { return []string{string(a.ID)} },
 		func(a *Account) []string { return []string{a.Name} },
 	)
@@ -63,25 +63,15 @@ func (b *Book) Asset(ref string) (*Asset, error) {
 }
 
 // resolve returns the single item matching ref on the first tier that yields
-// any match (case-insensitive); several matches on the same tier is an ambiguity.
+// any match; several matches on the same tier is an ambiguity.
 func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*T, error) {
-	return resolveWith(ref, what, items, strings.EqualFold, tiers...)
-}
-
-// resolveExact is like resolve but uses exact (case-sensitive) string matching.
-func resolveExact[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*T, error) {
-	return resolveWith(ref, what, items, func(a, b string) bool { return a == b }, tiers...)
-}
-
-// resolveWith is the generic resolution engine parameterised by a comparison function.
-func resolveWith[T any](ref, what string, items []*T, eq func(string, string) bool, tiers ...func(*T) []string) (*T, error) {
 	if ref == "" {
 		return nil, fmt.Errorf("%s (référence vide): %w", what, ErrNotFound)
 	}
 	for _, tier := range tiers {
 		matches := lo.Filter(items, func(it *T, _ int) bool {
 			return lo.SomeBy(tier(it), func(s string) bool {
-				return s != "" && eq(s, ref)
+				return s != "" && strings.EqualFold(s, ref)
 			})
 		})
 		switch len(matches) {
