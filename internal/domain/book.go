@@ -22,7 +22,7 @@ func NewBook() *Book { return &Book{Config: map[string]string{}} }
 // reference (ID or name): allowing it would create a permanently shadowed entry.
 func (b *Book) AddAccount(a *Account) error {
 	if a.ID == "" {
-		return fmt.Errorf("compte %q: identifiant vide: %w", a.Name, ErrNotFound)
+		return fmt.Errorf("compte %q: identifiant vide", a.Name)
 	}
 	for _, ref := range []string{string(a.ID), a.Name} {
 		if _, err := b.Account(ref); err == nil {
@@ -41,12 +41,20 @@ func (b *Book) Account(ref string) (*Account, error) {
 	)
 }
 
+// AddAsset rejects any reference (ID, ticker, ISIN, alias, name) that already
+// resolves: allowing it would poison resolution with permanent ambiguity.
 func (b *Book) AddAsset(a *Asset) error {
 	if a.ID == "" {
-		return fmt.Errorf("actif %q: identifiant vide: %w", a.Name, ErrNotFound)
+		return fmt.Errorf("actif %q: identifiant vide", a.Name)
 	}
-	if _, err := b.Asset(string(a.ID)); err == nil {
-		return fmt.Errorf("actif %q: %w", a.ID, ErrDuplicate)
+	refs := append([]string{string(a.ID), a.Ticker, a.ISIN, a.Name}, a.Aliases...)
+	for _, ref := range refs {
+		if ref == "" {
+			continue
+		}
+		if _, err := b.Asset(ref); err == nil {
+			return fmt.Errorf("actif %q: %w", ref, ErrDuplicate)
+		}
 	}
 	b.Assets = append(b.Assets, a)
 	return nil

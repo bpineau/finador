@@ -141,6 +141,17 @@ func TestConfigSetGet(t *testing.T) {
 	}
 }
 
+func TestCurrencyNormalized(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "Compte US", "--ccy", "usd")
+	if out := run(t, db, "account", "list"); !strings.Contains(out, "USD") {
+		t.Fatalf("devise non normalisée:\n%s", out)
+	}
+	if _, err := tryRun(t, db, "account", "add", "Compte X", "--ccy", "banana"); err == nil {
+		t.Fatal("devise invalide acceptée")
+	}
+}
+
 func TestAddTradeCashAndFlows(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")

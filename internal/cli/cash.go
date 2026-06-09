@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"fmt"
 
 	"github.com/shopspring/decimal"
@@ -31,9 +30,13 @@ func cashCmd(a *app) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				effectiveCcy, err := currencyOr(ccy, acc.Currency)
+				if err != nil {
+					return err
+				}
 				tx := b.Add(domain.Transaction{
 					Date: date, Account: acc.ID, Kind: domain.Statement,
-					Amount: domain.Money{Amount: amount, Currency: cmp.Or(domain.Currency(ccy), acc.Currency)},
+					Amount: domain.Money{Amount: amount, Currency: effectiveCcy},
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s : %s au %s\n", tx.ID, acc.Name, tx.Amount, tx.Date)
 				return nil

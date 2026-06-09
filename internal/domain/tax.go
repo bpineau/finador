@@ -38,6 +38,9 @@ func ParseTaxRule(s string) (TaxRule, error) {
 	if err != nil {
 		return TaxRule{}, fmt.Errorf("règle fiscale %q: taux invalide: %w", s, err)
 	}
+	if rate.IsNegative() || rate.GreaterThan(hundred) {
+		return TaxRule{}, fmt.Errorf("règle fiscale %q: taux hors de [0%%, 100%%]", s)
+	}
 	rule := TaxRule{Rate: rate.Div(hundred)}
 	switch mode {
 	case "gains":
