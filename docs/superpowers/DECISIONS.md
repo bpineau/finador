@@ -34,3 +34,19 @@ lecture stdin non-interactive propre. **Choix :** trade-off assumé pour un outi
 mono-utilisateur (la frontière de confiance est déjà la session utilisateur). **Alternative si
 refusé :** lib Keychain CGo (casse la contrainte pur-Go), ou pas de cache du tout
 (`--no-keychain` existe déjà).
+
+## D5 — Keychain sans demande de consentement
+
+**Contexte :** la spec §4 dit que finador « propose de mémoriser » le mot de passe ; en
+pratique l'implémentation mémorise systématiquement sauf `--no-keychain`. Une question
+interactive aurait compliqué le scripting et les tests. **Choix :** mémorisation par défaut,
+opt-out par flag. **Alternative si refusé :** ajouter une question o/N à la première saisie.
+
+## D6 — Backlog accepté en l'état (revue finale phase A)
+
+Mineurs reportés volontairement, à reprendre si gênants : pas de `asset edit/rm` (la
+prévention de doublons rend l'état non-réparable improbable) ; `config set` ne valide pas
+les clés ; pas de verrou inter-processus (à revoir en phase D quand `serve` coexistera avec
+la CLI) ; fenêtre de crash entre les deux renames du Save (récupérable via .bak/.tmp) ;
+`Statement` sur un titre coté accepté (la sémantique sera fixée par la valorisation en
+phase B).
