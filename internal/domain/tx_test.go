@@ -3,6 +3,8 @@ package domain
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/shopspring/decimal"
 )
 
 func TestParseTxKind(t *testing.T) {
@@ -40,5 +42,39 @@ func TestParseAssetKind(t *testing.T) {
 	}
 	if _, err := ParseAssetKind("crypto"); err == nil {
 		t.Error("crypto aurait dû échouer")
+	}
+}
+
+func TestTransactionJSONRoundTrip(t *testing.T) {
+	d, _ := ParseDate("2026-06-01")
+	tx := Transaction{
+		ID: 7, Date: d, Account: "pea-zephyr", Asset: "cw8", Kind: Buy,
+		Quantity: decimal.RequireFromString("10"),
+		Amount:   Money{Amount: decimal.RequireFromString("5500.50"), Currency: EUR},
+		Note:     "premier achat",
+	}
+	raw, err := json.Marshal(tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"id":7,"date":"2026-06-01","account":"pea-zephyr","asset":"cw8","kind":"buy","qty":"10","amount":{"amount":"5500.5","ccy":"EUR"},"note":"premier achat"}`
+	if string(raw) != want {
+		t.Fatalf("format de fil dérivé:\n  got  %s\n  want %s", raw, want)
+	}
+	var back Transaction
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.ID != tx.ID || back.Kind != Buy || !back.Quantity.Equal(tx.Quantity) || !back.Amount.Amount.Equal(tx.Amount.Amount) {
+		t.Fatalf("roundtrip altéré: %+v", back)
+	}
+}
+
+func TestUnsetKindsFailLoudlyAtMarshal(t *testing.T) {
+	if _, err := json.Marshal(Transaction{}); err == nil {
+		t.Fatal("marshaler une Transaction sans Kind aurait dû échouer")
+	}
+	if _, err := json.Marshal(Asset{}); err == nil {
+		t.Fatal("marshaler un Asset sans Kind aurait dû échouer")
 	}
 }

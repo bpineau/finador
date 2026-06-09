@@ -29,7 +29,13 @@ func (k AssetKind) String() string {
 	return fmt.Sprintf("AssetKind(%d)", uint8(k))
 }
 
-func (k AssetKind) MarshalText() ([]byte, error) { return []byte(k.String()), nil }
+func (k AssetKind) MarshalText() ([]byte, error) {
+	switch k {
+	case Security, Property:
+		return []byte(k.String()), nil
+	}
+	return nil, fmt.Errorf("AssetKind %d non défini", uint8(k))
+}
 
 func (k *AssetKind) UnmarshalText(b []byte) error {
 	parsed, err := ParseAssetKind(string(b))
