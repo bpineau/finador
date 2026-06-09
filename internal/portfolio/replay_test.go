@@ -82,6 +82,20 @@ func TestHoldingsDropsZeroPositions(t *testing.T) {
 	}
 }
 
+func TestOverSellClampsToZero(t *testing.T) {
+	b := sampleBook(t)
+	b.Add(domain.Transaction{Date: mustDate("2026-05-01"), Account: "cto", Asset: "cw8",
+		Kind: domain.Sell, Quantity: dec("99"), Amount: eur("999")})
+	if q := Quantity(b, "cto", "cw8", mustDate("2026-12-31")); !q.IsZero() {
+		t.Errorf("survente: qté = %s, attendu 0", q)
+	}
+	for _, h := range Holdings(b, mustDate("2026-12-31")) {
+		if h.Account.ID == "cto" {
+			t.Errorf("position survendue présente: %+v", h)
+		}
+	}
+}
+
 func TestCashTracked(t *testing.T) {
 	b := sampleBook(t)
 	for acc, want := range map[domain.AccountID]bool{

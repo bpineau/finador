@@ -47,8 +47,8 @@ func Holdings(b *domain.Book, asOf domain.Date) []Holding {
 	}
 	var out []Holding
 	for _, k := range order {
-		if qty[k].IsZero() {
-			continue
+		if !qty[k].IsPositive() {
+			continue // survente = erreur de saisie : jamais de position négative
 		}
 		acc, errA := b.Account(string(k.acc))
 		asset, errB := b.Asset(string(k.asset))
@@ -73,6 +73,9 @@ func Quantity(b *domain.Book, acc domain.AccountID, asset domain.AssetID, asOf d
 		case domain.Sell:
 			q = q.Sub(t.Quantity)
 		}
+	}
+	if q.IsNegative() {
+		return decimal.Zero // survente = erreur de saisie : jamais de position négative
 	}
 	return q
 }
