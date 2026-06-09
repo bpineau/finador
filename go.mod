@@ -7,4 +7,7 @@ require (
 	github.com/shopspring/decimal v1.4.0
 )
 
-require golang.org/x/text v0.22.0 // indirect
+require (
+	golang.org/x/crypto v0.53.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
+)
