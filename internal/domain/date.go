@@ -39,6 +39,9 @@ func (d Date) Time() time.Time {
 func (d Date) Before(o Date) bool { return d.Time().Before(o.Time()) }
 func (d Date) IsZero() bool       { return d == Date{} }
 
+// AddDays returns the date n days later (negative n: earlier).
+func (d Date) AddDays(n int) Date { return DateOf(d.Time().AddDate(0, 0, n)) }
+
 func (d Date) MarshalText() ([]byte, error) {
 	if d.IsZero() {
 		return []byte(""), nil

@@ -64,3 +64,13 @@ func TestDateUnmarshalRejectsGarbage(t *testing.T) {
 		t.Fatal("unmarshal aurait dû échouer")
 	}
 }
+
+func TestDateAddDays(t *testing.T) {
+	dd, _ := ParseDate("2026-06-01")
+	if got := dd.AddDays(-7).String(); got != "2026-05-25" {
+		t.Errorf("AddDays(-7) = %s", got)
+	}
+	if got := dd.AddDays(30).String(); got != "2026-07-01" {
+		t.Errorf("AddDays(30) = %s", got)
+	}
+}
