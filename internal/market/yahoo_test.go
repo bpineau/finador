@@ -120,3 +120,13 @@ func mustDate(s string) domain.Date {
 	}
 	return d
 }
+
+func TestYahooDailyEmptyQuote(t *testing.T) {
+	y := testYahoo(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"chart":{"result":[{"meta":{"currency":"EUR"},"timestamp":[1780297200],"indicators":{"quote":[]}}],"error":null}}`))
+	})
+	got, err := y.Daily(context.Background(), "X", mustDate("2026-06-01"))
+	if err != nil || len(got.Closes) != 0 {
+		t.Fatalf("got %+v err %v", got, err)
+	}
+}
