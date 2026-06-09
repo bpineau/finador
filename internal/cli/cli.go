@@ -69,7 +69,8 @@ func (a *app) open() (*store.File, error) {
 }
 
 // mutate opens, applies fn to the book, then saves atomically.
-// If fn fails, nothing is written.
+// If fn fails, nothing is written. fn is assumed to mutate: a no-op fn still
+// rewrites the file and rotates .bak — read-only commands use open() instead.
 func (a *app) mutate(fn func(*domain.Book) error) error {
 	f, err := a.open()
 	if err != nil {
