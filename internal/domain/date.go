@@ -5,7 +5,9 @@ import (
 	"time"
 )
 
-// Date is a civil day — no clock, no time zone.
+// Date is a civil day — no clock, no time zone. Construct via ParseDate,
+// DateOf or UnmarshalText: raw literals are not validated nor normalized,
+// and equality relies on normalized values.
 type Date struct {
 	Year  int
 	Month time.Month
