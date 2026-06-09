@@ -52,8 +52,8 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 
 	// 1. positions titres
 	for _, h := range Holdings(b, at) {
-		if !scope.hasAsset(h.Account, h.Asset) {
-			continue
+		if h.Asset.Kind == domain.Property || !scope.hasAsset(h.Account, h.Asset) {
+			continue // les biens sont valorisés par relevés (section 2)
 		}
 		gross, err := v.positionValue(h)
 		if err != nil {
@@ -321,7 +321,9 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		}
 		basis += amt
 	}
-	return basis, nil
+	// Base négative (retraits > apports) : plafonnée à 0 — approximation v1,
+	// la fiscalité réelle traite les sur-retraits proportionnellement.
+	return max(0, basis), nil
 }
 
 // cashValue: anchor on the last cash statement ≤ at, then post-anchor flows
