@@ -273,8 +273,9 @@ func TestAssetAddResolvesFromYahoo(t *testing.T) {
 }
 
 func TestValueDisplayFXMissing(t *testing.T) {
-	// fakeSource ne sert pas GBPUSD=X → ensureDisplayFX émet un avertissement
-	// et value échoue avec "GBP" mentionné dans l'erreur.
+	// GBP n'est ni une devise de compte ni d'actif : le refresh normal ne la
+	// couvre pas. ensureDisplayFX doit la récupérer à la demande (le
+	// fakeSource sert GBPUSD=X) pour que --ccy GBP fonctionne.
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
