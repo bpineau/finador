@@ -25,11 +25,14 @@ func sampleBook(t *testing.T) *Book {
 
 func TestResolveAccount(t *testing.T) {
 	b := sampleBook(t)
-	for _, ref := range []string{"pea-bforbank", "PEA BforBank", "pea bforbank"} {
-		if _, err := b.Account(ref); (ref == "pea bforbank") == (err == nil) {
-			// "pea bforbank" ne matche ni l'ID ni le nom exact → ErrNotFound
-			t.Errorf("Account(%q): err=%v", ref, err)
+	// ID, nom exact, et nom insensible à la casse matchent tous
+	for _, ref := range []string{"pea-bforbank", "PEA BforBank", "pea bforbank", "PEA-BFORBANK"} {
+		if _, err := b.Account(ref); err != nil {
+			t.Errorf("Account(%q): %v", ref, err)
 		}
+	}
+	if _, err := b.Account("bforbank"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Account(bforbank): %v, attendu ErrNotFound", err)
 	}
 	if _, err := b.Account("inconnu"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Account(inconnu): %v, attendu ErrNotFound", err)
