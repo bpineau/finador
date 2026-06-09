@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"fmt"
 	"text/tabwriter"
 
@@ -29,18 +28,30 @@ func assetAdd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			parsedCcy, err := domain.ParseCurrency(ccy)
+			if err != nil {
+				return err
+			}
+			assetName := name
+			if assetName == "" {
+				assetName = args[0]
+			}
 			asset := &domain.Asset{
 				Kind:     k,
-				Name:     cmp.Or(name, args[0]),
+				Name:     assetName,
 				ISIN:     isin,
 				Aliases:  aliases,
-				Currency: domain.Currency(ccy),
+				Currency: parsedCcy,
 				Group:    group,
 			}
 			if k == domain.Security {
 				asset.Ticker = args[0]
 			}
-			asset.ID = domain.AssetID(cmp.Or(id, domain.Slugify(asset.Name)))
+			assetID := id
+			if assetID == "" {
+				assetID = domain.Slugify(asset.Name)
+			}
+			asset.ID = domain.AssetID(assetID)
 			return a.mutate(func(b *domain.Book) error {
 				if err := b.AddAsset(asset); err != nil {
 					return err
@@ -84,9 +95,13 @@ func assetSet(a *app) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				effectiveCcy, err := currencyOr(ccy, asset.Currency)
+				if err != nil {
+					return err
+				}
 				tx := b.Add(domain.Transaction{
 					Date: date, Account: acc.ID, Asset: asset.ID, Kind: domain.Statement,
-					Amount: domain.Money{Amount: value, Currency: cmp.Or(domain.Currency(ccy), asset.Currency)},
+					Amount: domain.Money{Amount: value, Currency: effectiveCcy},
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s = %s au %s\n", tx.ID, asset.Name, tx.Amount, tx.Date)
 				return nil

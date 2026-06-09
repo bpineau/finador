@@ -1,6 +1,11 @@
 package domain
 
-import "github.com/shopspring/decimal"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/shopspring/decimal"
+)
 
 type Currency string
 
@@ -17,3 +22,12 @@ type Money struct {
 }
 
 func (m Money) String() string { return m.Amount.String() + " " + string(m.Currency) }
+
+// ParseCurrency normalizes a currency code: 3 ASCII letters, upper-cased.
+func ParseCurrency(s string) (Currency, error) {
+	c := strings.ToUpper(strings.TrimSpace(s))
+	if len(c) != 3 || strings.ContainsFunc(c, func(r rune) bool { return r < 'A' || r > 'Z' }) {
+		return "", fmt.Errorf("devise %q invalide (attendu code ISO à 3 lettres, ex. EUR)", s)
+	}
+	return Currency(c), nil
+}

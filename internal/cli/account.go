@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"fmt"
 	"text/tabwriter"
 
@@ -27,10 +26,18 @@ func accountAdd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			parsedCcy, err := domain.ParseCurrency(ccy)
+			if err != nil {
+				return err
+			}
+			accID := id
+			if accID == "" {
+				accID = domain.Slugify(args[0])
+			}
 			acc := &domain.Account{
-				ID:       domain.AccountID(cmp.Or(id, domain.Slugify(args[0]))),
+				ID:       domain.AccountID(accID),
 				Name:     args[0],
-				Currency: domain.Currency(ccy),
+				Currency: parsedCcy,
 				Tax:      rule,
 			}
 			return a.mutate(func(b *domain.Book) error {

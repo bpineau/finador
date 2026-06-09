@@ -6,6 +6,14 @@ import (
 	"finador/internal/domain"
 )
 
+// currencyOr parses a user-supplied currency, empty meaning fallback.
+func currencyOr(s string, fallback domain.Currency) (domain.Currency, error) {
+	if s == "" {
+		return fallback, nil
+	}
+	return domain.ParseCurrency(s)
+}
+
 // dateOrToday parses a --at flag, empty meaning today.
 func dateOrToday(s string) (domain.Date, error) {
 	if s == "" {

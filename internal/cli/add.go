@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"strings"
@@ -49,10 +48,14 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comma
 				if qty.IsNegative() {
 					effective = domain.Sell
 				}
+				effectiveCcy, err := currencyOr(ccy, asset.Currency)
+				if err != nil {
+					return err
+				}
 				tx := b.Add(domain.Transaction{
 					Date: date, Account: acc.ID, Asset: asset.ID, Kind: effective,
 					Quantity: qty.Abs(),
-					Amount:   domain.Money{Amount: total, Currency: cmp.Or(domain.Currency(ccy), asset.Currency)},
+					Amount:   domain.Money{Amount: total, Currency: effectiveCcy},
 					Note:     note,
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s %s × %s = %s (%s)\n",

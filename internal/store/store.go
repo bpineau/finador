@@ -13,7 +13,9 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"runtime"
 
@@ -113,6 +115,9 @@ func Create(path, password string) (*File, error) {
 func Open(path, password string) (*File, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("%s n'existe pas — lancez 'finador init' pour le créer", path)
+		}
 		return nil, err
 	}
 	hdr, err := decodeHeader(path, raw)
