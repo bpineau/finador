@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,19 +11,31 @@ import (
 
 	"finador/internal/domain"
 	"finador/internal/keyring"
+	"finador/internal/market"
 	"finador/internal/store"
 )
 
 const defaultTTL = 12 * time.Hour
 
+// Option configures the CLI — tests inject a fake market source.
+type Option func(*app)
+
+// WithSource replaces the default Yahoo market source.
+func WithSource(s market.Source) Option { return func(a *app) { a.source = s } }
+
 // app carries the persistent flags shared by every command.
 type app struct {
 	dbPath     string
 	noKeychain bool
+	offline    bool
+	source     market.Source
 }
 
-func New() *cobra.Command {
+func New(opts ...Option) *cobra.Command {
 	a := &app{}
+	for _, opt := range opts {
+		opt(a)
+	}
 	root := &cobra.Command{
 		Use:           "finador",
 		Short:         "Suivi de patrimoine chiffré — CLI et web, single binary",
@@ -31,10 +44,35 @@ func New() *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "fichier de données chiffré")
 	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "ne pas mémoriser le mot de passe")
+	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "n'accède jamais au réseau (cache uniquement)")
 	root.AddCommand(initCmd(a), accountCmd(a), assetCmd(a), addCmd(a), sellCmd(a),
 		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a),
-		configCmd(a), lockCmd(a))
+		configCmd(a), lockCmd(a), valueCmd(a), refreshCmd(a))
 	return root
+}
+
+func (a *app) marketSource() market.Source {
+	if a.source == nil {
+		a.source = market.NewYahoo()
+	}
+	return a.source
+}
+
+// ensureFresh refreshes the market cache when needed. It never fails hard:
+// offline or network trouble degrade to warnings, stale data stays usable.
+func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
+	if a.offline {
+		return
+	}
+	sum := market.Refresh(cmd.Context(), f.Book, a.marketSource(), false)
+	for _, w := range sum.Warnings {
+		fmt.Fprintln(cmd.ErrOrStderr(), "avertissement:", w)
+	}
+	if len(sum.Fetched) > 0 {
+		if err := f.Save(); err != nil {
+			fmt.Fprintln(cmd.ErrOrStderr(), "avertissement: cache non sauvegardé:", err)
+		}
+	}
 }
 
 func defaultDB() string {
