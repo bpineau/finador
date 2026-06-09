@@ -190,6 +190,40 @@ func TestValueAutoDividends(t *testing.T) {
 	approx(t, "gross avec dividende manuel", v.Gross, 6720+4050+25)
 }
 
+func TestPropertyWithBuyNotDoubleCounted(t *testing.T) {
+	b := valuationBook(t)
+	// un achat enregistré sur le bien (notaire, etc.) ne doit pas le faire
+	// compter deux fois : il reste valorisé par ses relevés
+	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "immo", Asset: "maison",
+		Kind: domain.Buy, Quantity: dec("1"), Amount: eur("400000")})
+	v, err := Value(b, scopeOf(t, b, "Immo"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross immo", v.Gross, 450000)
+}
+
+// Fix 3 : base d'enveloppe négative (retraits > apports) plafonnée à 0.
+// Dérivation :
+//
+//	Apports PEA : 10000 ; Retraits PEA : 15000 → base = max(0, 10000−15000) = 0
+//	Cash = 10000 − 5000 − 2750 + 1800 − 15000 = −10950
+//	cw8 PEA = 12 × 560 = 6720
+//	Gross PEA = 6720 + (−10950) = −4230
+//	Gain = −4230 − 0 = −4230 (négatif) → impôt = max(0, −4230) × 0.172 = 0
+func TestNegativeEnvelopeBasisClamped(t *testing.T) {
+	b := valuationBook(t)
+	b.Add(domain.Transaction{Date: mustDate("2026-04-01"), Account: "pea",
+		Kind: domain.Withdraw, Amount: eur("15000")})
+	v, err := Value(b, scopeOf(t, b, "PEA"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// base = max(0, 10000−15000) = 0 → gain négatif → impôt = 0
+	approx(t, "gross", v.Gross, -4230)
+	approx(t, "tax", v.Tax, 0)
+}
+
 func TestParseScopeOrderAndErrors(t *testing.T) {
 	b := valuationBook(t)
 	for ref, kind := range map[string]ScopeKind{
