@@ -114,7 +114,7 @@ func perfCmd(a *app) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				printRow("fenêtre", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), 0, 0)
+				printRow("window", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), 0, 0)
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), "\nCAGR %s   vol %s   Sharpe %.2f   Sortino %.2f   (rf %s)\n",

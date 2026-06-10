@@ -304,7 +304,7 @@ func TestPerfEndToEnd(t *testing.T) {
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
 	// série : 5000 plat jusqu'au 1er juin (l'achat est neutre), puis
 	// 06-05 : 10×560 − 500 = 5100 → TWR origine = +2.00 %
-	for _, want := range []string{"PÉRIODE", "TWR", "XIRR", "origine", "+2.00%", "CAGR", "Sharpe", "Sortino", "max drawdown"} {
+	for _, want := range []string{"PÉRIODE", "TWR", "XIRR", "inception", "+2.00%", "CAGR", "Sharpe", "Sortino", "max drawdown"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf: %q manquant dans:\n%s", want, out)
 		}
@@ -401,7 +401,7 @@ func TestPerfAndValueExclude(t *testing.T) {
 	}
 	// perf accepte la même exclusion (liste à virgules)
 	out = runNet(t, db, "perf", "--exclude", "cw8", "--to", "2026-06-05")
-	if !strings.Contains(out, "origine") {
+	if !strings.Contains(out, "inception") {
 		t.Errorf("perf --exclude:\n%s", out)
 	}
 	// référence inconnue dans --exclude → erreur propre
@@ -419,7 +419,7 @@ func TestValueWhatIfAndByAccount(t *testing.T) {
 
 	// hypothèse : cw8 à 600 → 10×600 − 500 = 5500 brut, et un delta vs réel (5100)
 	out := runNet(t, db, "value", "--what-if", "cw8=600", "--at", "2026-06-05")
-	for _, want := range []string{"5500.00 EUR", "hypothèse", "+400.00 EUR"} {
+	for _, want := range []string{"5500.00 EUR", "what-if", "+400.00 EUR"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("what-if: %q manquant dans:\n%s", want, out)
 		}
