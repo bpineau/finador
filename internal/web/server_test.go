@@ -411,6 +411,16 @@ func TestAssetsPage(t *testing.T) {
 			t.Errorf("/assets amounts: %q missing", want)
 		}
 	}
+	// densité : sparkline 72×20, nom indenté
+	if !strings.Contains(body, `viewBox="0 0 72 20"`) {
+		t.Error("sparklines should be 72x20")
+	}
+	_, css := get(t, srv, "/style.css")
+	for _, want := range []string{".assets-table .asset-name { padding-left:", "width: 78px"} {
+		if !strings.Contains(css, want) {
+			t.Errorf("style.css: %q missing", want)
+		}
+	}
 	// l'onglet est dans la manchette de toutes les pages
 	if _, home := get(t, srv, "/"); !strings.Contains(home, `href="/assets"`) {
 		t.Error("nav link /assets missing on dashboard")

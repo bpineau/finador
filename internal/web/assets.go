@@ -27,9 +27,10 @@ type assetRow struct {
 }
 
 type assetSection struct {
-	Group, URL string
-	Gross, Net float64
-	Rows       []assetRow
+	Group, URL   string
+	Gross, Net   float64
+	Rows         []assetRow
+	PropertyOnly bool
 }
 
 type assetsData struct {
@@ -80,12 +81,13 @@ func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
 		}
 		sec, ok := bySection[g]
 		if !ok {
-			sec = &assetSection{Group: g}
+			sec = &assetSection{Group: g, PropertyOnly: true}
 			if g != "(ungrouped)" {
 				sec.URL = "/group/" + escapeGroup(strings.ToLower(g))
 			}
 			bySection[g] = sec
 		}
+		sec.PropertyOnly = sec.PropertyOnly && asset.Kind == domain.Property
 		sec.Gross += val.Gross
 		sec.Net += val.Net
 		sec.Rows = append(sec.Rows, row)
@@ -104,15 +106,7 @@ func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
 		})
 		data.Sections = append(data.Sections, *sec)
 	}
-	slices.SortStableFunc(data.Sections, func(a, b assetSection) int {
-		switch {
-		case a.Gross > b.Gross:
-			return -1
-		case a.Gross < b.Gross:
-			return 1
-		}
-		return strings.Compare(a.Group, b.Group)
-	})
+	sortSections(data.Sections)
 	data.Warnings = dedupeWarnings(rawWarnings)
 	s.render(w, http.StatusOK, "assets.html", data)
 }
@@ -137,7 +131,29 @@ func spark(pts []perf.Point) template.HTML {
 	case last < first:
 		color = sparkDown
 	}
-	return template.HTML(chart.Sparkline(pts, 90, 24, color))
+	return template.HTML(chart.Sparkline(pts, 72, 20, color))
+}
+
+// sortSections sorts sections: non-property sections first (gross desc, then name),
+// property-only sections last (same sub-order within each block).
+func sortSections(secs []assetSection) {
+	slices.SortStableFunc(secs, func(a, b assetSection) int {
+		// different "blocks"? property-only goes last
+		if a.PropertyOnly != b.PropertyOnly {
+			if a.PropertyOnly {
+				return 1
+			}
+			return -1
+		}
+		// within the same block: gross desc then name
+		switch {
+		case a.Gross > b.Gross:
+			return -1
+		case a.Gross < b.Gross:
+			return 1
+		}
+		return strings.Compare(a.Group, b.Group)
+	})
 }
 
 // dedupeWarnings removes duplicate warning strings while preserving first-seen order.
