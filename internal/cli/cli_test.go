@@ -472,6 +472,31 @@ func TestAssetEditAndRm(t *testing.T) {
 	}
 }
 
+func TestPerfColors(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8")
+	run(t, db, "deposit", "PEA Zephyr", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	// pas un terminal → pas de couleur par défaut
+	out := runNet(t, db, "perf", "--to", "2026-06-05")
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("séquences ANSI sans terminal:\n%q", out)
+	}
+	// forçage pour les tests : les TWR positifs sont verts
+	t.Setenv("FINADOR_FORCE_COLOR", "1")
+	out = runNet(t, db, "perf", "--to", "2026-06-05")
+	if !strings.Contains(out, "\x1b[32m") {
+		t.Errorf("vert absent avec FINADOR_FORCE_COLOR:\n%q", out)
+	}
+	// --no-color gagne sur le forçage
+	out = runNet(t, db, "perf", "--no-color", "--to", "2026-06-05")
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("--no-color inopérant:\n%q", out)
+	}
+}
+
 func TestServeRefusesOfflineBindWarning(t *testing.T) {
 	db := newDB(t)
 	// pas de listen réel : on vérifie seulement la validation des flags

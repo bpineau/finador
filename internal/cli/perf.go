@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -77,28 +76,46 @@ func perfCmd(a *app) *cobra.Command {
 			rf := perf.RiskFreeFromConfig(b.Config)
 			rows, metrics := perf.Report(pts, fls, evalTo, rf)
 
-			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintf(cmd.OutOrStdout(), "%s — performance (%s), évalué au %s\n", scope.Label, display, evalTo)
-			fmt.Fprintln(tw, "PÉRIODE\tTWR\tXIRR")
+			out := cmd.OutOrStdout()
+			colored := a.colorsEnabled(cmd)
+
+			// pad pads s to visible width w (using rune count, ignoring ANSI sequences).
+			pad := func(s string, w int) string {
+				for len([]rune(s)) < w {
+					s = " " + s
+				}
+				return s
+			}
+
+			fmt.Fprintf(out, "%s — performance (%s), évalué au %s\n", scope.Label, display, evalTo)
+			fmt.Fprintf(out, "%-9s %14s %14s\n", "PÉRIODE", "TWR", "XIRR")
+			printRow := func(name, twrStr, xirrStr string, ts, xs float64) {
+				fmt.Fprintf(out, "%-9s %s %s\n",
+					name,
+					tint(pad(twrStr, 14), ts, colored),
+					tint(pad(xirrStr, 14), xs, colored),
+				)
+			}
 			for _, row := range rows {
-				twrStr := "—"
+				twrStr, xirrStr := "—", "—"
+				var ts, xs float64
 				if row.HasTWR {
 					twrStr = pctSigned(row.TWR)
+					ts = row.TWR
 				}
-				xirrStr := "—"
 				if row.HasXIRR {
 					xirrStr = pctSigned(row.XIRR)
+					xs = row.XIRR
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\n", row.Name, twrStr, xirrStr)
+				printRow(row.Name, twrStr, xirrStr, ts, xs)
 			}
 			if from != "" {
 				wf, err := domain.ParseDate(from)
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(tw, "fenêtre\t%s\t%s\n", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo))
+				printRow("fenêtre", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), 0, 0)
 			}
-			tw.Flush()
 
 			fmt.Fprintf(cmd.OutOrStdout(), "\nCAGR %s   vol %s   Sharpe %.2f   Sortino %.2f   (rf %s)\n",
 				pct(metrics.CAGR), pct(metrics.Vol),
