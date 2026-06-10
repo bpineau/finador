@@ -317,6 +317,26 @@ func TestIntersectionScopeView(t *testing.T) {
 	}
 }
 
+func TestDashboardTreeModes(t *testing.T) {
+	srv, _ := testServer(t)
+	// mode groupe (défaut) : arbre avec details et lien d'intersection
+	_, body := get(t, srv, "/")
+	for _, want := range []string{"<details", "/account/pea/group/actions", "par actif"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("mode groupe: %q manquant", want)
+		}
+	}
+	// mode actif : liste plate, lien direct actif, pas de details
+	_, body = get(t, srv, "/?par=actif")
+	if !strings.Contains(body, "/asset/cw8") {
+		t.Errorf("mode actif: lien actif manquant:\n%s", excerpt(body))
+	}
+	// l'onglet courant n'est pas un lien
+	if !strings.Contains(body, `actif-onglet`) {
+		t.Errorf("onglet actif non marqué")
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID
