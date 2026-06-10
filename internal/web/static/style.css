@@ -85,6 +85,36 @@ td.actions { text-align: right; }
 .repartition .montant { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .part { height: 3px; background: var(--encre); margin-top: .2rem; }
 
+/* ---- liens : encre, jamais le bleu navigateur ---- */
+main a {
+  color: var(--encre);
+  text-decoration: underline;
+  text-decoration-color: var(--filet);
+  text-decoration-thickness: 1px;
+  text-underline-offset: .22em;
+}
+main a:hover { color: var(--garance); text-decoration-color: var(--garance); }
+main a:visited { color: var(--encre); }
+
+/* ---- arbre de répartition : details/summary au thème ---- */
+.arbre, .arbre ul { list-style: none; margin: 0; padding: 0; }
+.arbre ul { margin-left: 1.1rem; border-left: 1px solid var(--filet); padding-left: .7rem; }
+.arbre li { padding: .12rem 0; }
+.arbre details > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: .6rem;
+}
+.arbre details > summary::-webkit-details-marker { display: none; }
+.arbre details > summary::before {
+  content: "▸"; color: var(--encre-2); font-size: .7rem; transition: transform .15s ease;
+}
+.arbre details[open] > summary::before { transform: rotate(90deg); }
+.arbre .feuille { display: flex; align-items: baseline; gap: .6rem; padding-left: .95rem; }
+.arbre .leader { flex: 1; border-bottom: 2px dotted var(--filet); transform: translateY(-4px); }
+.arbre .montant { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.onglets { display: flex; gap: .8rem; font-size: .8rem; margin-bottom: .5rem; }
+.onglets .actif-onglet { font-weight: 600; border-bottom: 2px solid var(--encre); }
+@media (prefers-reduced-motion: reduce) { .arbre details > summary::before { transition: none; } }
+
 /* ---- courbe ---- */
 figure.courbe { margin: 0; border: 1px solid var(--filet); background: #fffdf6; padding: .6rem; }
 figure.courbe svg { display: block; width: 100%; height: auto; }
