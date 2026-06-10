@@ -61,14 +61,14 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.offline {
-		http.Redirect(w, r, "/?error="+url.QueryEscape("offline: cannot refresh quotes"), http.StatusSeeOther)
+		http.Redirect(w, r, "/assets?error="+url.QueryEscape("offline: cannot refresh quotes"), http.StatusSeeOther)
 		return
 	}
 	sum := market.Refresh(r.Context(), s.file.Book, s.source, true)
 	if err := s.file.Save(); err != nil {
-		http.Redirect(w, r, "/?error="+url.QueryEscape("could not save: "+err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, "/assets?error="+url.QueryEscape("could not save: "+err.Error()), http.StatusSeeOther)
 		return
 	}
 	flash := fmt.Sprintf("%d series refreshed", len(sum.Fetched))
-	http.Redirect(w, r, "/?flash="+url.QueryEscape(flash), http.StatusSeeOther)
+	http.Redirect(w, r, "/assets?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }
