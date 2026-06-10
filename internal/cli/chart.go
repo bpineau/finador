@@ -49,10 +49,17 @@ func chartCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if today := domain.Today(); today.Before(toD) {
+				fmt.Fprintf(cmd.ErrOrStderr(), "≈ borne future ramenée à aujourd'hui (%s)\n", today)
+				toD = today
+			}
 			ensureDisplayFX(cmd, a, f, display)
 			res, err := portfolio.Series(b, scope, fromD, toD, display, market.Converter{FX: b.Market.FX})
 			if err != nil {
 				return err
+			}
+			for _, w := range res.Warnings {
+				fmt.Fprintf(cmd.ErrOrStderr(), "≈ %s\n", w)
 			}
 			pts := make([]perf.Point, len(res.Points))
 			label := "brut"

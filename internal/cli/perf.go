@@ -44,6 +44,10 @@ func perfCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if today := domain.Today(); today.Before(evalTo) {
+				fmt.Fprintf(cmd.ErrOrStderr(), "≈ borne future ramenée à aujourd'hui (%s)\n", today)
+				evalTo = today
+			}
 			ensureDisplayFX(cmd, a, f, display)
 			fx := market.Converter{FX: b.Market.FX}
 
@@ -52,40 +56,45 @@ func perfCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			for _, w := range res.Warnings {
+				fmt.Fprintf(cmd.ErrOrStderr(), "≈ %s\n", w)
+			}
 			if len(res.Points) < 2 {
 				return errors.New("pas assez d'historique pour mesurer une performance")
 			}
 
-			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
+			pts := res.PerfPoints(false)
+			fls := res.PerfFlows()
+			rf := riskFree(b)
+			rows, metrics := perf.Report(pts, fls, evalTo, rf)
+
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
 			fmt.Fprintf(cmd.OutOrStdout(), "%s — performance (%s), évalué au %s\n", scope.Label, display, evalTo)
-			fmt.Fprintln(w, "PÉRIODE\tTWR\tXIRR")
-			for _, name := range perf.Names() {
-				pf, pt, err := perf.PeriodRange(name, evalTo)
-				if err != nil {
-					return err
+			fmt.Fprintln(tw, "PÉRIODE\tTWR\tXIRR")
+			for _, row := range rows {
+				twrStr := "—"
+				if row.HasTWR {
+					twrStr = pctSigned(row.TWR)
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\n", name, twrCell(res, pf, pt), xirrCell(res, pf, pt))
+				xirrStr := "—"
+				if row.HasXIRR {
+					xirrStr = pctSigned(row.XIRR)
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\n", row.Name, twrStr, xirrStr)
 			}
-			origin := res.Points[0].Date
-			fmt.Fprintf(w, "origine\t%s\t%s\n", twrCell(res, origin, evalTo), xirrCell(res, origin, evalTo))
 			if from != "" {
 				wf, err := domain.ParseDate(from)
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(w, "fenêtre\t%s\t%s\n", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo))
+				fmt.Fprintf(tw, "fenêtre\t%s\t%s\n", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo))
 			}
-			w.Flush()
+			tw.Flush()
 
-			rf := riskFree(b)
-			allPts, allFlows := window(res, origin, evalTo)
-			returns := perf.DailyReturns(allPts, allFlows)
-			twrTotal := perf.TWR(allPts, allFlows)
-			days := int(res.Points[len(res.Points)-1].Date.Time().Sub(origin.Time()).Hours() / 24)
 			fmt.Fprintf(cmd.OutOrStdout(), "\nCAGR %s   vol %s   Sharpe %.2f   Sortino %.2f   (rf %s)\n",
-				pct(perf.CAGR(twrTotal, days)), pct(perf.Vol(returns)),
-				perf.Sharpe(returns, rf), perf.Sortino(returns, rf), pct(rf))
-			dd := perf.MaxDrawdown(allPts)
+				pct(metrics.CAGR), pct(metrics.Vol),
+				metrics.Sharpe, metrics.Sortino, pct(metrics.RiskFree))
+			dd := metrics.Drawdown
 			if dd.Depth < 0 {
 				rec := "non récupéré"
 				if dd.Recovered != nil {

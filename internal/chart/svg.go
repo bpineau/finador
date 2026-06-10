@@ -24,6 +24,9 @@ const (
 // SVG renders self-contained markup: inline attributes only, no CSS, no JS.
 // The first line gets a light area fill; the scale covers every line.
 func SVG(lines []Line, w, h int) string {
+	// dimensions utilisateur : plancher pour éviter un rendu illisible
+	w = max(w, 320)
+	h = max(h, 120)
 	lines = nonEmpty(lines)
 	if len(lines) == 0 {
 		return ""

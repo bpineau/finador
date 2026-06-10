@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"finador/internal/domain"
+	"finador/internal/perf"
 )
 
 func TestSeriesMatchesValueAtEndpoint(t *testing.T) {
@@ -47,19 +48,27 @@ func TestSeriesExternalFlowsAllScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// PEA est suivi : ses trades sont internes. Seuls flux : deposit pea
-	// +10000 (01-10) et buy cto +1100 (01-20, compte non suivi).
-	if len(res.Flows) != 2 {
-		t.Fatalf("flows = %+v, attendu 2", res.Flows)
+	// PEA est suivi : ses trades sont internes.
+	// La maison : son premier relevé est au 2026-01-01 (== from) → pas collecté (flux du jour de base).
+	// Flux attendus :
+	//   [0] 01-05 +12000 : adoption du livret (premier relevé cash, règle D8)
+	//   [1] 01-10 +10000 : deposit pea
+	//   [2] 01-20 +1100  : buy cto (compte non suivi)
+	if len(res.Flows) != 3 {
+		t.Fatalf("flows = %+v, attendu 3", res.Flows)
 	}
-	if res.Flows[0].Date != mustDate("2026-01-10") {
+	if res.Flows[0].Date != mustDate("2026-01-05") {
 		t.Errorf("flow[0] = %+v", res.Flows[0])
 	}
-	approx(t, "flow deposit", res.Flows[0].Amount, 10000)
-	if res.Flows[1].Date != mustDate("2026-01-20") {
+	approx(t, "flow adoption livret", res.Flows[0].Amount, 12000)
+	if res.Flows[1].Date != mustDate("2026-01-10") {
 		t.Errorf("flow[1] = %+v", res.Flows[1])
 	}
-	approx(t, "flow buy cto", res.Flows[1].Amount, 1100)
+	approx(t, "flow deposit", res.Flows[1].Amount, 10000)
+	if res.Flows[2].Date != mustDate("2026-01-20") {
+		t.Errorf("flow[2] = %+v", res.Flows[2])
+	}
+	approx(t, "flow buy cto", res.Flows[2].Amount, 1100)
 }
 
 func TestSeriesExternalFlowsGroupScope(t *testing.T) {
@@ -129,4 +138,84 @@ func TestSeriesAutoDividendFlows(t *testing.T) {
 		}
 	}
 	approx(t, "flux dividende sortant", divFlow, -34)
+}
+
+func TestSeriesAdoptionFlowsForProperty(t *testing.T) {
+	b := valuationBook(t)
+	// la première estimation de la maison (400000 le 1er janv) est une adoption :
+	// elle doit apparaître comme flux externe, la seconde (450000) non.
+	res, err := Series(b, scopeOf(t, b, ""), mustDate("2025-12-25"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var adoptions []ExternalFlow
+	for _, f := range res.Flows {
+		if f.Date == mustDate("2026-01-01") {
+			adoptions = append(adoptions, f)
+		}
+	}
+	if len(adoptions) != 1 {
+		t.Fatalf("flux d'adoption au 2026-01-01 = %+v, attendu 1 seul", adoptions)
+	}
+	approx(t, "adoption maison", adoptions[0].Amount, 400000)
+	for _, f := range res.Flows {
+		if f.Date == mustDate("2026-06-01") {
+			t.Fatalf("le 2e relevé ne doit pas être un flux: %+v", f)
+		}
+	}
+}
+
+func TestSeriesAdoptionFlowForCashStatement(t *testing.T) {
+	b := valuationBook(t)
+	// livret : premier relevé cash 12000 le 5 janv = adoption
+	res, err := Series(b, scopeOf(t, b, ""), mustDate("2025-12-25"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range res.Flows {
+		if f.Date == mustDate("2026-01-05") && f.Amount > 11999 && f.Amount < 12001 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("adoption du livret absente des flux: %+v", res.Flows)
+	}
+}
+
+func TestSeriesTWRSaneWithAdoptedProperty(t *testing.T) {
+	b := valuationBook(t)
+	res, err := Series(b, scopeOf(t, b, ""), mustDate("2025-12-25"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pts := make([]perf.Point, len(res.Points))
+	for i, p := range res.Points {
+		pts[i] = perf.Point{Date: p.Date, Value: p.Gross}
+	}
+	flows := make([]perf.Flow, len(res.Flows))
+	for i, f := range res.Flows {
+		flows[i] = perf.Flow{Date: f.Date, Amount: f.Amount}
+	}
+	twr := perf.TWR(pts, flows)
+	// sans la règle d'adoption, le TWR explose (>+4000 %) ; avec, il reste < 20 %
+	if twr > 0.20 || twr < -0.20 {
+		t.Fatalf("TWR patrimoine = %+.2f%%, attendu raisonnable", twr*100)
+	}
+}
+
+func TestSeriesWarnsOnConversionFailure(t *testing.T) {
+	b := valuationBook(t)
+	if err := b.AddAccount(&domain.Account{ID: "us", Name: "US Bank", Currency: domain.USD}); err != nil {
+		t.Fatal(err)
+	}
+	b.Add(domain.Transaction{Date: mustDate("2026-02-01"), Account: "us", Kind: domain.Statement,
+		Amount: domain.Money{Amount: dec("1000"), Currency: domain.USD}})
+	res, err := Series(b, scopeOf(t, b, ""), mustDate("2026-01-01"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) == 0 {
+		t.Fatal("aucun avertissement de conversion")
+	}
 }
