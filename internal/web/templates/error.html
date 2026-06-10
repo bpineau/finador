@@ -1,0 +1,9 @@
+{{define "error.html"}}{{template "base" .}}{{end}}
+{{define "title"}}erreur — finador{{end}}
+{{define "main"}}
+<section class="heros">
+  <p class="libelle">erreur</p>
+  <p class="chiffre-une neg" style="font-size:2rem">{{.Message}}</p>
+  <p><a href="/">← retour au patrimoine</a></p>
+</section>
+{{end}}
