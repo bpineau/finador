@@ -132,13 +132,13 @@ legend {
   font-variant: small-caps; letter-spacing: .14em; font-size: .78rem;
   padding: 0 .5rem; background: var(--papier); border: 1px solid var(--encre);
 }
-label { display: block; font-size: .75rem; color: var(--encre-2); margin: .6rem 0 .15rem; font-variant: small-caps; letter-spacing: .1em; }
+label { display: block; font-size: .75rem; color: var(--encre-2); margin: .6rem 0 .15rem; font-variant: small-caps; letter-spacing: .1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 input, select, textarea {
   font-family: var(--mono); font-size: .9rem; color: var(--encre);
   background: #fffdf6; border: 1px solid var(--filet); padding: .35rem .5rem; width: 100%;
 }
 input:focus, select:focus { outline: 2px solid var(--encre); outline-offset: 1px; }
-.champs { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .8rem; }
+.champs { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .8rem; }
 button {
   font-family: var(--serif); font-variant: small-caps; letter-spacing: .18em;
   background: var(--encre); color: var(--papier); border: 1px solid var(--encre);
