@@ -15,6 +15,7 @@ const (
 	ByGroup
 	ByAccount
 	ByAsset
+	ByAccountGroup // intersection enveloppe ∩ groupe (niveaux croisés des arbres web)
 )
 
 // Scope is what a command evaluates: everything, a group subtree, one
@@ -52,6 +53,13 @@ func ParseScope(b *domain.Book, ref string) (Scope, error) {
 	return Scope{}, fmt.Errorf("portée %q (ni groupe, ni compte, ni actif): %w", ref, domain.ErrNotFound)
 }
 
+// IntersectScope is the crossed level of the web trees: the assets of one
+// group held inside one envelope. Cash is excluded (it has no group).
+func IntersectScope(acc *domain.Account, group string) Scope {
+	g := strings.ToLower(group)
+	return Scope{Kind: ByAccountGroup, Account: acc, Group: g, Label: acc.Name + " › " + g}
+}
+
 // inGroup reports whether an asset group path falls under scope (lowercase),
 // matching whole path segments.
 func inGroup(assetGroup, scope string) bool {
@@ -78,6 +86,8 @@ func (s Scope) hasAsset(acc *domain.Account, asset *domain.Asset) bool {
 		return acc.ID == s.Account.ID
 	case ByAsset:
 		return asset.ID == s.Asset.ID
+	case ByAccountGroup:
+		return acc.ID == s.Account.ID && inGroup(asset.Group, s.Group)
 	}
 	return false
 }
@@ -117,6 +127,8 @@ func (s Scope) lineLabel(acc *domain.Account, asset *domain.Asset) string {
 		return asset.Name
 	case ByAsset:
 		return acc.Name
+	case ByAccountGroup:
+		return asset.Name
 	}
 	return asset.Name
 }
