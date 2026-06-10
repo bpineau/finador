@@ -18,7 +18,7 @@ func accountCmd(a *app) *cobra.Command {
 func accountAdd(a *app) *cobra.Command {
 	var tax, ccy, id string
 	cmd := &cobra.Command{
-		Use:   "add <nom>",
+		Use:   "add <name>",
 		Short: "Create an account — the name is free: \"PEA Zephyr\", \"CTO IBKR\"…",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -57,8 +57,9 @@ func accountAdd(a *app) *cobra.Command {
 
 func accountList(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:  "list",
-		Args: cobra.NoArgs,
+		Use:   "list",
+		Short: "List accounts",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f, err := a.open()
 			if err != nil {

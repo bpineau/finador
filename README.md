@@ -7,11 +7,11 @@ in a browser**.
 ```
 $ finador value --net
 portfolio — 2026-06-10
-LINE      GROSS          TAX          NET
-equities  18,050.00 EUR  361.20 EUR   17,688.80 EUR
-property  450,000.00 EUR 9,000.00 EUR 441,000.00 EUR
-cash      18,010.00 EUR  0.00 EUR     18,010.00 EUR
-TOTAL     486,060.00 EUR 9,361.20 EUR 476,698.80 EUR
+LINE      GROSS           TAX          NET
+equities  18050.00 EUR    361.20 EUR   17688.80 EUR
+property  450000.00 EUR   9000.00 EUR  441000.00 EUR
+cash      18010.00 EUR    0.00 EUR     18010.00 EUR
+TOTAL     486060.00 EUR   9361.20 EUR  476698.80 EUR
 ```
 
 ## Features
