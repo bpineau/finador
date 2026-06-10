@@ -224,6 +224,64 @@ func TestNegativeEnvelopeBasisClamped(t *testing.T) {
 	approx(t, "tax", v.Tax, 0)
 }
 
+func TestValueLinesByAccount(t *testing.T) {
+	b := valuationBook(t)
+	v, err := Value(b, scopeOf(t, b, ""), mustDate("2026-06-05"), domain.EUR, fxStub{},
+		WithLinesByAccount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]float64{}
+	for _, l := range v.Lines {
+		got[l.Label] = l.Gross
+	}
+	// PEA = positions (6720) + cash (4050) sur une seule ligne d'enveloppe
+	approx(t, "ligne PEA", got["PEA"], 6720+4050)
+	approx(t, "ligne CTO", got["CTO"], 1120)
+	approx(t, "ligne Livret", got["Livret"], 12000)
+	approx(t, "ligne Immo", got["Immo"], 450000)
+	// le total ne change pas selon la ventilation
+	approx(t, "gross", v.Gross, 473890)
+}
+
+func TestValueWhatIf(t *testing.T) {
+	b := valuationBook(t)
+	at := mustDate("2026-06-05")
+	// hypothèse : cw8 à 600 (au lieu du cours 560) et maison à 500000
+	v, err := Value(b, scopeOf(t, b, ""), at, domain.EUR, fxStub{},
+		WithPriceOverrides(map[domain.AssetID]float64{"cw8": 600, "maison": 500000}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 14 parts cw8 (12 pea + 2 cto) × 600 ; maison 500000 ; le reste inchangé
+	approx(t, "gross hypothétique", v.Gross, 14*600+4050+12000+500000)
+	// le marqueur d'hypothèse est présent
+	found := false
+	for _, s := range v.Stale {
+		if strings.Contains(s, "hypothèse") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("marqueur d'hypothèse absent: %v", v.Stale)
+	}
+}
+
+func TestAutoDividendWithholding(t *testing.T) {
+	b := valuationBook(t)
+	cw8, _ := b.Asset("cw8")
+	cw8.Withholding = 0.15
+	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
+		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
+	}
+	v, err := Value(b, scopeOf(t, b, "PEA"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 15 parts × 2 × (1−0.15) = 25.50 au lieu de 30
+	approx(t, "gross avec retenue", v.Gross, 6720+4050+25.5)
+}
+
 func TestParseScopeOrderAndErrors(t *testing.T) {
 	b := valuationBook(t)
 	for ref, kind := range map[string]ScopeKind{

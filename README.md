@@ -117,9 +117,34 @@ de passe pour le scripting ; `FINADOR_DB` remplace le chemin par défaut.
   `docs/superpowers/DECISIONS.md` ; la spec et les plans d'implémentation dans
   `docs/superpowers/`.
 
+## Nouveautés v0.2
+
+- **Références courtes** : `add cw8` fonctionne si « cw8 » est un préfixe unique d'un
+  identifiant, ticker, ISIN, alias ou nom d'actif — plus besoin de l'ID complet.
+  Ambiguïté → message listant les candidats.
+- **`--exclude`** : toute portée peut écarter un ou plusieurs actifs —
+  `perf --exclude btc,vizr`, `value actions --exclude aapl` (actifs uniquement, par
+  ticker/ISIN/alias/référence courte).
+- **`--by enveloppe`** : `value --by enveloppe` ventile le patrimoine par compte
+  (PEA, CTO…) plutôt que par groupe. Disponible aussi dans le web (`/?par=enveloppe`).
+- **`--what-if`** : hypothèses jetables sur les prix —
+  `value --what-if vizr=280` affiche la valeur hypothétique ET le delta vs réel.
+  Les prix sont exprimés dans la devise de cotation de l'actif, jamais persistés.
+- **`asset edit` / `asset rm`** : modifier le nom, ticker, ISIN, groupe, devise,
+  alias (`--add-alias`, `--rm-alias`) ou la retenue à la source (`--withholding 15%`).
+  `asset rm` refuse si des transactions référencent l'actif.
+- **`--withholding`** : retenue à la source sur les dividendes automatiques
+  (net = brut × (1 − taux)), saisie par `asset edit X --withholding 15%`.
+- **Couleurs dans `perf`** : les colonnes TWR/XIRR s'affichent en vert (positif) ou
+  rouge (négatif) sur un terminal. Désactivables par `--no-color` ou la variable
+  `NO_COLOR`. Forçables en test avec `FINADOR_FORCE_COLOR=1`.
+- **Protection contre les écritures concurrentes** : `store.File` retient l'empreinte
+  disque (taille + mtime) à l'ouverture ; `Save()` vérifie sous flock qu'un autre
+  processus n'a pas modifié le fichier entre-temps — si c'est le cas, l'écriture est
+  refusée avec le message « relancez la commande » plutôt qu'écraser silencieusement.
+
 ## Limites assumées (v1)
 
-Dividendes bruts (pas de retenue à la source) ; fiscalité par enveloppe approximée
-position par position dans les ventilations ; pas de benchmark ; pas de verrou
-inter-processus (dernière écriture gagnante, sauvegardes atomiques) ; cours Yahoo non
-officiels. Voir `docs/superpowers/specs/2026-06-09-finador-design.md` §11.
+Fiscalité par enveloppe approximée position par position dans les ventilations ;
+pas de benchmark ; cours Yahoo non officiels.
+Voir `docs/superpowers/specs/2026-06-09-finador-design.md` §11.

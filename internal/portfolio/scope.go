@@ -21,11 +21,12 @@ const (
 // envelope, or one asset. Resolution order on a free reference: group
 // prefix first, then account, then asset.
 type Scope struct {
-	Kind    ScopeKind
-	Group   string // chemin en minuscules
-	Account *domain.Account
-	Asset   *domain.Asset
-	Label   string
+	Kind     ScopeKind
+	Group    string // chemin en minuscules
+	Account  *domain.Account
+	Asset    *domain.Asset
+	Label    string
+	Excluded map[domain.AssetID]bool // actifs retirés de la portée (jetable, CLI --exclude)
 }
 
 func ParseScope(b *domain.Book, ref string) (Scope, error) {
@@ -65,6 +66,9 @@ func (s Scope) HasAsset(acc *domain.Account, asset *domain.Asset) bool { return 
 func (s Scope) HasCash(acc *domain.Account) bool { return s.hasCash(acc) }
 
 func (s Scope) hasAsset(acc *domain.Account, asset *domain.Asset) bool {
+	if s.Excluded[asset.ID] {
+		return false
+	}
 	switch s.Kind {
 	case All:
 		return true

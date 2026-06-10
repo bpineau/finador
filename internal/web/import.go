@@ -66,7 +66,7 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 	}
 	sum := market.Refresh(r.Context(), s.file.Book, s.source, true)
 	if err := s.file.Save(); err != nil {
-		http.Redirect(w, r, "/?erreur="+url.QueryEscape("sauvegarde impossible"), http.StatusSeeOther)
+		http.Redirect(w, r, "/?erreur="+url.QueryEscape("sauvegarde impossible : "+err.Error()), http.StatusSeeOther)
 		return
 	}
 	flash := fmt.Sprintf("%d série(s) rafraîchie(s)", len(sum.Fetched))
