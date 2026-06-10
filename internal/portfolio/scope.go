@@ -58,6 +58,12 @@ func inGroup(assetGroup, scope string) bool {
 	return g == scope || strings.HasPrefix(g, scope+"/")
 }
 
+// HasAsset reports whether the (account, asset) position belongs to the scope.
+func (s Scope) HasAsset(acc *domain.Account, asset *domain.Asset) bool { return s.hasAsset(acc, asset) }
+
+// HasCash reports whether the account's cash belongs to the scope.
+func (s Scope) HasCash(acc *domain.Account) bool { return s.hasCash(acc) }
+
 func (s Scope) hasAsset(acc *domain.Account, asset *domain.Asset) bool {
 	switch s.Kind {
 	case All:
