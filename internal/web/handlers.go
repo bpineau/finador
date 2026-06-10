@@ -3,7 +3,6 @@ package web
 import (
 	"html/template"
 	"net/http"
-	"net/url"
 
 	"finador/internal/chart"
 	"finador/internal/domain"
@@ -17,24 +16,24 @@ const (
 	couleurVert  = "#1e6e4e"
 )
 
-type part struct {
-	Label   string
-	URL     string // vide : pas de lien (liquidités, sans groupe)
-	Amount  float64
-	Percent int
+type onglet struct {
+	Label, URL string
+	Actif      bool
 }
 
 type dashData struct {
-	Aujourdhui   domain.Date
-	Val          portfolio.Valuation
-	Curve        template.HTML // SVG généré par chart.SVG — jamais de donnée brute utilisateur
-	Rows         []perf.Row
-	Met          perf.Metrics
-	Parts        []part
-	Warnings     []string
-	Flash        string
-	Erreur       string
-	ParEnveloppe bool
+	Aujourdhui domain.Date
+	Val        portfolio.Valuation
+	Curve      template.HTML // SVG généré par chart.SVG — jamais de donnée brute utilisateur
+	Rows       []perf.Row
+	Met        perf.Metrics
+	Mode       string // groupe | enveloppe | actif
+	Onglets    []onglet
+	Tree       []node
+	Flat       []node
+	Warnings   []string
+	Flash      string
+	Erreur     string
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
@@ -46,22 +45,30 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	fx := market.Converter{FX: b.Market.FX}
 	ccy := displayCurrency(b)
 
-	parMode := r.URL.Query().Get("par")
-	var opts []portfolio.ValueOption
-	if parMode == "enveloppe" {
-		opts = append(opts, portfolio.WithLinesByAccount())
+	mode := r.URL.Query().Get("par")
+	switch mode {
+	case "enveloppe", "actif":
+		// valid modes
+	default:
+		mode = "groupe"
 	}
-	val, err := portfolio.Value(b, scope, today, ccy, fx, opts...)
+
+	val, err := portfolio.Value(b, scope, today, ccy, fx)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	data := dashData{
-		Aujourdhui:   today,
-		Val:          val,
-		Flash:        r.URL.Query().Get("flash"),
-		Erreur:       r.URL.Query().Get("erreur"),
-		ParEnveloppe: parMode == "enveloppe",
+		Aujourdhui: today,
+		Val:        val,
+		Flash:      r.URL.Query().Get("flash"),
+		Erreur:     r.URL.Query().Get("erreur"),
+		Mode:       mode,
+		Onglets: []onglet{
+			{"par groupe", "/", mode == "groupe"},
+			{"par enveloppe", "/?par=enveloppe", mode == "enveloppe"},
+			{"par actif", "/?par=actif", mode == "actif"},
+		},
 	}
 
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
@@ -73,18 +80,17 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		data.Warnings = res.Warnings
 	}
 
-	for _, l := range val.Lines {
-		p := part{Label: l.Label, Amount: l.Gross}
-		if val.Gross > 0 && l.Gross > 0 {
-			p.Percent = int(l.Gross/val.Gross*100 + 0.5)
-		}
-		if parMode == "enveloppe" {
-			p.URL = "/account/" + url.PathEscape(l.Label)
-		} else if l.Label != "liquidités" && l.Label != "(sans groupe)" {
-			p.URL = "/group/" + url.PathEscape(l.Label)
-		}
-		data.Parts = append(data.Parts, p)
+	lines, err := portfolio.Breakdown(b, today, ccy, fx)
+	if err != nil {
+		s.renderError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
+	if mode == "actif" {
+		data.Flat = flatAssets(lines)
+	} else {
+		data.Tree = buildTree(lines, mode)
+	}
+
 	s.render(w, http.StatusOK, "dashboard.html", data)
 }
 

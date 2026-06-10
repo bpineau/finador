@@ -22,23 +22,36 @@
   </div>
   <div>
     <h2>répartition</h2>
-    <p class="note-bas">
-      {{if .ParEnveloppe}}<a href="/">par groupe</a> · par enveloppe{{else}}par groupe · <a href="/?par=enveloppe">par enveloppe</a>{{end}}
-    </p>
-    <ul class="repartition">
-      {{range .Parts}}
-      <li>
-        <div style="width:100%">
-          <div style="display:flex;align-items:baseline;gap:.6rem">
-            <span>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</span>
-            <span class="leader"></span>
-            <span class="montant">{{frMoney .Amount $.Val.Currency}}</span>
-          </div>
-          <div class="part" style="width: {{.Percent}}%"></div>
-        </div>
-      </li>
+    <div class="onglets">
+      {{range .Onglets}}{{if .Actif}}<span class="actif-onglet">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
+    </div>
+    {{if eq .Mode "actif"}}
+    <ul class="arbre">
+      {{range .Flat}}
+      <li class="feuille"><a href="{{.URL}}">{{.Label}}</a><span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></li>
       {{end}}
     </ul>
+    {{else}}
+    <ul class="arbre">
+      {{range .Tree}}
+      <li><details>
+        <summary>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></summary>
+        <ul>
+          {{range .Children}}
+          <li>{{if .Children}}<details>
+            <summary>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></summary>
+            <ul>
+              {{range .Children}}
+              <li class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></li>
+              {{end}}
+            </ul>
+          </details>{{else}}<div class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></div>{{end}}</li>
+          {{end}}
+        </ul>
+      </details></li>
+      {{end}}
+    </ul>
+    {{end}}
   </div>
 </section>
 
