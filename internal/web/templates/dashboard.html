@@ -1,6 +1,8 @@
 {{define "dashboard.html"}}{{template "base" .}}{{end}}
 {{define "title"}}patrimoine — finador{{end}}
 {{define "main"}}
+{{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+{{if .Erreur}}<p class="flash erreur">{{.Erreur}}</p>{{end}}
 <section class="heros">
   <p class="libelle">patrimoine net d'impôt latent</p>
   <p class="chiffre-une">{{frMoney .Val.Net .Val.Currency}}</p>
@@ -16,6 +18,7 @@
   <div>
     <h2>évolution</h2>
     {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">pas encore assez d'historique pour tracer une courbe.</p>{{end}}
+    <form method="post" action="/refresh"><button type="submit">Rafraîchir les cours</button></form>
   </div>
   <div>
     <h2>répartition</h2>
