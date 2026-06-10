@@ -1,6 +1,26 @@
 package perf
 
-import "finador/internal/domain"
+import (
+	"strconv"
+	"strings"
+
+	"finador/internal/domain"
+)
+
+// RiskFreeFromConfig reads the annualized risk-free rate from a book config map.
+// Expected key: "risk-free", value: "2.4" or "2.4%" → returns 0.024.
+// Returns 0 if absent or unparseable.
+func RiskFreeFromConfig(cfg map[string]string) float64 {
+	s := strings.TrimSuffix(strings.TrimSpace(cfg["risk-free"]), "%")
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return v / 100
+}
 
 // Row is one period line of a performance report.
 type Row struct {

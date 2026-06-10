@@ -121,6 +121,32 @@ func TestNotFound(t *testing.T) {
 	}
 }
 
+func TestDashboardComplete(t *testing.T) {
+	srv, _ := testServer(t)
+	code, body := get(t, srv, "/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / = %d", code)
+	}
+	for _, want := range []string{
+		"<svg",           // courbe inline
+		"répartition",    // section
+		"actions",        // groupe de tête (lié vers /group/actions)
+		"/group/actions", // lien de portée
+		"liquidités",
+		"performance", // section perfs
+		"origine",     // ligne du tableau de périodes
+		"TWR",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("dashboard: %q manquant", want)
+		}
+	}
+	// les courbes portent les couleurs du thème
+	if !strings.Contains(body, "#1c1914") || !strings.Contains(body, "#1e6e4e") {
+		t.Error("couleurs de courbe hors thème")
+	}
+}
+
 func excerpt(s string) string {
 	if len(s) > 800 {
 		return s[:800]
