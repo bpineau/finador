@@ -14,7 +14,7 @@ import (
 )
 
 func txCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "tx", Short: "Liste et corrige les transactions du ledger"}
+	cmd := &cobra.Command{Use: "tx", Short: "List and edit ledger transactions"}
 	cmd.AddCommand(txList(a), txEdit(a), txRm(a))
 	return cmd
 }
@@ -22,7 +22,7 @@ func txCmd(a *app) *cobra.Command {
 func parseTxID(s string) (domain.TxID, error) {
 	id, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("identifiant de transaction %q invalide", s)
+		return 0, fmt.Errorf("invalid transaction id %q", s)
 	}
 	return domain.TxID(id), nil
 }
@@ -30,8 +30,9 @@ func parseTxID(s string) (domain.TxID, error) {
 func txList(a *app) *cobra.Command {
 	var account, asset, kind string
 	cmd := &cobra.Command{
-		Use:  "list",
-		Args: cobra.NoArgs,
+		Use:   "list",
+		Short: "List transactions",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f, err := a.open()
 			if err != nil {
@@ -70,7 +71,7 @@ func txList(a *app) *cobra.Command {
 				return cmp.Compare(x.ID, y.ID)
 			})
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tDATE\tTYPE\tCOMPTE\tACTIF\tQTÉ\tMONTANT\tNOTE")
+			fmt.Fprintln(w, "ID\tDATE\tTYPE\tACCOUNT\tASSET\tQTY\tAMOUNT\tNOTE")
 			for _, t := range txs {
 				if accID != "" && t.Account != accID ||
 					assetID != "" && t.Asset != assetID ||
@@ -83,9 +84,9 @@ func txList(a *app) *cobra.Command {
 			return w.Flush()
 		},
 	}
-	cmd.Flags().StringVar(&account, "account", "", "filtre par enveloppe")
-	cmd.Flags().StringVar(&asset, "asset", "", "filtre par actif")
-	cmd.Flags().StringVar(&kind, "kind", "", "filtre par type (buy, sell, statement…)")
+	cmd.Flags().StringVar(&account, "account", "", "filter by account")
+	cmd.Flags().StringVar(&asset, "asset", "", "filter by asset")
+	cmd.Flags().StringVar(&kind, "kind", "", "filter by type (buy, sell, statement…)")
 	return cmd
 }
 
@@ -93,7 +94,7 @@ func txEdit(a *app) *cobra.Command {
 	var date, account, asset, qty, total, note, kind string
 	cmd := &cobra.Command{
 		Use:   "edit <id>",
-		Short: "Corrige les champs passés en flag, laisse les autres intacts",
+		Short: "Edit the fields passed as flags, leave the others unchanged",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseTxID(args[0])
@@ -132,40 +133,40 @@ func txEdit(a *app) *cobra.Command {
 				if qty != "" {
 					q, err := decimal.NewFromString(qty)
 					if err != nil {
-						return fmt.Errorf("quantité %q: %w", qty, err)
+						return fmt.Errorf("invalid quantity %q: %w", qty, err)
 					}
 					tx.Quantity = q.Abs()
 				}
 				if total != "" {
 					m, err := decimal.NewFromString(total)
 					if err != nil {
-						return fmt.Errorf("montant %q: %w", total, err)
+						return fmt.Errorf("invalid amount %q: %w", total, err)
 					}
 					tx.Amount.Amount = m.Abs()
 				}
 				if cmd.Flags().Changed("note") {
 					tx.Note = note
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s %s qté=%s %s\n",
+				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s %s qty=%s %s\n",
 					tx.ID, tx.Date, tx.Kind, tx.Quantity, tx.Amount)
 				return nil
 			})
 		},
 	}
-	cmd.Flags().StringVar(&date, "date", "", "nouvelle date AAAA-MM-JJ")
-	cmd.Flags().StringVar(&account, "account", "", "nouvelle enveloppe")
-	cmd.Flags().StringVar(&asset, "asset", "", "nouvel actif")
-	cmd.Flags().StringVar(&qty, "qty", "", "nouvelle quantité")
-	cmd.Flags().StringVar(&total, "total", "", "nouveau montant total")
-	cmd.Flags().StringVar(&note, "note", "", "nouvelle note")
-	cmd.Flags().StringVar(&kind, "kind", "", "nouveau type")
+	cmd.Flags().StringVar(&date, "date", "", "new date YYYY-MM-DD")
+	cmd.Flags().StringVar(&account, "account", "", "new account")
+	cmd.Flags().StringVar(&asset, "asset", "", "new asset")
+	cmd.Flags().StringVar(&qty, "qty", "", "new quantity")
+	cmd.Flags().StringVar(&total, "total", "", "new total amount")
+	cmd.Flags().StringVar(&note, "note", "", "new note")
+	cmd.Flags().StringVar(&kind, "kind", "", "new type")
 	return cmd
 }
 
 func txRm(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "rm <id>",
-		Short: "Supprime une transaction",
+		Short: "Delete a transaction",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseTxID(args[0])
@@ -176,7 +177,7 @@ func txRm(a *app) *cobra.Command {
 				if err := b.RemoveTx(id); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Transaction %d supprimée\n", id)
+				fmt.Fprintf(cmd.OutOrStdout(), "Transaction %d deleted\n", id)
 				return nil
 			})
 		},

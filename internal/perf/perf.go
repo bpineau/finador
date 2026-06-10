@@ -73,7 +73,7 @@ func flowsByDay(flows []Flow) map[domain.Date]float64 {
 // d'épargne classiques.
 func XIRR(cashflows []Flow) (float64, error) {
 	if len(cashflows) < 2 {
-		return 0, errors.New("XIRR: au moins deux flux requis")
+		return 0, errors.New("XIRR: at least two cashflows required")
 	}
 	t0 := cashflows[0].Date.Time()
 	npv := func(r float64) float64 {
@@ -87,7 +87,7 @@ func XIRR(cashflows []Flow) (float64, error) {
 	lo, hi := -0.9999, 100.0
 	flo, fhi := npv(lo), npv(hi)
 	if math.IsNaN(flo) || math.IsNaN(fhi) || flo*fhi > 0 {
-		return 0, errors.New("XIRR non défini pour ces flux (pas de changement de signe)")
+		return 0, errors.New("XIRR undefined for these cashflows (no sign change)")
 	}
 	for range 200 {
 		mid := (lo + hi) / 2

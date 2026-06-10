@@ -1,5 +1,5 @@
 {{define "base"}}<!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,9 +9,9 @@
 <body>
 <header class="manchette">
   <a class="marque" href="/">FINADOR</a>
-  <span class="date-du-jour">{{frDate .Aujourdhui}}</span>
+  <span class="date-du-jour">{{fmtDate .Today}}</span>
   <nav>
-    <a href="/">Patrimoine</a>
+    <a href="/">Overview</a>
     <a href="/tx">Transactions</a>
     <a href="/import">Import</a>
   </nav>
@@ -19,6 +19,6 @@
 <main>
 {{block "main" .}}{{end}}
 </main>
-<footer class="pied">finador — vos données restent dans votre fichier chiffré.</footer>
+<footer class="pied">finador — your data stays in your encrypted file.</footer>
 </body>
 </html>{{end}}

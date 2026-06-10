@@ -19,8 +19,8 @@ func chartCmd(a *app) *cobra.Command {
 	var width, height int
 	var exclude []string
 	cmd := &cobra.Command{
-		Use:   "chart [portée]",
-		Short: "Courbe d'évolution de la valeur, dans le terminal",
+		Use:   "chart [scope]",
+		Short: "Value history chart, rendered in the terminal",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
@@ -43,7 +43,7 @@ func chartCmd(a *app) *cobra.Command {
 			}
 			if len(excluded) > 0 {
 				scope.Excluded = excluded
-				scope.Label += " (hors " + strings.Join(exclude, ",") + ")"
+				scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
 			}
 			display, err := currencyOr(ccy, displayCurrency(b))
 			if err != nil {
@@ -60,7 +60,7 @@ func chartCmd(a *app) *cobra.Command {
 				return err
 			}
 			if today := domain.Today(); today.Before(toD) {
-				fmt.Fprintf(cmd.ErrOrStderr(), "≈ borne future ramenée à aujourd'hui (%s)\n", today)
+				fmt.Fprintf(cmd.ErrOrStderr(), "≈ future date clamped to today (%s)\n", today)
 				toD = today
 			}
 			ensureDisplayFX(cmd, a, f, display)
@@ -72,7 +72,7 @@ func chartCmd(a *app) *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), "≈ %s\n", w)
 			}
 			pts := make([]perf.Point, len(res.Points))
-			label := "brut"
+			label := "gross"
 			for i, p := range res.Points {
 				v := p.Gross
 				if net {
@@ -81,18 +81,18 @@ func chartCmd(a *app) *cobra.Command {
 				pts[i] = perf.Point{Date: p.Date, Value: v}
 			}
 			last := pts[len(pts)-1]
-			fmt.Fprintf(cmd.OutOrStdout(), "%s (%s, %s) — dernier point : %s\n",
+			fmt.Fprintf(cmd.OutOrStdout(), "%s (%s, %s) — last point: %s\n",
 				scope.Label, label, display, money(last.Value, display))
 			fmt.Fprint(cmd.OutOrStdout(), chart.Braille(pts, width, height))
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&ccy, "ccy", "", "devise (défaut : config currency, sinon EUR)")
-	cmd.Flags().StringVar(&from, "from", "", "début AAAA-MM-JJ (défaut : origine)")
-	cmd.Flags().StringVar(&to, "to", "", "fin AAAA-MM-JJ (défaut : aujourd'hui)")
-	cmd.Flags().BoolVar(&net, "net", false, "courbe nette d'impôt latent")
-	cmd.Flags().IntVar(&width, "width", 70, "largeur en caractères")
-	cmd.Flags().IntVar(&height, "height", 12, "hauteur en lignes")
-	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: config currency, otherwise EUR)")
+	cmd.Flags().StringVar(&from, "from", "", "start YYYY-MM-DD (default: inception)")
+	cmd.Flags().StringVar(&to, "to", "", "end YYYY-MM-DD (default: today)")
+	cmd.Flags().BoolVar(&net, "net", false, "net-of-tax curve")
+	cmd.Flags().IntVar(&width, "width", 70, "width in characters")
+	cmd.Flags().IntVar(&height, "height", 12, "height in lines")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
 	return cmd
 }
