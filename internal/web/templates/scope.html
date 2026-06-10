@@ -12,6 +12,9 @@
 
 <section>
   <h2>history</h2>
+  <div class="ranges">
+    {{range .RangeLinks}}{{if .Active}}<span class="active-range">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
+  </div>
   {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">not enough history yet...</p>{{end}}
 </section>
 

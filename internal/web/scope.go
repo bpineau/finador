@@ -25,14 +25,16 @@ type txRow struct {
 }
 
 type scopeData struct {
-	Today    domain.Date
-	Label    string
-	Val      portfolio.Valuation
-	Curve    template.HTML
-	Rows     []perf.Row
-	Met      perf.Metrics
-	Warnings []string
-	Txs      []txRow
+	Today      domain.Date
+	Label      string
+	Val        portfolio.Valuation
+	Curve      template.HTML
+	Rows       []perf.Row
+	Met        perf.Metrics
+	RangeLinks []tab
+	Range      string
+	Warnings   []string
+	Txs        []txRow
 }
 
 func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +50,7 @@ func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, status, "unknown scope: "+ref)
 		return
 	}
-	s.renderScope(w, scope)
+	s.renderScope(w, r, scope)
 }
 
 func (s *Server) intersectPage(w http.ResponseWriter, r *http.Request) {
@@ -61,12 +63,28 @@ func (s *Server) intersectPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scope := portfolio.IntersectScope(acc, r.PathValue("gpath"))
-	s.renderScope(w, scope)
+	s.renderScope(w, r, scope)
+}
+
+// scopeRangeLinks builds simple ?range= links for scope pages (no by= to preserve).
+func scopeRangeLinks(activeRange string) []tab {
+	labels := []string{"1m", "3m", "1y", "all"}
+	links := make([]tab, len(labels))
+	for i, r := range labels {
+		var u string
+		if r == "all" {
+			u = "?"
+		} else {
+			u = "?range=" + r
+		}
+		links[i] = tab{Label: r, URL: u, Active: r == activeRange}
+	}
+	return links
 }
 
 // renderScope renders the scope.html view for any Scope. The caller must hold
 // at least s.mu.RLock.
-func (s *Server) renderScope(w http.ResponseWriter, scope portfolio.Scope) {
+func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portfolio.Scope) {
 	b := s.file.Book
 	today := domain.Today()
 	fx := market.Converter{FX: b.Market.FX}
@@ -76,13 +94,25 @@ func (s *Server) renderScope(w http.ResponseWriter, scope portfolio.Scope) {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	data := scopeData{Today: today, Label: scope.Label, Val: val}
+
+	from, rangeName := chartRange(r, today)
+
+	data := scopeData{
+		Today:      today,
+		Label:      scope.Label,
+		Val:        val,
+		Range:      rangeName,
+		RangeLinks: scopeRangeLinks(rangeName),
+	}
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
+		grossAll := res.PerfPoints(false)
+		netAll := res.PerfPoints(true)
 		data.Curve = template.HTML(chart.SVG([]chart.Line{
-			{Label: "gross", Color: couleurEncre, Points: res.PerfPoints(false)},
-			{Label: "net", Color: couleurVert, Points: res.PerfPoints(true)},
+			{Label: "gross", Color: couleurEncre, Points: slicePoints(grossAll, from)},
+			{Label: "net", Color: couleurVert, Points: slicePoints(netAll, from)},
 		}, 860, 280))
-		data.Rows, data.Met = perf.Report(res.PerfPoints(false), res.PerfFlows(), today, perf.RiskFreeFromConfig(b.Config))
+		// perf.Report always uses the full series
+		data.Rows, data.Met = perf.Report(grossAll, res.PerfFlows(), today, perf.RiskFreeFromConfig(b.Config))
 		data.Warnings = res.Warnings
 	}
 	data.Txs = scopeTxs(b, scope, 15)
