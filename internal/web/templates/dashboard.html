@@ -1,13 +1,13 @@
 {{define "dashboard.html"}}{{template "base" .}}{{end}}
-{{define "title"}}patrimoine — finador{{end}}
+{{define "title"}}overview — finador{{end}}
 {{define "main"}}
 {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
-{{if .Erreur}}<p class="flash erreur">{{.Erreur}}</p>{{end}}
+{{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
 <section class="heros">
-  <p class="libelle">patrimoine net d'impôt latent</p>
-  <p class="chiffre-une">{{frMoney .Val.Net .Val.Currency}}</p>
+  <p class="libelle">net worth, after estimated tax</p>
+  <p class="chiffre-une">{{fmtMoney .Val.Net .Val.Currency}}</p>
   <p class="sous-titre">
-    brut {{frMoney .Val.Gross .Val.Currency}} · impôt latent {{frMoney .Val.Tax .Val.Currency}}{{if .Val.TaxNote}}<sup>†</sup>{{end}}
+    gross {{fmtMoney .Val.Gross .Val.Currency}} · estimated tax {{fmtMoney .Val.Tax .Val.Currency}}{{if .Val.TaxNote}}<sup>†</sup>{{end}}
   </p>
   {{if .Val.TaxNote}}<p class="note-bas">† {{.Val.TaxNote}}</p>{{end}}
   {{range .Val.Stale}}<p class="approx">≈ {{.}}</p>{{end}}
@@ -16,36 +16,36 @@
 
 <section class="deux-colonnes">
   <div>
-    <h2>évolution</h2>
-    {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">pas encore assez d'historique pour tracer une courbe.</p>{{end}}
-    <form method="post" action="/refresh"><button type="submit">Rafraîchir les cours</button></form>
+    <h2>history</h2>
+    {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">not enough history yet (to plot a curve).</p>{{end}}
+    <form method="post" action="/refresh"><button type="submit">Refresh quotes</button></form>
   </div>
   <div>
-    <h2>répartition</h2>
+    <h2>allocation</h2>
     <div class="onglets">
-      {{range .Onglets}}{{if .Actif}}<span class="actif-onglet">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
+      {{range .Tabs}}{{if .Active}}<span class="actif-onglet">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
     </div>
-    {{if eq .Mode "actif"}}
+    {{if eq .Mode "asset"}}
     <ul class="arbre">
       {{range .Flat}}
-      <li class="feuille"><a href="{{.URL}}">{{.Label}}</a><span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></li>
+      <li class="feuille"><a href="{{.URL}}">{{.Label}}</a><span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></li>
       {{end}}
     </ul>
     {{else}}
     <ul class="arbre">
       {{range .Tree}}
       <li><details>
-        <summary>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></summary>
+        <summary>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></summary>
         <ul>
           {{range .Children}}
           <li>{{if .Children}}<details>
-            <summary>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></summary>
+            <summary>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></summary>
             <ul>
               {{range .Children}}
-              <li class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></li>
+              <li class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></li>
               {{end}}
             </ul>
-          </details>{{else}}<div class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{frMoney .Gross $.Val.Currency}}</span></div>{{end}}</li>
+          </details>{{else}}<div class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></div>{{end}}</li>
           {{end}}
         </ul>
       </details></li>
@@ -59,19 +59,19 @@
   <h2>performance</h2>
   {{if .Rows}}
   <table>
-    <tr><th>période</th><th class="nombre">TWR</th><th class="nombre">XIRR</th></tr>
+    <tr><th>period</th><th class="nombre">TWR</th><th class="nombre">XIRR</th></tr>
     {{range .Rows}}
     <tr>
       <td>{{.Name}}</td>
-      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{frPct .TWR}}{{else}}—{{end}}</td>
-      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{frPct .XIRR}}{{else}}—{{end}}</td>
+      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{fmtPct .TWR}}{{else}}—{{end}}</td>
+      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{fmtPct .XIRR}}{{else}}—{{end}}</td>
     </tr>
     {{end}}
   </table>
   <p class="sous-titre">
-    CAGR {{frPct .Met.CAGR}} · vol {{frPct .Met.Vol}} · Sharpe {{frNum .Met.Sharpe}} · Sortino {{frNum .Met.Sortino}}
-    {{if lt .Met.Drawdown.Depth 0.0}} · max drawdown {{frPct .Met.Drawdown.Depth}}{{end}}
+    CAGR {{fmtPct .Met.CAGR}} · vol {{fmtPct .Met.Vol}} · Sharpe {{fmtNum .Met.Sharpe}} · Sortino {{fmtNum .Met.Sortino}}
+    {{if lt .Met.Drawdown.Depth 0.0}} · max drawdown {{fmtPct .Met.Drawdown.Depth}}{{end}}
   </p>
-  {{else}}<p class="approx">pas encore assez d'historique.</p>{{end}}
+  {{else}}<p class="approx">not enough history yet...</p>{{end}}
 </section>
 {{end}}
