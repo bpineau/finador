@@ -70,3 +70,12 @@ mesurent la performance (intérêts d'un livret, revalorisation d'un bien). Cons
 assumée : pour un compte alimenté par deposits PUIS réconcilié par un premier relevé,
 l'écart de première réconciliation est compté comme apport, pas comme performance.
 **Alternative si refusé :** documenter le piège et exiger un deposit initial explicite.
+
+## D9 — Web sans authentification, lié à 127.0.0.1
+
+**Contexte :** la spec §8 prévoit un serveur local sans auth web (le déverrouillage
+se fait au lancement, dans le terminal). **Choix :** bind par défaut 127.0.0.1:8451,
+avertissement très visible pour tout autre bind, aucun cookie/session. Pas de verrou
+inter-processus CLI/serve (D6 backlog) : dernière écriture gagnante, sauvegardes
+atomiques — acceptable mono-utilisateur. **Alternative si refusé :** basic auth
+optionnelle (--auth user:pass) ou socket Unix.
