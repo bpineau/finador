@@ -111,6 +111,76 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 	return tx, nil
 }
 
+type txEditData struct {
+	Aujourdhui domain.Date
+	Tx         *domain.Transaction
+	Accounts   []*domain.Account
+	Assets     []*domain.Asset
+	Kinds      []string
+	Erreur     string
+}
+
+func (s *Server) findTx(w http.ResponseWriter, r *http.Request) (*domain.Transaction, bool) {
+	id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+	if err != nil {
+		s.renderError(w, http.StatusBadRequest, "identifiant invalide")
+		return nil, false
+	}
+	tx, err := s.file.Book.Tx(domain.TxID(id))
+	if err != nil {
+		s.renderError(w, http.StatusNotFound, "transaction introuvable")
+		return nil, false
+	}
+	return tx, true
+}
+
+func (s *Server) txEditPage(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	tx, ok := s.findTx(w, r)
+	if !ok {
+		return
+	}
+	s.renderTxEdit(w, http.StatusOK, tx, "")
+}
+
+// renderTxEdit est appelé verrou déjà pris.
+func (s *Server) renderTxEdit(w http.ResponseWriter, status int, tx *domain.Transaction, erreur string) {
+	b := s.file.Book
+	data := txEditData{
+		Aujourdhui: domain.Today(),
+		Tx:         tx,
+		Accounts:   b.Accounts,
+		Assets:     b.Assets,
+		Kinds:      []string{"buy", "sell", "deposit", "withdraw", "dividend", "fee", "statement"},
+		Erreur:     erreur,
+	}
+	s.render(w, status, "tx-edit.html", data)
+}
+
+func (s *Server) txEditSubmit(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, ok := s.findTx(w, r)
+	if !ok {
+		return
+	}
+	parsed, err := parseTxForm(s.file.Book, r)
+	if err != nil {
+		s.renderTxEdit(w, http.StatusBadRequest, tx, err.Error())
+		return
+	}
+	// conserver l'identité et l'empreinte d'import (une ligne éditée ne doit
+	// pas réapparaître au prochain ré-import)
+	parsed.ID, parsed.ImportHash = tx.ID, tx.ImportHash
+	*tx = parsed
+	if err := s.file.Save(); err != nil {
+		s.renderTxEdit(w, http.StatusInternalServerError, tx, "sauvegarde impossible : "+err.Error())
+		return
+	}
+	http.Redirect(w, r, "/tx", http.StatusSeeOther)
+}
+
 func (s *Server) txDelete(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
