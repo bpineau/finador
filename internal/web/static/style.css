@@ -157,10 +157,11 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 /* ---- assets : lignes denses, pas de retour à la ligne ---- */
 .assets-table { table-layout: fixed; }
 .assets-table td, .assets-table th { white-space: nowrap; overflow: hidden; }
-.assets-table .asset-name { text-overflow: ellipsis; max-width: 0; width: 34%; }
-.assets-table .sparkcell { width: 98px; padding: .15rem .25rem; }
+.assets-table .asset-name { text-overflow: ellipsis; max-width: 0; }
+.assets-table .asset-name { padding-left: 1.1rem; }
+.assets-table .sparkcell { width: 78px; padding: .15rem .25rem; }
 .assets-table .sparkcell svg { display: block; }
-.assets-table .nombre { width: 12%; }
+.assets-table .nombre { width: 11%; }
 .assets-table .section-row td {
   font-variant: small-caps; letter-spacing: .1em; font-size: .74rem;
   color: var(--encre-2); border-bottom: 1px solid var(--encre);
