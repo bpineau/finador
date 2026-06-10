@@ -9,4 +9,5 @@ type Account struct {
 	Name     string    `json:"name"`
 	Currency Currency  `json:"ccy"`
 	Tax      TaxRule   `json:"tax"`
+	Aliases  []string  `json:"aliases,omitempty"`
 }
