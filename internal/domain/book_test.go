@@ -165,6 +165,59 @@ func TestHasImportHash(t *testing.T) {
 	}
 }
 
+func TestRemoveAsset(t *testing.T) {
+	b := sampleBook(t)
+	d, _ := ParseDate("2026-06-01")
+	b.Add(Transaction{Date: d, Account: "pea-zephyr", Asset: "cw8", Kind: Buy,
+		Quantity: decimal.NewFromInt(1), Amount: Money{Amount: decimal.NewFromInt(550), Currency: EUR}})
+	if err := b.RemoveAsset("cw8"); err == nil {
+		t.Fatal("RemoveAsset d'un actif référencé aurait dû échouer")
+	}
+	if err := b.AddAsset(&Asset{ID: "libre", Kind: Security, Name: "Libre", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	b.Market.Price("libre").Merge([]PricePoint{{Date: d, Close: 1}})
+	if err := b.RemoveAsset("libre"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Asset("libre"); !errors.Is(err, ErrNotFound) {
+		t.Error("l'actif devrait avoir disparu")
+	}
+	if b.Market.Prices["libre"] != nil {
+		t.Error("le cache de prix devrait être purgé")
+	}
+}
+
+func TestCheckAssetRefsCollision(t *testing.T) {
+	b := sampleBook(t)
+	if err := b.AddAsset(&Asset{ID: "autre", Kind: Security, Name: "Autre", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	autre, _ := b.Asset("autre")
+	autre.Aliases = []string{"CW8.PA"} // collision exacte avec le ticker de cw8
+	if err := b.CheckAssetRefs(autre); !errors.Is(err, ErrDuplicate) {
+		t.Errorf("collision non détectée: %v", err)
+	}
+	autre.Aliases = []string{"unique-2026"}
+	if err := b.CheckAssetRefs(autre); err != nil {
+		t.Errorf("faux positif: %v", err)
+	}
+}
+
+func TestParsePercent(t *testing.T) {
+	for in, want := range map[string]float64{"15%": 0.15, "0%": 0, "30": 0.30} {
+		got, err := ParsePercent(in)
+		if err != nil || got != want {
+			t.Errorf("ParsePercent(%q) = %v, %v", in, got, err)
+		}
+	}
+	for _, bad := range []string{"abc", "-5%", "150%"} {
+		if _, err := ParsePercent(bad); err == nil {
+			t.Errorf("ParsePercent(%q) accepté", bad)
+		}
+	}
+}
+
 func TestResolveUniquePrefix(t *testing.T) {
 	b := NewBook()
 	for _, a := range []*Account{

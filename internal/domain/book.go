@@ -144,6 +144,24 @@ func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*
 	}
 }
 
+// RemoveAsset deletes an unreferenced asset and purges its market cache.
+func (b *Book) RemoveAsset(ref string) error {
+	asset, err := b.Asset(ref)
+	if err != nil {
+		return err
+	}
+	for _, t := range b.Transactions {
+		if t.Asset == asset.ID {
+			return fmt.Errorf("l'actif %s est référencé par la transaction %d — supprimez d'abord ses transactions (finador tx list --asset %s)",
+				asset.ID, t.ID, asset.ID)
+		}
+	}
+	b.Assets = lo.Reject(b.Assets, func(a *Asset, _ int) bool { return a.ID == asset.ID })
+	delete(b.Market.Prices, asset.ID)
+	delete(b.Market.Dividends, asset.ID)
+	return nil
+}
+
 // Add appends t to the ledger with a fresh ID and returns the stored transaction.
 func (b *Book) Add(t Transaction) *Transaction {
 	b.LastTxID++
