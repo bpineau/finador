@@ -17,6 +17,9 @@
 <section class="deux-colonnes">
   <div>
     <h2>history</h2>
+    <div class="ranges">
+      {{range .RangeLinks}}{{if .Active}}<span class="active-range">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
+    </div>
     {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">not enough history yet (to plot a curve).</p>{{end}}
     <form method="post" action="/refresh"><button type="submit">Refresh quotes</button></form>
   </div>
