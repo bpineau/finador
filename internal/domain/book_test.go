@@ -3,6 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -161,5 +162,55 @@ func TestHasImportHash(t *testing.T) {
 	}
 	if b.HasImportHash("ffff0000") || b.HasImportHash("") {
 		t.Error("hash absent ou vide ne doit jamais matcher")
+	}
+}
+
+func TestResolveUniquePrefix(t *testing.T) {
+	b := NewBook()
+	for _, a := range []*Account{
+		{ID: "pea-bforbank", Name: "PEA BforBank", Currency: EUR},
+		{ID: "per-linxea", Name: "PER Linxea", Currency: EUR},
+	} {
+		if err := b.AddAccount(a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := b.AddAsset(&Asset{ID: "cw8-pa", Kind: Security, Name: "Amundi MSCI World",
+		Ticker: "CW8.PA", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAsset(&Asset{ID: "ddog", Kind: Security, Name: "Datadog Inc.",
+		Ticker: "DDOG", Currency: USD}); err != nil {
+		t.Fatal(err)
+	}
+
+	// préfixe unique d'ID → résout
+	if a, err := b.Asset("cw8"); err != nil || a.ID != "cw8-pa" {
+		t.Errorf("Asset(cw8) = %v, %v", a, err)
+	}
+	// préfixe unique de nom → résout
+	if a, err := b.Asset("datad"); err != nil || a.ID != "ddog" {
+		t.Errorf("Asset(datad) = %v, %v", a, err)
+	}
+	// préfixe de compte
+	if acc, err := b.Account("pea"); err != nil || acc.ID != "pea-bforbank" {
+		t.Errorf("Account(pea) = %v, %v", acc, err)
+	}
+	// préfixe ambigu → erreur qui liste les candidats
+	_, err := b.Account("pe")
+	if !errors.Is(err, ErrAmbiguous) || !strings.Contains(err.Error(), "pea-bforbank") ||
+		!strings.Contains(err.Error(), "per-linxea") {
+		t.Errorf("Account(pe) = %v, attendu ambiguïté listant les candidats", err)
+	}
+	// l'exact gagne toujours sur le préfixe : un actif ID "dd" exact
+	if err := b.AddAsset(&Asset{ID: "dd", Kind: Security, Name: "Doubledown", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if a, err := b.Asset("dd"); err != nil || a.ID != "dd" {
+		t.Errorf("Asset(dd) = %v, %v — l'exact doit gagner", a, err)
+	}
+	// introuvable reste introuvable
+	if _, err := b.Asset("zz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Asset(zz) = %v", err)
 	}
 }
