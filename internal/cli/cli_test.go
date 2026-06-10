@@ -441,6 +441,37 @@ func TestValueWhatIfAndByAccount(t *testing.T) {
 	}
 }
 
+func TestAssetEditAndRm(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions")
+	run(t, db, "asset", "add", "DDOG", "--id", "ddog", "--group", "actions")
+
+	run(t, db, "asset", "edit", "ddog", "--add-alias", "Datadog", "--withholding", "15%")
+	out := run(t, db, "asset", "list")
+	if !strings.Contains(out, "Datadog") || !strings.Contains(out, "15") {
+		t.Errorf("asset list après edit:\n%s", out)
+	}
+	// l'alias résout
+	run(t, db, "asset", "edit", "datadog", "--rm-alias", "Datadog")
+	if out = run(t, db, "asset", "list"); strings.Contains(out, "Datadog,") {
+		t.Errorf("alias non retiré:\n%s", out)
+	}
+	// collision refusée
+	if _, err := tryRun(t, db, "asset", "edit", "ddog", "--add-alias", "CW8.PA"); err == nil {
+		t.Fatal("collision d'alias acceptée")
+	}
+	// rm : refus si référencé, ok sinon
+	run(t, db, "add", "cw8", "1", "@550", "2026-06-01")
+	if _, err := tryRun(t, db, "asset", "rm", "cw8"); err == nil {
+		t.Fatal("rm d'un actif référencé accepté")
+	}
+	run(t, db, "asset", "rm", "ddog")
+	if out = run(t, db, "asset", "list"); strings.Contains(out, "ddog") {
+		t.Errorf("ddog devrait avoir disparu:\n%s", out)
+	}
+}
+
 func TestServeRefusesOfflineBindWarning(t *testing.T) {
 	db := newDB(t)
 	// pas de listen réel : on vérifie seulement la validation des flags

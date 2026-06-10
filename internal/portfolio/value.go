@@ -438,7 +438,7 @@ func (v *valuer) autoDividends(acc *domain.Account, after domain.Date) (float64,
 			if qty.IsZero() {
 				continue
 			}
-			amt, err := v.fx.Convert(toF(qty)*ev.Amount, asset.Currency, acc.Currency, ev.ExDate)
+			amt, err := v.fx.Convert(toF(qty)*ev.Amount*(1-asset.Withholding), asset.Currency, acc.Currency, ev.ExDate)
 			if err != nil {
 				return 0, err
 			}

@@ -267,6 +267,21 @@ func TestValueWhatIf(t *testing.T) {
 	}
 }
 
+func TestAutoDividendWithholding(t *testing.T) {
+	b := valuationBook(t)
+	cw8, _ := b.Asset("cw8")
+	cw8.Withholding = 0.15
+	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
+		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
+	}
+	v, err := Value(b, scopeOf(t, b, "PEA"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 15 parts × 2 × (1−0.15) = 25.50 au lieu de 30
+	approx(t, "gross avec retenue", v.Gross, 6720+4050+25.5)
+}
+
 func TestParseScopeOrderAndErrors(t *testing.T) {
 	b := valuationBook(t)
 	for ref, kind := range map[string]ScopeKind{
