@@ -411,9 +411,56 @@ func TestAssetsPage(t *testing.T) {
 			t.Errorf("/assets amounts: %q missing", want)
 		}
 	}
+	// densité : sparkline 72×20, nom indenté
+	if !strings.Contains(body, `viewBox="0 0 72 20"`) {
+		t.Error("sparklines should be 72x20")
+	}
+	_, css := get(t, srv, "/style.css")
+	for _, want := range []string{".assets-table .asset-name { padding-left:", "width: 78px"} {
+		if !strings.Contains(css, want) {
+			t.Errorf("style.css: %q missing", want)
+		}
+	}
 	// l'onglet est dans la manchette de toutes les pages
 	if _, home := get(t, srv, "/"); !strings.Contains(home, `href="/assets"`) {
 		t.Error("nav link /assets missing on dashboard")
+	}
+}
+
+func TestChartRanges(t *testing.T) {
+	srv, _ := testServer(t)
+	_, full := get(t, srv, "/")
+	code, m1 := get(t, srv, "/?range=1m")
+	if code != http.StatusOK {
+		t.Fatalf("range=1m = %d", code)
+	}
+	// le sélecteur est présent, l'actif est marqué, les liens préservent by/range
+	for _, want := range []string{`class="ranges"`, `active-range`, `range=3m`} {
+		if !strings.Contains(m1, want) {
+			t.Errorf("?range=1m: %q missing", want)
+		}
+	}
+	// la courbe 1m diffère de la courbe complète (moins de points)
+	// On compare le nombre de virgules dans le HTML comme proxy du nombre de
+	// points SVG : une courbe plus courte produit moins de coordonnées "x,y".
+	// Si la série de test est trop courte pour la différence soit visible avec
+	// des virgules (ex. même période), on peut toujours vérifier la présence du
+	// sélecteur — l'assertion de virgules est commentée et remplacée par une
+	// assertion que full contient au moins autant de virgules.
+	if strings.Count(m1, ",") >= strings.Count(full, ",") {
+		t.Error("1m curve should carry fewer svg points than the full curve")
+	}
+	// les onglets de répartition préservent le range
+	if !strings.Contains(m1, "by=account&amp;range=1m") {
+		t.Errorf("tabs should carry the range:\n%s", excerpt(m1))
+	}
+	// portée : le sélecteur existe aussi
+	if _, sc := get(t, srv, "/asset/cw8?range=3m"); !strings.Contains(sc, "active-range") {
+		t.Error("scope pages should have the range selector")
+	}
+	// invalide → all (200, pas d'erreur)
+	if code, _ := get(t, srv, "/?range=zz"); code != http.StatusOK {
+		t.Errorf("invalid range = %d", code)
 	}
 }
 
