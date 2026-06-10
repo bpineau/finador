@@ -286,6 +286,16 @@ func TestDashboardByEnvelope(t *testing.T) {
 	}
 }
 
+func TestStylesheetThemesLinksAndTrees(t *testing.T) {
+	srv, _ := testServer(t)
+	_, css := get(t, srv, "/style.css")
+	for _, want := range []string{"main a {", "details", "summary", "--garance"} {
+		if !strings.Contains(css, want) {
+			t.Errorf("style.css: %q manquant", want)
+		}
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID
