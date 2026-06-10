@@ -168,3 +168,34 @@ func TestMaxDrawdownNotRecovered(t *testing.T) {
 		t.Errorf("récupération = %v, attendu nil", dd.Recovered)
 	}
 }
+
+func TestMaxDrawdownReanchorsOnExactRetouch(t *testing.T) {
+	pts := []Point{
+		{d("2026-01-01"), 100}, {d("2026-02-01"), 120}, {d("2026-03-01"), 90},
+		{d("2026-04-01"), 120}, {d("2026-05-01"), 60}, {d("2026-06-01"), 121},
+	}
+	dd := MaxDrawdown(pts)
+	approx(t, "depth", dd.Depth, -0.5, 1e-9)
+	if dd.Peak != d("2026-04-01") || dd.Trough != d("2026-05-01") {
+		t.Errorf("pic/creux = %s/%s, attendu 2026-04-01/2026-05-01", dd.Peak, dd.Trough)
+	}
+	if dd.Recovered == nil || *dd.Recovered != d("2026-06-01") {
+		t.Errorf("récupération = %v", dd.Recovered)
+	}
+}
+
+func TestDailyReturnsAdjustsFlows(t *testing.T) {
+	// jeudi 4 juin, vendredi 5 : apport de 100 le vendredi, valeur 210 → r = (210−100)/100 − 1 = +10 %
+	pts := []Point{{d("2026-06-04"), 100}, {d("2026-06-05"), 210}}
+	rs := DailyReturns(pts, []Flow{{d("2026-06-05"), 100}})
+	if len(rs) != 1 {
+		t.Fatalf("returns = %v", rs)
+	}
+	approx(t, "r", rs[0], 0.10, 1e-9)
+}
+
+func TestCAGRGuards(t *testing.T) {
+	if CAGR(0.10, 0) != 0 || CAGR(-1.5, 100) != 0 {
+		t.Error("les gardes de CAGR doivent retourner 0")
+	}
+}
