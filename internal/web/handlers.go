@@ -16,24 +16,24 @@ const (
 	couleurVert  = "#1e6e4e"
 )
 
-type onglet struct {
+type tab struct {
 	Label, URL string
-	Actif      bool
+	Active     bool
 }
 
 type dashData struct {
-	Aujourdhui domain.Date
-	Val        portfolio.Valuation
-	Curve      template.HTML // SVG généré par chart.SVG — jamais de donnée brute utilisateur
-	Rows       []perf.Row
-	Met        perf.Metrics
-	Mode       string // groupe | enveloppe | actif
-	Onglets    []onglet
-	Tree       []node
-	Flat       []node
-	Warnings   []string
-	Flash      string
-	Erreur     string
+	Today    domain.Date
+	Val      portfolio.Valuation
+	Curve    template.HTML // SVG from chart.SVG — never raw user data
+	Rows     []perf.Row
+	Met      perf.Metrics
+	Mode     string // group | account | asset
+	Tabs     []tab
+	Tree     []node
+	Flat     []node
+	Warnings []string
+	Flash    string
+	Error    string
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
@@ -45,12 +45,12 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	fx := market.Converter{FX: b.Market.FX}
 	ccy := displayCurrency(b)
 
-	mode := r.URL.Query().Get("par")
+	mode := r.URL.Query().Get("by")
 	switch mode {
-	case "enveloppe", "actif":
+	case "account", "asset":
 		// valid modes
 	default:
-		mode = "groupe"
+		mode = "group"
 	}
 
 	val, err := portfolio.Value(b, scope, today, ccy, fx)
@@ -59,21 +59,21 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := dashData{
-		Aujourdhui: today,
-		Val:        val,
-		Flash:      r.URL.Query().Get("flash"),
-		Erreur:     r.URL.Query().Get("erreur"),
-		Mode:       mode,
-		Onglets: []onglet{
-			{"par groupe", "/", mode == "groupe"},
-			{"par enveloppe", "/?par=enveloppe", mode == "enveloppe"},
-			{"par actif", "/?par=actif", mode == "actif"},
+		Today: today,
+		Val:   val,
+		Flash: r.URL.Query().Get("flash"),
+		Error: r.URL.Query().Get("error"),
+		Mode:  mode,
+		Tabs: []tab{
+			{"by group", "/", mode == "group"},
+			{"by account", "/?by=account", mode == "account"},
+			{"by asset", "/?by=asset", mode == "asset"},
 		},
 	}
 
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
 		data.Curve = template.HTML(chart.SVG([]chart.Line{
-			{Label: "brut", Color: couleurEncre, Points: res.PerfPoints(false)},
+			{Label: "gross", Color: couleurEncre, Points: res.PerfPoints(false)},
 			{Label: "net", Color: couleurVert, Points: res.PerfPoints(true)},
 		}, 860, 300))
 		data.Rows, data.Met = perf.Report(res.PerfPoints(false), res.PerfFlows(), today, perf.RiskFreeFromConfig(b.Config))
@@ -85,7 +85,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if mode == "actif" {
+	if mode == "asset" {
 		data.Flat = flatAssets(lines)
 	} else {
 		data.Tree = buildTree(lines, mode)
