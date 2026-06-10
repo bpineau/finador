@@ -2,3 +2,4 @@ bin/
 *.fin
 *.fin.bak
 *.fin.tmp
+*.fin.lock
