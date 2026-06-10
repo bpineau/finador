@@ -29,12 +29,17 @@ func (s *Server) importPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) importUpload(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// un CSV de transactions personnel tient largement sous 10 Mo : borne anti-DoS
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	file, _, err := r.FormFile("fichier")
 	if err != nil {
 		http.Redirect(w, r, "/import?erreur="+url.QueryEscape("aucun fichier reçu"), http.StatusSeeOther)
 		return
 	}
 	defer file.Close()
+	// en cas d'erreur en milieu de fichier, le Book en mémoire garde les lignes
+	// déjà ajoutées (non sauvées) : la prochaine sauvegarde réussie les persistera —
+	// posture « dernière écriture gagnante » assumée (D9), l'erreur est affichée.
 	added, skipped, err := portfolio.ImportCSV(s.file.Book, file)
 	if err != nil {
 		http.Redirect(w, r, "/import?erreur="+url.QueryEscape(err.Error()), http.StatusSeeOther)
