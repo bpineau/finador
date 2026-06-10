@@ -17,7 +17,7 @@ type Date struct {
 func ParseDate(s string) (Date, error) {
 	t, err := time.Parse("2006-01-02", s)
 	if err != nil {
-		return Date{}, fmt.Errorf("date %q (attendu AAAA-MM-JJ): %w", s, err)
+		return Date{}, fmt.Errorf("invalid date %q (expected YYYY-MM-DD): %w", s, err)
 	}
 	return DateOf(t), nil
 }

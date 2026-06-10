@@ -84,7 +84,7 @@ func (y *Yahoo) Resolve(ctx context.Context, query string) (SymbolInfo, error) {
 		}
 		return SymbolInfo{Symbol: quote.Symbol, Name: name}, nil
 	}
-	return SymbolInfo{}, fmt.Errorf("symbole pour %q: %w", query, domain.ErrNotFound)
+	return SymbolInfo{}, fmt.Errorf("symbol for %q: %w", query, domain.ErrNotFound)
 }
 
 func (y *Yahoo) Daily(ctx context.Context, symbol string, from domain.Date) (DailyData, error) {
@@ -121,7 +121,7 @@ func (y *Yahoo) Daily(ctx context.Context, symbol string, from domain.Date) (Dai
 		return DailyData{}, err
 	}
 	if len(resp.Chart.Result) == 0 {
-		return DailyData{}, fmt.Errorf("cours de %q: %w", symbol, domain.ErrNotFound)
+		return DailyData{}, fmt.Errorf("quotes for %q: %w", symbol, domain.ErrNotFound)
 	}
 	r := resp.Chart.Result[0]
 

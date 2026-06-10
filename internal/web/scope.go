@@ -25,14 +25,14 @@ type txRow struct {
 }
 
 type scopeData struct {
-	Aujourdhui domain.Date
-	Label      string
-	Val        portfolio.Valuation
-	Curve      template.HTML
-	Rows       []perf.Row
-	Met        perf.Metrics
-	Warnings   []string
-	Txs        []txRow
+	Today    domain.Date
+	Label    string
+	Val      portfolio.Valuation
+	Curve    template.HTML
+	Rows     []perf.Row
+	Met      perf.Metrics
+	Warnings []string
+	Txs      []txRow
 }
 
 func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +45,7 @@ func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, domain.ErrNotFound) {
 			status = http.StatusBadRequest
 		}
-		s.renderError(w, status, "portée introuvable : "+ref)
+		s.renderError(w, status, "unknown scope: "+ref)
 		return
 	}
 	s.renderScope(w, scope)
@@ -57,7 +57,7 @@ func (s *Server) intersectPage(w http.ResponseWriter, r *http.Request) {
 	b := s.file.Book
 	acc, err := b.Account(r.PathValue("ref"))
 	if err != nil {
-		s.renderError(w, http.StatusNotFound, "compte introuvable : "+r.PathValue("ref"))
+		s.renderError(w, http.StatusNotFound, "unknown account: "+r.PathValue("ref"))
 		return
 	}
 	scope := portfolio.IntersectScope(acc, r.PathValue("gpath"))
@@ -76,10 +76,10 @@ func (s *Server) renderScope(w http.ResponseWriter, scope portfolio.Scope) {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	data := scopeData{Aujourdhui: today, Label: scope.Label, Val: val}
+	data := scopeData{Today: today, Label: scope.Label, Val: val}
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
 		data.Curve = template.HTML(chart.SVG([]chart.Line{
-			{Label: "brut", Color: couleurEncre, Points: res.PerfPoints(false)},
+			{Label: "gross", Color: couleurEncre, Points: res.PerfPoints(false)},
 			{Label: "net", Color: couleurVert, Points: res.PerfPoints(true)},
 		}, 860, 280))
 		data.Rows, data.Met = perf.Report(res.PerfPoints(false), res.PerfFlows(), today, perf.RiskFreeFromConfig(b.Config))

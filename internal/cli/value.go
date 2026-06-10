@@ -19,8 +19,8 @@ func valueCmd(a *app) *cobra.Command {
 	var net bool
 	var exclude, whatIf []string
 	cmd := &cobra.Command{
-		Use:   "value [portée]",
-		Short: "Valeur du patrimoine — tout, un groupe, une enveloppe ou un actif",
+		Use:   "value [scope]",
+		Short: "Portfolio value — all, a group, an account or an asset",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
@@ -43,7 +43,7 @@ func valueCmd(a *app) *cobra.Command {
 			}
 			if len(excluded) > 0 {
 				scope.Excluded = excluded
-				scope.Label += " (hors " + strings.Join(exclude, ",") + ")"
+				scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
 			}
 			date, err := dateOrToday(at)
 			if err != nil {
@@ -56,11 +56,11 @@ func valueCmd(a *app) *cobra.Command {
 			ensureDisplayFX(cmd, a, f, display)
 			var opts []portfolio.ValueOption
 			switch by {
-			case "groupe":
-			case "enveloppe":
+			case "group":
+			case "account":
 				opts = append(opts, portfolio.WithLinesByAccount())
 			default:
-				return fmt.Errorf("--by %q: attendu groupe ou enveloppe", by)
+				return fmt.Errorf("--by %q: expected group or account", by)
 			}
 			overrides, err := parseWhatIf(b, whatIf)
 			if err != nil {
@@ -83,12 +83,12 @@ func valueCmd(a *app) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&ccy, "ccy", "", "devise d'affichage (défaut : config currency, sinon EUR)")
-	cmd.Flags().StringVar(&at, "at", "", "date d'évaluation AAAA-MM-JJ (défaut : aujourd'hui)")
-	cmd.Flags().BoolVar(&net, "net", false, "affiche brut, impôt latent estimé et net")
-	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
-	cmd.Flags().StringVar(&by, "by", "groupe", "ventilation des lignes : groupe ou enveloppe")
-	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "hypothèse jetable actif=prix (répétable), ex. ddog=280")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "display currency (default: config currency, otherwise EUR)")
+	cmd.Flags().StringVar(&at, "at", "", "valuation date YYYY-MM-DD (default: today)")
+	cmd.Flags().BoolVar(&net, "net", false, "show gross, estimated tax and net")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
+	cmd.Flags().StringVar(&by, "by", "group", "line breakdown: group or account")
+	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "disposable hypothesis asset=price (repeatable), e.g. ddog=280")
 	return cmd
 }
 
@@ -101,7 +101,7 @@ func parseWhatIf(b *domain.Book, pairs []string) (map[domain.AssetID]float64, er
 	for _, p := range pairs {
 		ref, val, ok := strings.Cut(p, "=")
 		if !ok {
-			return nil, fmt.Errorf("--what-if %q: attendu actif=prix", p)
+			return nil, fmt.Errorf("--what-if %q: expected asset=price", p)
 		}
 		asset, err := b.Asset(strings.TrimSpace(ref))
 		if err != nil {
@@ -109,7 +109,7 @@ func parseWhatIf(b *domain.Book, pairs []string) (map[domain.AssetID]float64, er
 		}
 		price, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
 		if err != nil || price < 0 {
-			return nil, fmt.Errorf("--what-if %s: prix %q invalide", ref, val)
+			return nil, fmt.Errorf("--what-if %s: invalid price %q", ref, val)
 		}
 		out[asset.ID] = price
 	}
@@ -120,7 +120,7 @@ func parseWhatIf(b *domain.Book, pairs []string) (map[domain.AssetID]float64, er
 func printWhatIfDelta(cmd *cobra.Command, hyp, base portfolio.Valuation) {
 	out := cmd.OutOrStdout()
 	dg, dn := hyp.Gross-base.Gross, hyp.Net-base.Net
-	fmt.Fprintf(out, "\nvs réel : brut %+.2f %s", dg, string(hyp.Currency))
+	fmt.Fprintf(out, "\nvs actual: gross %+.2f %s", dg, string(hyp.Currency))
 	if base.Gross != 0 {
 		fmt.Fprintf(out, " (%+.2f%%)", dg/base.Gross*100)
 	}
@@ -145,10 +145,10 @@ func money(x float64, c domain.Currency) string {
 
 func printValuation(cmd *cobra.Command, scope portfolio.Scope, date domain.Date, v portfolio.Valuation, net bool) {
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "%s au %s\n", scope.Label, date)
+	fmt.Fprintf(out, "%s — %s\n", scope.Label, date)
 	w := tabwriter.NewWriter(out, 2, 4, 2, ' ', 0)
 	if net {
-		fmt.Fprintln(w, "LIGNE\tBRUT\tIMPÔT\tNET")
+		fmt.Fprintln(w, "LINE\tGROSS\tTAX\tNET")
 		for _, l := range v.Lines {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", l.Label,
 				money(l.Gross, v.Currency), money(l.Tax, v.Currency), money(l.Net, v.Currency))
@@ -156,7 +156,7 @@ func printValuation(cmd *cobra.Command, scope portfolio.Scope, date domain.Date,
 		fmt.Fprintf(w, "TOTAL\t%s\t%s\t%s\n",
 			money(v.Gross, v.Currency), money(v.Tax, v.Currency), money(v.Net, v.Currency))
 	} else {
-		fmt.Fprintln(w, "LIGNE\tVALEUR")
+		fmt.Fprintln(w, "LINE\tVALUE")
 		for _, l := range v.Lines {
 			fmt.Fprintf(w, "%s\t%s\n", l.Label, money(l.Gross, v.Currency))
 		}
@@ -183,13 +183,13 @@ func ensureDisplayFX(cmd *cobra.Command, a *app, f *store.File, display domain.C
 	}
 	data, err := a.marketSource().Daily(cmd.Context(), string(display)+"USD=X", domain.Today().AddDays(-30))
 	if err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "avertissement:", err)
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning:", err)
 		return
 	}
 	s := f.Book.Market.FXSeries(display)
 	s.Merge(data.Closes)
 	s.FetchedAt = domain.Today()
 	if err := f.Save(); err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "avertissement: cache non sauvegardé:", err)
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)
 	}
 }
