@@ -68,6 +68,9 @@ func flowsByDay(flows []Flow) map[domain.Date]float64 {
 
 // XIRR solves the money-weighted annual rate by bisection. Cashflows follow
 // the investor's convention: invested money negative, final value positive.
+// Pour des flux à plusieurs changements de signe, la NPV peut avoir plusieurs
+// racines : la bissection en retourne une — convention assumée pour des flux
+// d'épargne classiques.
 func XIRR(cashflows []Flow) (float64, error) {
 	if len(cashflows) < 2 {
 		return 0, errors.New("XIRR: au moins deux flux requis")
@@ -172,7 +175,9 @@ func MaxDrawdown(points []Point) Drawdown {
 	}
 	peak := points[0]
 	for _, p := range points[1:] {
-		if p.Value > peak.Value {
+		// une valeur qui regagne exactement le pic ré-ancre le pic :
+		// un drawdown ne doit pas enjamber une récupération complète
+		if p.Value >= peak.Value {
 			peak = p
 			continue
 		}
