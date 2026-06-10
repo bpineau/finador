@@ -3,7 +3,6 @@ package cli
 import (
 	"cmp"
 	"fmt"
-	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -169,14 +168,7 @@ func assetEdit(a *app) *cobra.Command {
 						return err
 					}
 				}
-				for _, al := range addAlias {
-					if !slices.ContainsFunc(asset.Aliases, func(x string) bool { return strings.EqualFold(x, al) }) {
-						asset.Aliases = append(asset.Aliases, al)
-					}
-				}
-				for _, al := range rmAlias {
-					asset.Aliases = slices.DeleteFunc(asset.Aliases, func(x string) bool { return strings.EqualFold(x, al) })
-				}
+				asset.Aliases = applyAliasEdits(asset.Aliases, addAlias, rmAlias)
 				if withholding != "" {
 					if asset.Withholding, err = domain.ParsePercent(withholding); err != nil {
 						return err

@@ -1,10 +1,14 @@
 package web
 
 import (
+	"cmp"
+	"html/template"
+	"math"
 	"net/url"
 	"slices"
 	"strings"
 
+	"finador/internal/chart"
 	"finador/internal/portfolio"
 )
 
@@ -27,6 +31,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 		// account → group → assets
 		byAcc := map[string]*node{}
 		grp := map[key2]*node{}
+		cashOf := map[string]float64{}
 		var accOrder []string
 		for _, l := range lines {
 			accID := string(l.Account.ID)
@@ -38,7 +43,8 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 			}
 			root.Gross += l.Gross
 			if l.Asset == nil {
-				continue // le cash s'ajoute en feuille à la fin
+				cashOf[accID] += l.Gross // feuille « cash » ajoutée à la fin
+				continue
 			}
 			g := topGroup(l.Asset.Group)
 			k := key2{accID, g}
@@ -55,12 +61,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 		var out []node
 		for _, accID := range accOrder {
 			root := byAcc[accID]
-			cash := 0.0
-			for _, l := range lines {
-				if string(l.Account.ID) == accID && l.Asset == nil {
-					cash += l.Gross
-				}
-			}
+			cash := cashOf[accID]
 			for k, child := range grp {
 				if k.a != accID {
 					continue
@@ -164,4 +165,60 @@ func sortNodes(ns []node) {
 		}
 		return strings.Compare(a.Label, b.Label)
 	})
+}
+
+// pieSlice is one legend entry of the allocation donut.
+type pieSlice struct {
+	Label   string
+	URL     string
+	Color   template.CSS // toujours une constante de chart.PiePalette
+	Amount  float64
+	Percent int
+}
+
+// buildPie aggregates Breakdown lines into top-level group + cash slices,
+// sorted by amount descending, and renders the SVG donut + its legend data.
+func buildPie(lines []portfolio.PositionLine) (template.HTML, []pieSlice) {
+	amounts := map[string]float64{}
+	var order []string
+	for _, l := range lines {
+		key := "cash"
+		if l.Asset != nil {
+			key = topGroup(l.Asset.Group)
+		}
+		if _, seen := amounts[key]; !seen {
+			order = append(order, key)
+		}
+		amounts[key] += l.Gross
+	}
+
+	var out []pieSlice
+	total := 0.0
+	for _, k := range order {
+		if amounts[k] <= 0 {
+			continue
+		}
+		ps := pieSlice{Label: k, Amount: amounts[k]}
+		if k != "cash" {
+			ps.URL = "/group/" + escapeGroup(k)
+		}
+		out = append(out, ps)
+		total += amounts[k]
+	}
+	if len(out) == 0 {
+		return "", nil
+	}
+	slices.SortStableFunc(out, func(a, b pieSlice) int {
+		return cmp.Or(cmp.Compare(b.Amount, a.Amount), strings.Compare(a.Label, b.Label))
+	})
+
+	values := make([]float64, len(out))
+	colors := make([]string, len(out))
+	for i := range out {
+		color := chart.PiePalette[i%len(chart.PiePalette)]
+		out[i].Color = template.CSS(color) // palette constante — pas de donnée utilisateur
+		out[i].Percent = int(math.Round(out[i].Amount / total * 100))
+		values[i], colors[i] = out[i].Amount, color
+	}
+	return template.HTML(chart.Pie(values, colors, 190)), out // #nosec G203 — notre propre SVG
 }

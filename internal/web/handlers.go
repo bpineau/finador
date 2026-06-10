@@ -2,10 +2,8 @@ package web
 
 import (
 	"html/template"
-	"math"
 	"net/http"
 	"net/url"
-	"slices"
 
 	"finador/internal/chart"
 	"finador/internal/domain"
@@ -24,23 +22,12 @@ type tab struct {
 	Active     bool
 }
 
-// pieSlice is one sector of the allocation donut legend.
-type pieSlice struct {
-	Label, URL string
-	// Color comes from PiePalette (constant, safe) — declared template.CSS so
-	// html/template does not escape it as an untrusted CSS value.
-	Color   template.CSS
-	Amount  float64
-	Percent int
-}
-
 type dashData struct {
 	Today      domain.Date
 	Val        portfolio.Valuation
 	Curve      template.HTML // SVG from chart.SVG — never raw user data
 	Rows       []perf.Row
 	Met        perf.Metrics
-	Mode       string // group | account | asset
 	Tabs       []tab
 	RangeLinks []tab
 	Range      string
@@ -50,91 +37,6 @@ type dashData struct {
 	Warnings   []string
 	Flash      string
 	Error      string
-}
-
-// buildPie aggregates Breakdown lines into top-level group + cash slices,
-// sorted by amount descending, and generates the SVG donut + legend data.
-func buildPie(lines []portfolio.PositionLine) (template.HTML, []pieSlice) {
-	// aggregate by top group; cash (l.Asset == nil) goes to "cash" key
-	amounts := map[string]float64{}
-	urls := map[string]string{}
-	var order []string
-	for _, l := range lines {
-		var key, groupURL string
-		if l.Asset == nil {
-			key = "cash"
-		} else {
-			key = topGroup(l.Asset.Group)
-			groupURL = "/group/" + escapeGroup(key)
-		}
-		if _, seen := amounts[key]; !seen {
-			order = append(order, key)
-			urls[key] = groupURL
-		}
-		amounts[key] += l.Gross
-	}
-
-	// collect non-zero slices
-	type kv struct {
-		key    string
-		amount float64
-	}
-	var kvs []kv
-	for _, k := range order {
-		if amounts[k] > 0 {
-			kvs = append(kvs, kv{k, amounts[k]})
-		}
-	}
-	if len(kvs) == 0 {
-		return "", nil
-	}
-
-	// sort descending by amount, stable alphabetic on tie
-	slices.SortStableFunc(kvs, func(a, b kv) int {
-		switch {
-		case a.amount > b.amount:
-			return -1
-		case a.amount < b.amount:
-			return 1
-		}
-		if a.key < b.key {
-			return -1
-		}
-		if a.key > b.key {
-			return 1
-		}
-		return 0
-	})
-
-	// assign colors after sorting (palette cycled)
-	palette := chart.PiePalette
-	total := 0.0
-	for _, kv := range kvs {
-		total += kv.amount
-	}
-
-	values := make([]float64, len(kvs))
-	colors := make([]string, len(kvs))
-	slices2 := make([]pieSlice, len(kvs))
-	for i, kv := range kvs {
-		color := palette[i%len(palette)]
-		values[i] = kv.amount
-		colors[i] = color
-		pct := 0
-		if total > 0 {
-			pct = int(math.Round(kv.amount / total * 100))
-		}
-		slices2[i] = pieSlice{
-			Label:   kv.key,
-			URL:     urls[kv.key],
-			Color:   template.CSS(color), // palette is constant — no user data
-			Amount:  kv.amount,
-			Percent: pct,
-		}
-	}
-
-	svg := chart.Pie(values, colors, 190)
-	return template.HTML(svg), slices2 // #nosec G203 — SVG from our own chart.Pie
 }
 
 // chartRange resolves ?range= into a start date (zero = inception) and its name.
@@ -230,7 +132,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		Val:        val,
 		Flash:      r.URL.Query().Get("flash"),
 		Error:      r.URL.Query().Get("error"),
-		Mode:       mode,
 		Range:      rangeName,
 		RangeLinks: dashRangeLinks(mode, rangeName),
 		Tabs: []tab{

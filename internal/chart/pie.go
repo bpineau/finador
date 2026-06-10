@@ -55,19 +55,22 @@ func Pie(values []float64, colors []string, size int) string {
 	return b.String()
 }
 
+// coord formats one SVG coordinate.
+func coord(v float64) string { return fmt.Sprintf("%.2f", v) }
+
 // ringHalf builds one donut sector path between two angles.
 func ringHalf(cx, cy, rOut, rIn, a0, a1 float64) string {
-	laf := 0
+	laf := "0"
 	if a1-a0 > math.Pi {
-		laf = 1
+		laf = "1"
 	}
-	f := func(v float64) string { return fmt.Sprintf("%.2f", v) }
+	f := coord
 	x0o, y0o := cx+rOut*math.Cos(a0), cy+rOut*math.Sin(a0)
 	x1o, y1o := cx+rOut*math.Cos(a1), cy+rOut*math.Sin(a1)
 	x1i, y1i := cx+rIn*math.Cos(a1), cy+rIn*math.Sin(a1)
 	x0i, y0i := cx+rIn*math.Cos(a0), cy+rIn*math.Sin(a0)
 	return "M" + f(x0o) + "," + f(y0o) +
-		" A" + f(rOut) + "," + f(rOut) + " 0 " + fmt.Sprint(laf) + " 1 " + f(x1o) + "," + f(y1o) +
+		" A" + f(rOut) + "," + f(rOut) + " 0 " + laf + " 1 " + f(x1o) + "," + f(y1o) +
 		" L" + f(x1i) + "," + f(y1i) +
-		" A" + f(rIn) + "," + f(rIn) + " 0 " + fmt.Sprint(laf) + " 0 " + f(x0i) + "," + f(y0i) + " Z"
+		" A" + f(rIn) + "," + f(rIn) + " 0 " + laf + " 0 " + f(x0i) + "," + f(y0i) + " Z"
 }
