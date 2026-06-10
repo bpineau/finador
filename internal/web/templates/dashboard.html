@@ -1,0 +1,13 @@
+{{define "dashboard.html"}}{{template "base" .}}{{end}}
+{{define "title"}}patrimoine — finador{{end}}
+{{define "main"}}
+<section class="heros">
+  <p class="libelle">patrimoine net d'impôt latent</p>
+  <p class="chiffre-une {{signe .Val.Net}}">{{frMoney .Val.Net .Val.Currency}}</p>
+  <p class="sous-titre">
+    brut {{frMoney .Val.Gross .Val.Currency}} · impôt latent {{frMoney .Val.Tax .Val.Currency}}{{if .Val.TaxNote}}<sup>†</sup>{{end}}
+  </p>
+  {{if .Val.TaxNote}}<p class="note-bas">† {{.Val.TaxNote}}</p>{{end}}
+  {{range .Val.Stale}}<p class="approx">≈ {{.}}</p>{{end}}
+</section>
+{{end}}
