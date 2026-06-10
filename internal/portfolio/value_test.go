@@ -1,0 +1,241 @@
+package portfolio
+
+import (
+	"errors"
+	"strings"
+	"testing"
+
+	"finador/internal/domain"
+)
+
+// identityFX convertit 1:1 entre devises identiques et échoue sinon,
+// sauf si on fournit un taux fixe pour un couple.
+type fxStub struct{ rates map[string]float64 } // "EUR→USD" → 1.10
+
+func (f fxStub) Convert(amount float64, from, to domain.Currency, _ domain.Date) (float64, error) {
+	if from == to {
+		return amount, nil
+	}
+	if r, ok := f.rates[string(from)+"→"+string(to)]; ok {
+		return amount * r, nil
+	}
+	return 0, errors.New("taux absent: " + string(from) + "→" + string(to))
+}
+
+func approx(t *testing.T, what string, got, want float64) {
+	t.Helper()
+	if d := got - want; d > 0.005 || d < -0.005 {
+		t.Errorf("%s = %.4f, attendu %.4f", what, got, want)
+	}
+}
+
+// fixture riche : PEA (gains:17.2%, cash suivi), CTO (gains:30%, cash non
+// suivi), Immo (gains:30%) avec un bien à deux relevés.
+func valuationBook(t *testing.T) *domain.Book {
+	t.Helper()
+	b := sampleBook(t) // de replay_test.go : pea/cto/livret + cw8 + trades
+	pea, _ := b.Account("pea")
+	pea.Tax, _ = domain.ParseTaxRule("gains:17.2%")
+	cto, _ := b.Account("cto")
+	cto.Tax, _ = domain.ParseTaxRule("gains:30%")
+	if err := b.AddAccount(&domain.Account{ID: "immo", Name: "Immo", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	immo, _ := b.Account("immo")
+	immo.Tax, _ = domain.ParseTaxRule("gains:30%")
+	if err := b.AddAsset(&domain.Asset{ID: "maison", Kind: domain.Property,
+		Name: "Maison à Achères", Currency: domain.EUR, Group: "immo"}); err != nil {
+		t.Fatal(err)
+	}
+	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "immo", Asset: "maison",
+		Kind: domain.Statement, Amount: eur("400000")})
+	b.Add(domain.Transaction{Date: mustDate("2026-06-01"), Account: "immo", Asset: "maison",
+		Kind: domain.Statement, Amount: eur("450000")})
+	// série de prix cw8 : clôture 560 le 5 juin
+	b.Market.Price("cw8").Merge([]domain.PricePoint{
+		{Date: mustDate("2026-03-20"), Close: 540},
+		{Date: mustDate("2026-06-05"), Close: 560},
+	})
+	return b
+}
+
+func scopeOf(t *testing.T, b *domain.Book, ref string) Scope {
+	t.Helper()
+	s, err := ParseScope(b, ref)
+	if err != nil {
+		t.Fatalf("ParseScope(%q): %v", ref, err)
+	}
+	return s
+}
+
+func TestValueAll(t *testing.T) {
+	b := valuationBook(t)
+	at := mustDate("2026-06-05")
+	v, err := Value(b, scopeOf(t, b, ""), at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// PEA : 12 × 560 = 6720 ; cash suivi = 10000 − 5000 − 2750 + 1800 = 4050
+	// CTO : 2 × 560 = 1120 ; cash non suivi
+	// Livret : relevé 12000 ; Maison : relevé 450000
+	approx(t, "gross", v.Gross, 6720+4050+1120+12000+450000)
+	// impôt exact par enveloppe :
+	// PEA gains:17.2% base 10000 (apports), valeur 10770 → 770 × 0.172 = 132.44
+	// CTO gains:30% base 1100 (achats−ventes), valeur 1120 → 20 × 0.30 = 6
+	// Livret none → 0 ; Immo gains:30% base 400000, valeur 450000 → 15000
+	approx(t, "tax", v.Tax, 132.44+6+15000)
+	approx(t, "net", v.Net, v.Gross-v.Tax)
+	if v.TaxNote == "" {
+		t.Error("TaxNote attendue (ventilation approximative ≠ enveloppe)")
+	}
+	// lignes par groupe de tête + liquidités
+	labels := map[string]bool{}
+	for _, l := range v.Lines {
+		labels[l.Label] = true
+	}
+	for _, want := range []string{"actions", "immo", "liquidités"} {
+		if !labels[want] {
+			t.Errorf("ligne %q absente (%v)", want, v.Lines)
+		}
+	}
+}
+
+func TestValueGroupScope(t *testing.T) {
+	b := valuationBook(t)
+	at := mustDate("2026-06-05")
+	v, err := Value(b, scopeOf(t, b, "ACTIONS"), at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross", v.Gross, 6720+1120)
+	// impôt position par position :
+	// PEA : coût moyen = 7750 − 7750×3/15 = 6200 ; gain 520 × 0.172 = 89.44
+	// CTO : coût moyen 1100 ; gain 20 × 0.30 = 6
+	approx(t, "tax", v.Tax, 89.44+6)
+}
+
+func TestValueAccountAndAssetScopes(t *testing.T) {
+	b := valuationBook(t)
+	at := mustDate("2026-06-05")
+	v, err := Value(b, scopeOf(t, b, "PEA"), at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross pea", v.Gross, 6720+4050)
+	approx(t, "tax pea", v.Tax, 132.44) // enveloppe exacte
+
+	v, err = Value(b, scopeOf(t, b, "cw8"), at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross cw8", v.Gross, 6720+1120)
+	if len(v.Lines) != 2 { // une ligne par enveloppe
+		t.Errorf("lines = %+v", v.Lines)
+	}
+}
+
+func TestValueAtEarlierDate(t *testing.T) {
+	b := valuationBook(t)
+	// au 21 mars : clôture forward-fill 540 du 20 mars, maison au 1er relevé
+	v, err := Value(b, scopeOf(t, b, ""), mustDate("2026-03-21"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// PEA 12×540=6480, cash 4050 ; CTO 2×540=1080 ; livret 12000 ; maison 400000
+	approx(t, "gross", v.Gross, 6480+4050+1080+12000+400000)
+}
+
+func TestValueOtherCurrency(t *testing.T) {
+	b := valuationBook(t)
+	fx := fxStub{rates: map[string]float64{"EUR→USD": 1.10}}
+	v, err := Value(b, scopeOf(t, b, "PEA"), mustDate("2026-06-05"), domain.USD, fx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross usd", v.Gross, (6720+4050)*1.10)
+}
+
+func TestValueStaleMarkers(t *testing.T) {
+	b := valuationBook(t)
+	// au 30 mars, dernière clôture du 20 mars → > 5 jours → stale
+	v, err := Value(b, scopeOf(t, b, "cw8"), mustDate("2026-03-30"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Stale) == 0 || !strings.Contains(v.Stale[0], "2026-03-20") {
+		t.Errorf("stale = %v", v.Stale)
+	}
+}
+
+func TestValueAutoDividends(t *testing.T) {
+	b := valuationBook(t)
+	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
+		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
+	}
+	at := mustDate("2026-06-05")
+	// PEA détient 15 parts au 1er mars (achats 10+5, vente après) → +30 EUR de cash
+	v, err := Value(b, scopeOf(t, b, "PEA"), at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross avec dividendes", v.Gross, 6720+4050+30)
+
+	// un Dividend manuel sur cw8 désactive l'automatique
+	b.Add(domain.Transaction{Date: mustDate("2026-03-02"), Account: "pea", Asset: "cw8",
+		Kind: domain.Dividend, Amount: eur("25")})
+	v, err = Value(b, scopeOf(t, b, "PEA"), at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross avec dividende manuel", v.Gross, 6720+4050+25)
+}
+
+func TestPropertyWithBuyNotDoubleCounted(t *testing.T) {
+	b := valuationBook(t)
+	// un achat enregistré sur le bien (notaire, etc.) ne doit pas le faire
+	// compter deux fois : il reste valorisé par ses relevés
+	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "immo", Asset: "maison",
+		Kind: domain.Buy, Quantity: dec("1"), Amount: eur("400000")})
+	v, err := Value(b, scopeOf(t, b, "Immo"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "gross immo", v.Gross, 450000)
+}
+
+// Fix 3 : base d'enveloppe négative (retraits > apports) plafonnée à 0.
+// Dérivation :
+//
+//	Apports PEA : 10000 ; Retraits PEA : 15000 → base = max(0, 10000−15000) = 0
+//	Cash = 10000 − 5000 − 2750 + 1800 − 15000 = −10950
+//	cw8 PEA = 12 × 560 = 6720
+//	Gross PEA = 6720 + (−10950) = −4230
+//	Gain = −4230 − 0 = −4230 (négatif) → impôt = max(0, −4230) × 0.172 = 0
+func TestNegativeEnvelopeBasisClamped(t *testing.T) {
+	b := valuationBook(t)
+	b.Add(domain.Transaction{Date: mustDate("2026-04-01"), Account: "pea",
+		Kind: domain.Withdraw, Amount: eur("15000")})
+	v, err := Value(b, scopeOf(t, b, "PEA"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// base = max(0, 10000−15000) = 0 → gain négatif → impôt = 0
+	approx(t, "gross", v.Gross, -4230)
+	approx(t, "tax", v.Tax, 0)
+}
+
+func TestParseScopeOrderAndErrors(t *testing.T) {
+	b := valuationBook(t)
+	for ref, kind := range map[string]ScopeKind{
+		"": All, "actions": ByGroup, "actions/monde": ByGroup,
+		"PEA": ByAccount, "cw8": ByAsset, "CW8.PA": ByAsset,
+	} {
+		s, err := ParseScope(b, ref)
+		if err != nil || s.Kind != kind {
+			t.Errorf("ParseScope(%q) = %v kind=%v err=%v", ref, s, s.Kind, err)
+		}
+	}
+	if _, err := ParseScope(b, "inconnu"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("ParseScope(inconnu): %v", err)
+	}
+}

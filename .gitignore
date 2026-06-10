@@ -1,0 +1,4 @@
+bin/
+*.fin
+*.fin.bak
+*.fin.tmp
