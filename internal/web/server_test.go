@@ -147,6 +147,31 @@ func TestDashboardComplete(t *testing.T) {
 	}
 }
 
+func TestScopeViews(t *testing.T) {
+	srv, _ := testServer(t)
+	for path, want := range map[string][]string{
+		"/group/actions":       {"actions", "<svg", "Amundi MSCI World", "performance"},
+		"/group/actions/monde": {"actions/monde"},
+		"/account/pea":         {"PEA BforBank", "liquidités", "transactions récentes"},
+		"/asset/cw8":           {"Amundi MSCI World", "PEA BforBank"},
+	} {
+		code, body := get(t, srv, path)
+		if code != http.StatusOK {
+			t.Errorf("GET %s = %d", path, code)
+			continue
+		}
+		for _, w := range want {
+			if !strings.Contains(body, w) {
+				t.Errorf("%s: %q manquant", path, w)
+			}
+		}
+	}
+	// portée inconnue → 404 propre
+	if code, body := get(t, srv, "/asset/inexistant"); code != http.StatusNotFound || !strings.Contains(body, "introuvable") {
+		t.Errorf("scope inconnue = %d\n%s", code, excerpt(body))
+	}
+}
+
 func excerpt(s string) string {
 	if len(s) > 800 {
 		return s[:800]
