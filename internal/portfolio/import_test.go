@@ -70,7 +70,7 @@ func TestImportPropagatesAmbiguity(t *testing.T) {
 		&domain.Asset{ID: "a2", Kind: domain.Security, Name: "Deux", Aliases: []string{"dup"}, Currency: domain.EUR},
 	)
 	csv := "date,kind,account,asset,quantity,price,currency\n2026-01-15,buy,PEA,dup,1,10,EUR\n"
-	if _, _, err := ImportCSV(b, strings.NewReader(csv)); err == nil || !strings.Contains(err.Error(), "ambiguë") {
+	if _, _, err := ImportCSV(b, strings.NewReader(csv)); err == nil || !strings.Contains(err.Error(), "ambiguous") {
 		t.Fatalf("err = %v, attendu ambiguïté propagée", err)
 	}
 }

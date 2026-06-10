@@ -16,7 +16,7 @@ func ParseAssetKind(s string) (AssetKind, error) {
 	case "property":
 		return Property, nil
 	}
-	return 0, fmt.Errorf("type d'actif %q: attendu security ou property", s)
+	return 0, fmt.Errorf("invalid asset kind %q: expected security or property", s)
 }
 
 func (k AssetKind) String() string {
@@ -34,7 +34,7 @@ func (k AssetKind) MarshalText() ([]byte, error) {
 	case Security, Property:
 		return []byte(k.String()), nil
 	}
-	return nil, fmt.Errorf("AssetKind %d non défini", uint8(k))
+	return nil, fmt.Errorf("undefined AssetKind %d", uint8(k))
 }
 
 func (k *AssetKind) UnmarshalText(b []byte) error {
