@@ -31,6 +31,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /group/{ref...}", s.scopePage)
 	mux.HandleFunc("GET /account/{ref}", s.scopePage)
 	mux.HandleFunc("GET /asset/{ref}", s.scopePage)
+	mux.HandleFunc("GET /tx", s.txPage)
+	mux.HandleFunc("POST /tx", s.txCreate)
+	mux.HandleFunc("POST /tx/{id}/delete", s.txDelete)
 	mux.HandleFunc("GET /", s.notFound)
 	return mux
 }
