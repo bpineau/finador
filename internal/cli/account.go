@@ -10,7 +10,7 @@ import (
 )
 
 func accountCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "account", Short: "Gère les enveloppes (PEA, CTO, PER, comptes bancaires…)"}
+	cmd := &cobra.Command{Use: "account", Short: "Manage accounts (PEA, CTO, PER, bank accounts…)"}
 	cmd.AddCommand(accountAdd(a), accountList(a))
 	return cmd
 }
@@ -19,7 +19,7 @@ func accountAdd(a *app) *cobra.Command {
 	var tax, ccy, id string
 	cmd := &cobra.Command{
 		Use:   "add <nom>",
-		Short: "Crée une enveloppe — le nom est libre : \"PEA BforBank\", \"CTO IBKR\"…",
+		Short: "Create an account — the name is free: \"PEA BforBank\", \"CTO IBKR\"…",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rule, err := domain.ParseTaxRule(tax)
@@ -44,14 +44,14 @@ func accountAdd(a *app) *cobra.Command {
 				if err := b.AddAccount(acc); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Compte %s (%s) créé\n", acc.Name, acc.ID)
+				fmt.Fprintf(cmd.OutOrStdout(), "Account %s (%s) created\n", acc.Name, acc.ID)
 				return nil
 			})
 		},
 	}
-	cmd.Flags().StringVar(&tax, "tax", "none", "règle fiscale : none, gains:17.2%, value:20%")
-	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "devise du compte")
-	cmd.Flags().StringVar(&id, "id", "", "identifiant (défaut : slug du nom)")
+	cmd.Flags().StringVar(&tax, "tax", "none", "tax rule: none, gains:17.2%, value:20%")
+	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "account currency")
+	cmd.Flags().StringVar(&id, "id", "", "identifier (default: slug of the name)")
 	return cmd
 }
 
@@ -65,7 +65,7 @@ func accountList(a *app) *cobra.Command {
 				return err
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tNOM\tDEVISE\tFISCALITÉ")
+			fmt.Fprintln(w, "ID\tNAME\tCURRENCY\tTAX")
 			for _, acc := range f.Book.Accounts {
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", acc.ID, acc.Name, acc.Currency, acc.Tax)
 			}

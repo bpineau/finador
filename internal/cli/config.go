@@ -11,9 +11,9 @@ import (
 )
 
 func configCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "config", Short: "Réglages : default-account, keychain-ttl, risk-free…"}
+	cmd := &cobra.Command{Use: "config", Short: "Settings: default-account, keychain-ttl, risk-free…"}
 	set := &cobra.Command{
-		Use:  "set <clé> <valeur>",
+		Use:  "set <key> <value>",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
@@ -23,7 +23,7 @@ func configCmd(a *app) *cobra.Command {
 		},
 	}
 	get := &cobra.Command{
-		Use:  "get [clé]",
+		Use:  "get [key]",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()

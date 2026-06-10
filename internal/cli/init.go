@@ -14,7 +14,7 @@ import (
 func initCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
-		Short: "Crée le fichier de données chiffré",
+		Short: "Create the encrypted data file",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pw := os.Getenv("FINADOR_PASSWORD")
@@ -29,26 +29,26 @@ func initCmd(a *app) *cobra.Command {
 				return err
 			}
 			a.cache().Put(keyring.Key(a.dbPath), pw, configTTL(f.Book)) // best-effort
-			fmt.Fprintf(cmd.OutOrStdout(), "Créé %s\n", a.dbPath)
+			fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", a.dbPath)
 			return nil
 		},
 	}
 }
 
 func askTwice() (string, error) {
-	p1, err := keyring.Prompt("Mot de passe : ")
+	p1, err := keyring.Prompt("Password: ")
 	if err != nil {
 		return "", err
 	}
-	p2, err := keyring.Prompt("Confirmez : ")
+	p2, err := keyring.Prompt("Confirm: ")
 	if err != nil {
 		return "", err
 	}
 	if p1 != p2 {
-		return "", errors.New("les mots de passe diffèrent")
+		return "", errors.New("passwords do not match")
 	}
 	if p1 == "" {
-		return "", errors.New("mot de passe vide refusé")
+		return "", errors.New("empty password rejected")
 	}
 	return p1, nil
 }

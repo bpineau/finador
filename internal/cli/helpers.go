@@ -65,5 +65,5 @@ func accountFor(b *domain.Book, flag string, asset *domain.Asset) (*domain.Accou
 	if len(b.Accounts) == 1 {
 		return b.Accounts[0], nil
 	}
-	return nil, fmt.Errorf("précisez l'enveloppe avec --account: %w", domain.ErrAmbiguous)
+	return nil, fmt.Errorf("specify the account with --account: %w", domain.ErrAmbiguous)
 }

@@ -14,7 +14,7 @@ import (
 )
 
 func assetCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "asset", Short: "Gère les actifs : titres cotés et biens"}
+	cmd := &cobra.Command{Use: "asset", Short: "Manage assets: listed securities and properties"}
 	cmd.AddCommand(assetAdd(a), assetSet(a), assetList(a), assetEdit(a), assetRm(a))
 	return cmd
 }
@@ -24,7 +24,7 @@ func assetAdd(a *app) *cobra.Command {
 	var aliases []string
 	cmd := &cobra.Command{
 		Use:   "add <ticker|nom>",
-		Short: "Déclare un actif : ticker Yahoo pour un titre, nom pour un bien",
+		Short: "Declare an asset: Yahoo ticker for a security, name for a property",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k, err := domain.ParseAssetKind(kind)
@@ -55,18 +55,18 @@ func assetAdd(a *app) *cobra.Command {
 				if err := b.AddAsset(asset); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Actif %s (%s) créé\n", asset.Name, asset.ID)
+				fmt.Fprintf(cmd.OutOrStdout(), "Asset %s (%s) created\n", asset.Name, asset.ID)
 				return nil
 			})
 		},
 	}
-	cmd.Flags().StringVar(&kind, "kind", "security", "security ou property")
-	cmd.Flags().StringVar(&name, "name", "", "nom (défaut : l'argument)")
-	cmd.Flags().StringVar(&isin, "isin", "", "code ISIN")
-	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "alias supplémentaire (répétable)")
-	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "devise de cotation")
-	cmd.Flags().StringVar(&group, "group", "", "poche hiérarchique, ex. actions/us/tech")
-	cmd.Flags().StringVar(&id, "id", "", "identifiant (défaut : slug du nom)")
+	cmd.Flags().StringVar(&kind, "kind", "security", "security or property")
+	cmd.Flags().StringVar(&name, "name", "", "name (default: the argument)")
+	cmd.Flags().StringVar(&isin, "isin", "", "ISIN code")
+	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "additional alias (repeatable)")
+	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "quote currency")
+	cmd.Flags().StringVar(&group, "group", "", "hierarchical group, e.g. equities/us/tech")
+	cmd.Flags().StringVar(&id, "id", "", "identifier (default: slug of the name)")
 	return cmd
 }
 
@@ -74,7 +74,7 @@ func assetSet(a *app) *cobra.Command {
 	var at, account, ccy string
 	cmd := &cobra.Command{
 		Use:   "set <actif> <valeur>",
-		Short: "Pose une estimation datée (biens, parts non cotées)",
+		Short: "Set a dated valuation (properties, unlisted holdings)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
@@ -84,7 +84,7 @@ func assetSet(a *app) *cobra.Command {
 				}
 				value, err := decimal.NewFromString(args[1])
 				if err != nil {
-					return fmt.Errorf("valeur %q: %w", args[1], err)
+					return fmt.Errorf("invalid value %q: %w", args[1], err)
 				}
 				date, err := dateOrToday(at)
 				if err != nil {
@@ -107,9 +107,9 @@ func assetSet(a *app) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&at, "at", "", "date AAAA-MM-JJ (défaut : aujourd'hui)")
-	cmd.Flags().StringVar(&account, "account", "", "enveloppe (nom ou id)")
-	cmd.Flags().StringVar(&ccy, "ccy", "", "devise (défaut : celle de l'actif)")
+	cmd.Flags().StringVar(&at, "at", "", "date YYYY-MM-DD (default: today)")
+	cmd.Flags().StringVar(&account, "account", "", "account (name or id)")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: asset currency)")
 	return cmd
 }
 
@@ -123,7 +123,7 @@ func assetList(a *app) *cobra.Command {
 				return err
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tTYPE\tNOM\tTICKER\tGROUPE\tDEVISE\tALIAS\tRETENUE")
+			fmt.Fprintln(w, "ID\tTYPE\tNAME\tTICKER\tGROUP\tCURRENCY\tALIASES\tWITHHOLDING")
 			for _, as := range f.Book.Assets {
 				retenue := ""
 				if as.Withholding > 0 {
@@ -143,7 +143,7 @@ func assetEdit(a *app) *cobra.Command {
 	var addAlias, rmAlias []string
 	cmd := &cobra.Command{
 		Use:   "edit <actif>",
-		Short: "Modifie les champs passés en flag (alias, ISIN, retenue à la source…)",
+		Short: "Edit fields passed as flags (aliases, ISIN, withholding tax…)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
@@ -184,33 +184,33 @@ func assetEdit(a *app) *cobra.Command {
 				if err := b.CheckAssetRefs(asset); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Actif %s mis à jour\n", asset.ID)
+				fmt.Fprintf(cmd.OutOrStdout(), "Asset %s updated\n", asset.ID)
 				return nil
 			})
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "nouveau nom")
-	cmd.Flags().StringVar(&ticker, "ticker", "", "nouveau ticker Yahoo")
-	cmd.Flags().StringVar(&isin, "isin", "", "nouvel ISIN")
-	cmd.Flags().StringVar(&group, "group", "", "nouvelle poche")
-	cmd.Flags().StringVar(&ccy, "ccy", "", "nouvelle devise de cotation")
-	cmd.Flags().StringArrayVar(&addAlias, "add-alias", nil, "alias à ajouter (répétable)")
-	cmd.Flags().StringArrayVar(&rmAlias, "rm-alias", nil, "alias à retirer (répétable)")
-	cmd.Flags().StringVar(&withholding, "withholding", "", "retenue à la source sur dividendes, ex. 15%")
+	cmd.Flags().StringVar(&name, "name", "", "new name")
+	cmd.Flags().StringVar(&ticker, "ticker", "", "new Yahoo ticker")
+	cmd.Flags().StringVar(&isin, "isin", "", "new ISIN")
+	cmd.Flags().StringVar(&group, "group", "", "new group")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "new quote currency")
+	cmd.Flags().StringArrayVar(&addAlias, "add-alias", nil, "alias to add (repeatable)")
+	cmd.Flags().StringArrayVar(&rmAlias, "rm-alias", nil, "alias to remove (repeatable)")
+	cmd.Flags().StringVar(&withholding, "withholding", "", "withholding tax on dividends, e.g. 15%")
 	return cmd
 }
 
 func assetRm(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "rm <actif>",
-		Short: "Supprime un actif sans transaction (et purge son cache de cours)",
+		Short: "Delete an asset with no transactions (and purge its quote cache)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				if err := b.RemoveAsset(args[0]); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Actif supprimé\n")
+				fmt.Fprintf(cmd.OutOrStdout(), "Asset deleted\n")
 				return nil
 			})
 		},
@@ -223,7 +223,7 @@ func enrichFromMarket(cmd *cobra.Command, a *app, asset *domain.Asset, query str
 	src := a.marketSource()
 	info, err := src.Resolve(cmd.Context(), query)
 	if err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "avertissement: résolution %q: %v\n", query, err)
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: resolving %q: %v\n", query, err)
 		return
 	}
 	asset.Ticker = info.Symbol

@@ -126,11 +126,11 @@ func TestImportCommand(t *testing.T) {
 	if err := os.WriteFile(csvPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if out := run(t, db, "import", csvPath); !strings.Contains(out, "1 importée(s), 0 ignorée(s)") {
+	if out := run(t, db, "import", csvPath); !strings.Contains(out, "1 imported, 0 skipped") {
 		t.Fatalf("import: %q", out)
 	}
-	if out := run(t, db, "import", csvPath); !strings.Contains(out, "0 importée(s), 1 ignorée(s)") {
-		t.Fatalf("ré-import: %q", out)
+	if out := run(t, db, "import", csvPath); !strings.Contains(out, "0 imported, 1 skipped") {
+		t.Fatalf("re-import: %q", out)
 	}
 }
 
@@ -251,7 +251,7 @@ func TestRefreshCommand(t *testing.T) {
 	run(t, db, "account", "add", "PEA")
 	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8")
 	out := runNet(t, db, "refresh")
-	if !strings.Contains(out, "rafraîchie") {
+	if !strings.Contains(out, "refreshed") {
 		t.Errorf("refresh: %q", out)
 	}
 	if _, err := tryRun(t, db, "refresh"); err == nil {
@@ -304,7 +304,7 @@ func TestPerfEndToEnd(t *testing.T) {
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
 	// série : 5000 plat jusqu'au 1er juin (l'achat est neutre), puis
 	// 06-05 : 10×560 − 500 = 5100 → TWR origine = +2.00 %
-	for _, want := range []string{"PÉRIODE", "TWR", "XIRR", "inception", "+2.00%", "CAGR", "Sharpe", "Sortino", "max drawdown"} {
+	for _, want := range []string{"PERIOD", "TWR", "XIRR", "inception", "+2.00%", "CAGR", "Sharpe", "Sortino", "max drawdown"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf: %q manquant dans:\n%s", want, out)
 		}
@@ -424,10 +424,10 @@ func TestValueWhatIfAndByAccount(t *testing.T) {
 			t.Errorf("what-if: %q manquant dans:\n%s", want, out)
 		}
 	}
-	// ventilation par enveloppe
-	out = runNet(t, db, "value", "--by", "enveloppe", "--at", "2026-06-05")
+	// breakdown by account
+	out = runNet(t, db, "value", "--by", "account", "--at", "2026-06-05")
 	if !strings.Contains(out, "PEA BforBank") {
-		t.Errorf("--by enveloppe:\n%s", out)
+		t.Errorf("--by account:\n%s", out)
 	}
 	// erreurs propres
 	if _, err := tryRun(t, db, "value", "--what-if", "zzz=10"); err == nil {
