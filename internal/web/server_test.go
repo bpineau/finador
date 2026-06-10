@@ -382,6 +382,41 @@ func TestTxEditWeb(t *testing.T) {
 	}
 }
 
+func TestAssetsPage(t *testing.T) {
+	srv, _ := testServer(t)
+	code, body := get(t, srv, "/assets")
+	if code != http.StatusOK {
+		t.Fatalf("GET /assets = %d\n%s", code, excerpt(body))
+	}
+	for _, want := range []string{
+		"actions/monde",        // en-tête de section : chemin complet
+		"/group/actions/monde", // cliquable
+		"Amundi MSCI World",    // une ligne d'actif
+		"/asset/cw8",           // nom cliquable
+		"assets-table",         // table dense
+		"GROSS", "NET", "1W", "1M", "1Y",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("/assets: %q missing", want)
+		}
+	}
+	// trois sparklines pour l'unique actif valorisé
+	if got := strings.Count(body, "<polyline"); got != 3 {
+		t.Errorf("polylines = %d, want 3", got)
+	}
+	// montants brut et net de la position (10×560 = 5600 ; base 5500 → gain 100
+	// → tax 17.20 si gains:17.2% → net 5582.80)
+	for _, want := range []string{"5,600.00", "5,582.80"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("/assets amounts: %q missing", want)
+		}
+	}
+	// l'onglet est dans la manchette de toutes les pages
+	if _, home := get(t, srv, "/"); !strings.Contains(home, `href="/assets"`) {
+		t.Error("nav link /assets missing on dashboard")
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID
