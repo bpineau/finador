@@ -97,7 +97,6 @@ type accountState struct {
 	acc       *domain.Account
 	tracked   bool
 	cash      float64 // balance in account currency, anchored on last Statement
-	anchor    domain.Date
 	flowBasis float64 // envelope basis in display currency (deposits - withdrawals)
 }
 
@@ -252,11 +251,11 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 	case domain.Statement:
 		if t.Asset == "" {
-			// Pure cash statement: anchor the balance
+			// Pure cash statement: overwrite the running balance directly (the
+			// walker applies flows chronologically, so no anchor comparison is needed).
 			if acc.tracked {
 				cashAmt := w.conv(t.Amount, acc.acc.Currency, t.Date)
 				acc.cash = cashAmt
-				acc.anchor = t.Date
 			}
 			return
 		}
@@ -313,8 +312,10 @@ func (w *walker) applyDividends(d domain.Date, collect bool) {
 // Value(): envelope-exact for All/Account, per-position for Group/Asset.
 func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 	perAccount := map[domain.AccountID]float64{}
+	positionTax := 0.0
 
-	// 1. Security and property positions
+	// 1. Security and property positions: compute val once, accumulate gross,
+	// perAccount, and positionTax in a single pass.
 	for _, k := range w.order {
 		p := w.pairs[k]
 		if !w.scope.hasAsset(p.acc, p.asset) {
@@ -341,6 +342,17 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 		}
 		gross += val
 		perAccount[k.acc] += val
+		accSt := w.accounts[p.acc.ID]
+		switch accSt.acc.Tax.Mode {
+		case domain.TaxOnValue:
+			positionTax += val * rate(accSt.acc.Tax)
+		case domain.TaxOnGains:
+			basis := p.basis
+			if p.asset.Kind == domain.Property {
+				basis = p.first
+			}
+			positionTax += max(0, val-basis) * rate(accSt.acc.Tax)
+		}
 	}
 
 	// 2. Cash balances for tracked accounts in scope
@@ -355,51 +367,7 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 		}
 		gross += v
 		perAccount[accID] += v
-	}
-
-	// 3. Compute tax
-	positionTax := 0.0
-	for _, k := range w.order {
-		p := w.pairs[k]
-		if !w.scope.hasAsset(p.acc, p.asset) {
-			continue
-		}
-		// Recompute val for tax (same logic as above)
-		var val float64
-		switch {
-		case p.asset.Kind == domain.Property:
-			if p.stmt != nil {
-				val = w.conv(*p.stmt, w.ccy, d)
-			}
-		default:
-			if p.qty <= 0 {
-				break
-			}
-			if close, _, ok := w.b.Market.Prices[p.asset.ID].At(d); ok {
-				val = w.convF(p.qty*close, p.asset.Currency, w.ccy, d)
-			} else if p.stmt != nil {
-				val = w.conv(*p.stmt, w.ccy, d)
-			}
-		}
-		accSt := w.accounts[p.acc.ID]
-		switch accSt.acc.Tax.Mode {
-		case domain.TaxOnValue:
-			positionTax += val * rate(accSt.acc.Tax)
-		case domain.TaxOnGains:
-			basis := p.basis
-			if p.asset.Kind == domain.Property {
-				basis = p.first
-			}
-			positionTax += max(0, val-basis) * rate(accSt.acc.Tax)
-		}
-	}
-	// Also add TaxOnValue for cash
-	for _, accSt := range w.accounts {
-		if !w.scope.hasCash(accSt.acc) || !accSt.tracked {
-			continue
-		}
 		if accSt.acc.Tax.Mode == domain.TaxOnValue {
-			v := w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d)
 			positionTax += v * rate(accSt.acc.Tax)
 		}
 	}
