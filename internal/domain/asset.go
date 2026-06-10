@@ -59,4 +59,7 @@ type Asset struct {
 	Aliases  []string  `json:"aliases,omitempty"`
 	Currency Currency  `json:"ccy"`
 	Group    string    `json:"group,omitempty"` // chemin hiérarchique : "actions/us/tech"
+	// Withholding is the source-tax rate applied to AUTOMATIC dividends
+	// (net = gross × (1−w)); manual Dividend lines are assumed already net.
+	Withholding float64 `json:"withholding,omitempty"`
 }
