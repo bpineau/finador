@@ -114,3 +114,11 @@ toutes les chaînes visibles traduites (erreurs comprises) ; formats web anglais
 inception) — ce sont des ENTRÉES CLI, changement cassant assumé ; --by group|account ;
 paramètre web ?by=. Les commentaires de code et docs/superpowers/ restent en français
 (pas une surface utilisateur). Le README perd ses sections changelog.
+
+## D13 — Sparklines 1W/1M/1Y (pas de « day »)
+
+**Contexte :** la demande était day/week/month, mais le cache ne contient que des
+clôtures QUOTIDIENNES (interval=1d) : une sparkline « day » n'aurait qu'un point.
+**Choix :** fenêtres 1W (8 points), 1M (31), 1Y (série complète), couleur selon la
+dérive de la fenêtre. **Alternative si refusé :** récupérer de l'intraday Yahoo
+(interval=15m, non caché, casse --offline) ou élargir le modèle de cache.
