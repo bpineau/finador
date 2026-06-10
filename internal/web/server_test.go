@@ -271,6 +271,21 @@ func TestTxListAndAdd(t *testing.T) {
 	}
 }
 
+func TestDashboardByEnvelope(t *testing.T) {
+	srv, _ := testServer(t)
+	code, body := get(t, srv, "/?par=enveloppe")
+	if code != http.StatusOK {
+		t.Fatalf("GET /?par=enveloppe = %d", code)
+	}
+	if !strings.Contains(body, "PEA BforBank") || !strings.Contains(body, "/account/") {
+		t.Errorf("ventilation par enveloppe absente:\n%s", excerpt(body))
+	}
+	// le lien de bascule est présent dans les deux modes
+	if !strings.Contains(body, "par groupe") {
+		t.Errorf("lien de bascule absent")
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID

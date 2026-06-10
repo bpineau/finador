@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"finador/internal/domain"
 )
@@ -20,6 +21,28 @@ func dateOrToday(s string) (domain.Date, error) {
 		return domain.Today(), nil
 	}
 	return domain.ParseDate(s)
+}
+
+// parseExclusions resolves a comma-or-repeated --exclude list into asset IDs.
+func parseExclusions(b *domain.Book, refs []string) (map[domain.AssetID]bool, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	out := map[domain.AssetID]bool{}
+	for _, chunk := range refs {
+		for _, ref := range strings.Split(chunk, ",") {
+			ref = strings.TrimSpace(ref)
+			if ref == "" {
+				continue
+			}
+			asset, err := b.Asset(ref)
+			if err != nil {
+				return nil, fmt.Errorf("--exclude %s: %w", ref, err)
+			}
+			out[asset.ID] = true
+		}
+	}
+	return out, nil
 }
 
 // accountFor picks the envelope of a new transaction: the --account flag, the

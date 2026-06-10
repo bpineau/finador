@@ -22,6 +22,9 @@
   </div>
   <div>
     <h2>répartition</h2>
+    <p class="note-bas">
+      {{if .ParEnveloppe}}<a href="/">par groupe</a> · par enveloppe{{else}}par groupe · <a href="/?par=enveloppe">par enveloppe</a>{{end}}
+    </p>
     <ul class="repartition">
       {{range .Parts}}
       <li>

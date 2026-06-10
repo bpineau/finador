@@ -3,6 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -161,5 +162,108 @@ func TestHasImportHash(t *testing.T) {
 	}
 	if b.HasImportHash("ffff0000") || b.HasImportHash("") {
 		t.Error("hash absent ou vide ne doit jamais matcher")
+	}
+}
+
+func TestRemoveAsset(t *testing.T) {
+	b := sampleBook(t)
+	d, _ := ParseDate("2026-06-01")
+	b.Add(Transaction{Date: d, Account: "pea-bforbank", Asset: "cw8", Kind: Buy,
+		Quantity: decimal.NewFromInt(1), Amount: Money{Amount: decimal.NewFromInt(550), Currency: EUR}})
+	if err := b.RemoveAsset("cw8"); err == nil {
+		t.Fatal("RemoveAsset d'un actif référencé aurait dû échouer")
+	}
+	if err := b.AddAsset(&Asset{ID: "libre", Kind: Security, Name: "Libre", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	b.Market.Price("libre").Merge([]PricePoint{{Date: d, Close: 1}})
+	if err := b.RemoveAsset("libre"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Asset("libre"); !errors.Is(err, ErrNotFound) {
+		t.Error("l'actif devrait avoir disparu")
+	}
+	if b.Market.Prices["libre"] != nil {
+		t.Error("le cache de prix devrait être purgé")
+	}
+}
+
+func TestCheckAssetRefsCollision(t *testing.T) {
+	b := sampleBook(t)
+	if err := b.AddAsset(&Asset{ID: "autre", Kind: Security, Name: "Autre", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	autre, _ := b.Asset("autre")
+	autre.Aliases = []string{"CW8.PA"} // collision exacte avec le ticker de cw8
+	if err := b.CheckAssetRefs(autre); !errors.Is(err, ErrDuplicate) {
+		t.Errorf("collision non détectée: %v", err)
+	}
+	autre.Aliases = []string{"unique-2026"}
+	if err := b.CheckAssetRefs(autre); err != nil {
+		t.Errorf("faux positif: %v", err)
+	}
+}
+
+func TestParsePercent(t *testing.T) {
+	for in, want := range map[string]float64{"15%": 0.15, "0%": 0, "30": 0.30} {
+		got, err := ParsePercent(in)
+		if err != nil || got != want {
+			t.Errorf("ParsePercent(%q) = %v, %v", in, got, err)
+		}
+	}
+	for _, bad := range []string{"abc", "-5%", "150%"} {
+		if _, err := ParsePercent(bad); err == nil {
+			t.Errorf("ParsePercent(%q) accepté", bad)
+		}
+	}
+}
+
+func TestResolveUniquePrefix(t *testing.T) {
+	b := NewBook()
+	for _, a := range []*Account{
+		{ID: "pea-bforbank", Name: "PEA BforBank", Currency: EUR},
+		{ID: "per-linxea", Name: "PER Linxea", Currency: EUR},
+	} {
+		if err := b.AddAccount(a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := b.AddAsset(&Asset{ID: "cw8-pa", Kind: Security, Name: "Amundi MSCI World",
+		Ticker: "CW8.PA", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAsset(&Asset{ID: "ddog", Kind: Security, Name: "Datadog Inc.",
+		Ticker: "DDOG", Currency: USD}); err != nil {
+		t.Fatal(err)
+	}
+
+	// préfixe unique d'ID → résout
+	if a, err := b.Asset("cw8"); err != nil || a.ID != "cw8-pa" {
+		t.Errorf("Asset(cw8) = %v, %v", a, err)
+	}
+	// préfixe unique de nom → résout
+	if a, err := b.Asset("datad"); err != nil || a.ID != "ddog" {
+		t.Errorf("Asset(datad) = %v, %v", a, err)
+	}
+	// préfixe de compte
+	if acc, err := b.Account("pea"); err != nil || acc.ID != "pea-bforbank" {
+		t.Errorf("Account(pea) = %v, %v", acc, err)
+	}
+	// préfixe ambigu → erreur qui liste les candidats
+	_, err := b.Account("pe")
+	if !errors.Is(err, ErrAmbiguous) || !strings.Contains(err.Error(), "pea-bforbank") ||
+		!strings.Contains(err.Error(), "per-linxea") {
+		t.Errorf("Account(pe) = %v, attendu ambiguïté listant les candidats", err)
+	}
+	// l'exact gagne toujours sur le préfixe : un actif ID "dd" exact
+	if err := b.AddAsset(&Asset{ID: "dd", Kind: Security, Name: "Doubledown", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if a, err := b.Asset("dd"); err != nil || a.ID != "dd" {
+		t.Errorf("Asset(dd) = %v, %v — l'exact doit gagner", a, err)
+	}
+	// introuvable reste introuvable
+	if _, err := b.Asset("zz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Asset(zz) = %v", err)
 	}
 }

@@ -3,6 +3,8 @@ package cli
 import (
 	"cmp"
 	"fmt"
+	"slices"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/shopspring/decimal"
@@ -13,7 +15,7 @@ import (
 
 func assetCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "asset", Short: "Gère les actifs : titres cotés et biens"}
-	cmd.AddCommand(assetAdd(a), assetSet(a), assetList(a))
+	cmd.AddCommand(assetAdd(a), assetSet(a), assetList(a), assetEdit(a), assetRm(a))
 	return cmd
 }
 
@@ -121,11 +123,96 @@ func assetList(a *app) *cobra.Command {
 				return err
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tTYPE\tNOM\tTICKER\tGROUPE\tDEVISE")
+			fmt.Fprintln(w, "ID\tTYPE\tNOM\tTICKER\tGROUPE\tDEVISE\tALIAS\tRETENUE")
 			for _, as := range f.Book.Assets {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", as.ID, as.Kind, as.Name, as.Ticker, as.Group, as.Currency)
+				retenue := ""
+				if as.Withholding > 0 {
+					retenue = fmt.Sprintf("%.0f%%", as.Withholding*100)
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					as.ID, as.Kind, as.Name, as.Ticker, as.Group, as.Currency,
+					strings.Join(as.Aliases, ","), retenue)
 			}
 			return w.Flush()
+		},
+	}
+}
+
+func assetEdit(a *app) *cobra.Command {
+	var name, ticker, isin, group, ccy, withholding string
+	var addAlias, rmAlias []string
+	cmd := &cobra.Command{
+		Use:   "edit <actif>",
+		Short: "Modifie les champs passés en flag (alias, ISIN, retenue à la source…)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.mutate(func(b *domain.Book) error {
+				asset, err := b.Asset(args[0])
+				if err != nil {
+					return err
+				}
+				if name != "" {
+					asset.Name = name
+				}
+				if ticker != "" {
+					asset.Ticker = ticker
+				}
+				if isin != "" {
+					asset.ISIN = isin
+				}
+				if group != "" {
+					asset.Group = group
+				}
+				if ccy != "" {
+					if asset.Currency, err = domain.ParseCurrency(ccy); err != nil {
+						return err
+					}
+				}
+				for _, al := range addAlias {
+					if !slices.ContainsFunc(asset.Aliases, func(x string) bool { return strings.EqualFold(x, al) }) {
+						asset.Aliases = append(asset.Aliases, al)
+					}
+				}
+				for _, al := range rmAlias {
+					asset.Aliases = slices.DeleteFunc(asset.Aliases, func(x string) bool { return strings.EqualFold(x, al) })
+				}
+				if withholding != "" {
+					if asset.Withholding, err = domain.ParsePercent(withholding); err != nil {
+						return err
+					}
+				}
+				if err := b.CheckAssetRefs(asset); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Actif %s mis à jour\n", asset.ID)
+				return nil
+			})
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "nouveau nom")
+	cmd.Flags().StringVar(&ticker, "ticker", "", "nouveau ticker Yahoo")
+	cmd.Flags().StringVar(&isin, "isin", "", "nouvel ISIN")
+	cmd.Flags().StringVar(&group, "group", "", "nouvelle poche")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "nouvelle devise de cotation")
+	cmd.Flags().StringArrayVar(&addAlias, "add-alias", nil, "alias à ajouter (répétable)")
+	cmd.Flags().StringArrayVar(&rmAlias, "rm-alias", nil, "alias à retirer (répétable)")
+	cmd.Flags().StringVar(&withholding, "withholding", "", "retenue à la source sur dividendes, ex. 15%")
+	return cmd
+}
+
+func assetRm(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "rm <actif>",
+		Short: "Supprime un actif sans transaction (et purge son cache de cours)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.mutate(func(b *domain.Book) error {
+				if err := b.RemoveAsset(args[0]); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Actif supprimé\n")
+				return nil
+			})
 		},
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"text/tabwriter"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +16,7 @@ import (
 
 func perfCmd(a *app) *cobra.Command {
 	var ccy, from, to string
+	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "perf [portée]",
 		Short: "Rendements (TWR, XIRR) par période et métriques de risque",
@@ -34,6 +35,14 @@ func perfCmd(a *app) *cobra.Command {
 			scope, err := portfolio.ParseScope(b, ref)
 			if err != nil {
 				return err
+			}
+			excluded, err := parseExclusions(b, exclude)
+			if err != nil {
+				return err
+			}
+			if len(excluded) > 0 {
+				scope.Excluded = excluded
+				scope.Label += " (hors " + strings.Join(exclude, ",") + ")"
 			}
 			display, err := currencyOr(ccy, displayCurrency(b))
 			if err != nil {
@@ -67,28 +76,46 @@ func perfCmd(a *app) *cobra.Command {
 			rf := perf.RiskFreeFromConfig(b.Config)
 			rows, metrics := perf.Report(pts, fls, evalTo, rf)
 
-			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintf(cmd.OutOrStdout(), "%s — performance (%s), évalué au %s\n", scope.Label, display, evalTo)
-			fmt.Fprintln(tw, "PÉRIODE\tTWR\tXIRR")
+			out := cmd.OutOrStdout()
+			colored := a.colorsEnabled(cmd)
+
+			// pad pads s to visible width w (using rune count, ignoring ANSI sequences).
+			pad := func(s string, w int) string {
+				for len([]rune(s)) < w {
+					s = " " + s
+				}
+				return s
+			}
+
+			fmt.Fprintf(out, "%s — performance (%s), évalué au %s\n", scope.Label, display, evalTo)
+			fmt.Fprintf(out, "%-9s %14s %14s\n", "PÉRIODE", "TWR", "XIRR")
+			printRow := func(name, twrStr, xirrStr string, ts, xs float64) {
+				fmt.Fprintf(out, "%-9s %s %s\n",
+					name,
+					tint(pad(twrStr, 14), ts, colored),
+					tint(pad(xirrStr, 14), xs, colored),
+				)
+			}
 			for _, row := range rows {
-				twrStr := "—"
+				twrStr, xirrStr := "—", "—"
+				var ts, xs float64
 				if row.HasTWR {
 					twrStr = pctSigned(row.TWR)
+					ts = row.TWR
 				}
-				xirrStr := "—"
 				if row.HasXIRR {
 					xirrStr = pctSigned(row.XIRR)
+					xs = row.XIRR
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\n", row.Name, twrStr, xirrStr)
+				printRow(row.Name, twrStr, xirrStr, ts, xs)
 			}
 			if from != "" {
 				wf, err := domain.ParseDate(from)
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(tw, "fenêtre\t%s\t%s\n", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo))
+				printRow("fenêtre", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), 0, 0)
 			}
-			tw.Flush()
 
 			fmt.Fprintf(cmd.OutOrStdout(), "\nCAGR %s   vol %s   Sharpe %.2f   Sortino %.2f   (rf %s)\n",
 				pct(metrics.CAGR), pct(metrics.Vol),
@@ -109,6 +136,7 @@ func perfCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&ccy, "ccy", "", "devise (défaut : config currency, sinon EUR)")
 	cmd.Flags().StringVar(&from, "from", "", "début d'une fenêtre libre AAAA-MM-JJ")
 	cmd.Flags().StringVar(&to, "to", "", "date d'évaluation AAAA-MM-JJ (défaut : aujourd'hui)")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
 	return cmd
 }
 

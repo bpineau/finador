@@ -28,6 +28,7 @@ type app struct {
 	dbPath     string
 	noKeychain bool
 	offline    bool
+	noColor    bool
 	source     market.Source
 }
 
@@ -45,6 +46,7 @@ func New(opts ...Option) *cobra.Command {
 	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "fichier de données chiffré")
 	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "ne pas mémoriser le mot de passe")
 	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "n'accède jamais au réseau (cache uniquement)")
+	root.PersistentFlags().BoolVar(&a.noColor, "no-color", false, "désactive les couleurs")
 	root.AddCommand(initCmd(a), accountCmd(a), assetCmd(a), addCmd(a), sellCmd(a),
 		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a),
 		configCmd(a), lockCmd(a), valueCmd(a), refreshCmd(a), perfCmd(a), chartCmd(a),

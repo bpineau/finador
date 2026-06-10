@@ -25,15 +25,16 @@ type part struct {
 }
 
 type dashData struct {
-	Aujourdhui domain.Date
-	Val        portfolio.Valuation
-	Curve      template.HTML // SVG généré par chart.SVG — jamais de donnée brute utilisateur
-	Rows       []perf.Row
-	Met        perf.Metrics
-	Parts      []part
-	Warnings   []string
-	Flash      string
-	Erreur     string
+	Aujourdhui   domain.Date
+	Val          portfolio.Valuation
+	Curve        template.HTML // SVG généré par chart.SVG — jamais de donnée brute utilisateur
+	Rows         []perf.Row
+	Met          perf.Metrics
+	Parts        []part
+	Warnings     []string
+	Flash        string
+	Erreur       string
+	ParEnveloppe bool
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
@@ -45,16 +46,22 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	fx := market.Converter{FX: b.Market.FX}
 	ccy := displayCurrency(b)
 
-	val, err := portfolio.Value(b, scope, today, ccy, fx)
+	parMode := r.URL.Query().Get("par")
+	var opts []portfolio.ValueOption
+	if parMode == "enveloppe" {
+		opts = append(opts, portfolio.WithLinesByAccount())
+	}
+	val, err := portfolio.Value(b, scope, today, ccy, fx, opts...)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	data := dashData{
-		Aujourdhui: today,
-		Val:        val,
-		Flash:      r.URL.Query().Get("flash"),
-		Erreur:     r.URL.Query().Get("erreur"),
+		Aujourdhui:   today,
+		Val:          val,
+		Flash:        r.URL.Query().Get("flash"),
+		Erreur:       r.URL.Query().Get("erreur"),
+		ParEnveloppe: parMode == "enveloppe",
 	}
 
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
@@ -71,7 +78,9 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		if val.Gross > 0 && l.Gross > 0 {
 			p.Percent = int(l.Gross/val.Gross*100 + 0.5)
 		}
-		if l.Label != "liquidités" && l.Label != "(sans groupe)" {
+		if parMode == "enveloppe" {
+			p.URL = "/account/" + url.PathEscape(l.Label)
+		} else if l.Label != "liquidités" && l.Label != "(sans groupe)" {
 			p.URL = "/group/" + url.PathEscape(l.Label)
 		}
 		data.Parts = append(data.Parts, p)

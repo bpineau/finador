@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,6 +121,63 @@ func TestForgedParamsRejectedCleanly(t *testing.T) {
 	}
 	if _, err := Open(path, "s3cret"); err == nil || !strings.Contains(err.Error(), "hors bornes") {
 		t.Fatalf("attendu erreur de bornes, eu: %v", err)
+	}
+}
+
+func TestConcurrentEditDetected(t *testing.T) {
+	path := tmpPath(t)
+	f1, err := Create(path, "s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f2, err := Open(path, "s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// f2 écrit le premier
+	if err := f2.Book.AddAccount(&domain.Account{ID: "a", Name: "A", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f2.Save(); err != nil {
+		t.Fatal(err)
+	}
+	// la sauvegarde de f1 doit détecter la modification concurrente
+	if err := f1.Book.AddAccount(&domain.Account{ID: "b", Name: "B", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f1.Save(); !errors.Is(err, ErrConcurrent) {
+		t.Fatalf("attendu ErrConcurrent, eu: %v", err)
+	}
+	// après réouverture, l'écriture passe et rien n'a été perdu
+	f3, err := Open(path, "s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f3.Book.Account("a"); err != nil {
+		t.Error("l'écriture de f2 a été perdue")
+	}
+	if err := f3.Book.AddAccount(&domain.Account{ID: "b", Name: "B", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f3.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOwnSavesDoNotConflict(t *testing.T) {
+	path := tmpPath(t)
+	f, err := Create(path, "s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 3 {
+		if err := f.Book.AddAccount(&domain.Account{ID: domain.AccountID(fmt.Sprintf("a%d", i)),
+			Name: fmt.Sprintf("A%d", i), Currency: domain.EUR}); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Save(); err != nil {
+			t.Fatalf("save %d: %v", i, err)
+		}
 	}
 }
 
