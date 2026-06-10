@@ -2,10 +2,12 @@ package portfolio
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/shopspring/decimal"
 
 	"finador/internal/domain"
+	"finador/internal/perf"
 )
 
 // SeriesPoint is one day of a scope's value.
@@ -23,8 +25,31 @@ type ExternalFlow struct {
 
 // SeriesResult bundles the daily curve with the scope's external flows.
 type SeriesResult struct {
-	Points []SeriesPoint
-	Flows  []ExternalFlow
+	Points   []SeriesPoint
+	Flows    []ExternalFlow
+	Warnings []string // avertissements de conversion (une fois par (label, devise))
+}
+
+// PerfPoints converts the series points to perf.Point, using gross or net value.
+func (r SeriesResult) PerfPoints(net bool) []perf.Point {
+	pts := make([]perf.Point, len(r.Points))
+	for i, p := range r.Points {
+		v := p.Gross
+		if net {
+			v = p.Net
+		}
+		pts[i] = perf.Point{Date: p.Date, Value: v}
+	}
+	return pts
+}
+
+// PerfFlows converts the series flows to perf.Flow.
+func (r SeriesResult) PerfFlows() []perf.Flow {
+	fls := make([]perf.Flow, len(r.Flows))
+	for i, f := range r.Flows {
+		fls[i] = perf.Flow{Date: f.Date, Amount: f.Amount}
+	}
+	return fls
 }
 
 // Series walks the ledger once and produces the daily value of the scope
@@ -59,6 +84,7 @@ func Series(b *domain.Book, scope Scope, from, to domain.Date, ccy domain.Curren
 		out.Points = append(out.Points, SeriesPoint{Date: d, Gross: gross, Net: net})
 	}
 	out.Flows = w.flows
+	out.Warnings = w.warnings()
 	return out, nil
 }
 
@@ -74,6 +100,7 @@ type walker struct {
 	accounts map[domain.AccountID]*accountState
 	manual   map[domain.AssetID]bool
 	flows    []ExternalFlow
+	warned   map[string]bool // clé = "label:from→to", évite les doublons
 }
 
 type pairKey struct {
@@ -94,10 +121,11 @@ type pairState struct {
 }
 
 type accountState struct {
-	acc       *domain.Account
-	tracked   bool
-	cash      float64 // balance in account currency, anchored on last Statement
-	flowBasis float64 // envelope basis in display currency (deposits - withdrawals)
+	acc         *domain.Account
+	tracked     bool
+	cash        float64 // balance in account currency, anchored on last Statement
+	flowBasis   float64 // envelope basis in display currency (deposits - withdrawals)
+	hadCashStmt bool    // premier relevé cash déjà vu (règle D8)
 }
 
 func newWalker(b *domain.Book, scope Scope, ccy domain.Currency, fx FX) *walker {
@@ -106,6 +134,7 @@ func newWalker(b *domain.Book, scope Scope, ccy domain.Currency, fx FX) *walker 
 		pairs:    map[pairKey]*pairState{},
 		accounts: map[domain.AccountID]*accountState{},
 		manual:   manualDividendAssets(b),
+		warned:   map[string]bool{},
 	}
 	for _, acc := range b.Accounts {
 		w.accounts[acc.ID] = &accountState{acc: acc, tracked: CashTracked(b, acc.ID)}
@@ -131,21 +160,53 @@ func (w *walker) pair(t *domain.Transaction) *pairState {
 
 // conv converts a Money to display currency at a date; returns 0 on failure
 // (series semantics: missing FX → contribute 0, don't fail).
-func (w *walker) conv(m domain.Money, to domain.Currency, at domain.Date) float64 {
+// label is the asset or account name for warning deduplication.
+func (w *walker) conv(m domain.Money, to domain.Currency, at domain.Date, label string) float64 {
 	v, err := w.fx.Convert(toF(m.Amount), m.Currency, to, at)
 	if err != nil {
+		w.warn(label, m.Currency, to)
 		return 0
 	}
 	return v
 }
 
 // convF converts a float amount from one currency to another; returns 0 on failure.
-func (w *walker) convF(amount float64, from, to domain.Currency, at domain.Date) float64 {
+func (w *walker) convF(amount float64, from, to domain.Currency, at domain.Date, label string) float64 {
 	v, err := w.fx.Convert(amount, from, to, at)
 	if err != nil {
+		w.warn(label, from, to)
 		return 0
 	}
 	return v
+}
+
+// warn enregistre un avertissement de conversion une seule fois par (label, devise).
+func (w *walker) warn(label string, from, to domain.Currency) {
+	key := fmt.Sprintf("%s:%s→%s", label, from, to)
+	if !w.warned[key] {
+		w.warned[key] = true
+	}
+}
+
+// warnings retourne la liste des avertissements de conversion collectés.
+func (w *walker) warnings() []string {
+	if len(w.warned) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(w.warned))
+	for key := range w.warned {
+		// key format: "label:from→to"
+		// Reformat as a human-readable message
+		// Find split point at first ':'
+		i := 0
+		for i < len(key) && key[i] != ':' {
+			i++
+		}
+		label := key[:i]
+		ccy := key[i+1:]
+		out = append(out, fmt.Sprintf("%s: conversion %s impossible — valeur comptée 0", label, ccy))
+	}
+	return out
 }
 
 func (w *walker) addFlow(d domain.Date, amount float64, collect bool) {
@@ -167,7 +228,8 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		if p == nil {
 			return
 		}
-		disp := w.conv(t.Amount, w.ccy, t.Date)
+		label := p.asset.Name
+		disp := w.conv(t.Amount, w.ccy, t.Date, label)
 		sign := 1.0
 		if t.Kind == domain.Sell {
 			sign = -1
@@ -188,7 +250,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		// Update cash balance for tracked accounts
 		if acc.tracked {
 			// Buy reduces cash, Sell adds cash (in account currency)
-			cashAmt := w.conv(t.Amount, acc.acc.Currency, t.Date)
+			cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
 			if t.Kind == domain.Buy {
 				acc.cash -= cashAmt
 			} else {
@@ -216,8 +278,9 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		if t.Kind == domain.Withdraw {
 			sign = -1
 		}
-		disp := w.conv(t.Amount, w.ccy, t.Date)
-		cashAmt := w.conv(t.Amount, acc.acc.Currency, t.Date)
+		label := acc.acc.Name
+		disp := w.conv(t.Amount, w.ccy, t.Date, label)
+		cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
 		acc.cash += sign * cashAmt
 		acc.flowBasis += sign * disp
 		if inCash {
@@ -226,9 +289,13 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 	case domain.Dividend:
 		p := w.pair(t)
-		disp := w.conv(t.Amount, w.ccy, t.Date)
+		label := ""
+		if p != nil {
+			label = p.asset.Name
+		}
+		disp := w.conv(t.Amount, w.ccy, t.Date, label)
 		if acc.tracked {
-			cashAmt := w.conv(t.Amount, acc.acc.Currency, t.Date)
+			cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
 			acc.cash += cashAmt
 		}
 		switch {
@@ -244,18 +311,33 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 	case domain.Fee:
 		if acc.tracked {
-			cashAmt := w.conv(t.Amount, acc.acc.Currency, t.Date)
+			label := acc.acc.Name
+			cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
 			acc.cash -= cashAmt
 		}
 		// never a flow: a cost must weigh on performance
 
 	case domain.Statement:
 		if t.Asset == "" {
-			// Pure cash statement: overwrite the running balance directly (the
-			// walker applies flows chronologically, so no anchor comparison is needed).
+			// Relevé de cash pur.
+			// Première réconciliation = adoption (apport), pas performance ;
+			// les relevés suivants mesurent la performance (intérêts d'un livret).
 			if acc.tracked {
-				cashAmt := w.conv(t.Amount, acc.acc.Currency, t.Date)
-				acc.cash = cashAmt
+				label := acc.acc.Name
+				newBalance := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
+				if !acc.hadCashStmt {
+					// Premier relevé cash : l'écart entre le solde courant et le nouveau
+					// solde est traité comme un apport externe (adoption D8).
+					currentDisp := w.convF(acc.cash, acc.acc.Currency, w.ccy, t.Date, label)
+					newDisp := w.conv(t.Amount, w.ccy, t.Date, label)
+					adoptionAmt := newDisp - currentDisp
+					if w.scope.hasCash(acc.acc) {
+						w.addFlow(t.Date, adoptionAmt, collect)
+					}
+					acc.hadCashStmt = true
+				}
+				// Mettre à jour le solde (comportement d'ancrage existant).
+				acc.cash = newBalance
 			}
 			return
 		}
@@ -263,11 +345,34 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		if p == nil {
 			return
 		}
+		isFirstStmt := p.stmt == nil
 		m := t.Amount
 		p.stmt = &m
 		if !p.hasFst && p.asset.Kind == domain.Property {
-			p.first = w.conv(t.Amount, w.ccy, t.Date)
+			p.first = w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
 			p.hasFst = true
+		}
+		// Première réconciliation d'un couple (compte, actif) = adoption (apport),
+		// pas performance ; les relevés suivants mesurent la performance.
+		// On émet un flux uniquement si la position est effectivement valorisée
+		// par ce relevé à cette date :
+		//   - bien immobilier (property) : toujours valorisé par relevés
+		//   - titre (security) sans cours de marché à cette date : valorisé par relevé
+		if isFirstStmt && w.scope.hasAsset(acc.acc, p.asset) {
+			emitAdoption := false
+			if p.asset.Kind == domain.Property {
+				emitAdoption = true
+			} else {
+				// security : uniquement si aucun cours disponible à cette date
+				_, _, hasPx := w.b.Market.Prices[p.asset.ID].At(t.Date)
+				if !hasPx && p.qty > 0 {
+					emitAdoption = true
+				}
+			}
+			if emitAdoption {
+				adoptionAmt := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
+				w.addFlow(t.Date, adoptionAmt, collect)
+			}
 		}
 	}
 }
@@ -288,10 +393,10 @@ func (w *walker) applyDividends(d domain.Date, collect bool) {
 				Amount:   decimal.NewFromFloat(p.qty * ev.Amount),
 				Currency: p.asset.Currency,
 			}
-			disp := w.conv(gross, w.ccy, d)
+			disp := w.conv(gross, w.ccy, d, p.asset.Name)
 			acc := w.accounts[p.acc.ID]
 			if acc.tracked {
-				cashAmt := w.conv(gross, acc.acc.Currency, d)
+				cashAmt := w.convF(p.qty*ev.Amount, p.asset.Currency, acc.acc.Currency, d, p.asset.Name)
 				acc.cash += cashAmt
 			}
 			switch {
@@ -326,7 +431,7 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 		case p.asset.Kind == domain.Property:
 			// Property: valued by last statement
 			if p.stmt != nil {
-				val = w.conv(*p.stmt, w.ccy, d)
+				val = w.conv(*p.stmt, w.ccy, d, p.asset.Name)
 			}
 		default:
 			// Security: market price with forward-fill, fall back to last statement
@@ -334,9 +439,9 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 				break
 			}
 			if close, _, ok := w.b.Market.Prices[p.asset.ID].At(d); ok {
-				val = w.convF(p.qty*close, p.asset.Currency, w.ccy, d)
+				val = w.convF(p.qty*close, p.asset.Currency, w.ccy, d, p.asset.Name)
 			} else if p.stmt != nil {
-				val = w.conv(*p.stmt, w.ccy, d)
+				val = w.conv(*p.stmt, w.ccy, d, p.asset.Name)
 			}
 			// else: no price yet → val stays 0 (series semantics)
 		}
@@ -361,7 +466,7 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 			continue
 		}
 		// acc.cash is in account currency; convert to display currency at d
-		v := w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d)
+		v := w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d, accSt.acc.Name)
 		if v == 0 {
 			continue
 		}
