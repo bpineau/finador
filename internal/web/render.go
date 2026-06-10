@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
-	"time"
 
 	"finador/internal/domain"
 )
@@ -75,8 +74,10 @@ func frMoney(v float64, ccy domain.Currency) string {
 	if neg {
 		v = -v
 	}
-	whole := int64(v)
-	cents := int64(v*100+0.5) % 100
+	// arrondi UNE fois en centimes totaux puis découpe : sinon la retenue se
+	// perd quand les centimes arrondissent à 100 (0,995 → « 0,00 »)
+	total := int64(v*100 + 0.5)
+	whole, cents := total/100, total%100
 	digits := fmt.Sprintf("%d", whole)
 	var b strings.Builder
 	for i, r := range digits {
@@ -131,5 +132,3 @@ func frDate(d domain.Date) string {
 	t := d.Time()
 	return fmt.Sprintf("%s %d %s %d", frDays[int(t.Weekday())], d.Day, frMonths[int(d.Month)-1], d.Year)
 }
-
-var _ = time.Now // (gardé si besoin d'horodatage ultérieur)
