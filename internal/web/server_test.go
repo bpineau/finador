@@ -526,6 +526,16 @@ func TestTxCreateOnTheFly(t *testing.T) {
 	}
 }
 
+func TestDashboardPie(t *testing.T) {
+	srv, _ := testServer(t)
+	_, body := get(t, srv, "/")
+	for _, want := range []string{"weights", "pie-legend", "pastille", `viewBox="0 0 190 190"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("pie: %q missing", want)
+		}
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID
