@@ -98,3 +98,12 @@ func TestFormatCompact(t *testing.T) {
 		}
 	}
 }
+
+func TestBrailleClampsBadDimensions(t *testing.T) {
+	for _, dims := range [][2]int{{0, 0}, {-5, -5}, {1, 0}, {0, 1}} {
+		out := Braille(ramp(10), dims[0], dims[1])
+		if out == "" || !strings.Contains(out, "2026-01-01") {
+			t.Errorf("Braille(%v) devrait rendre une courbe minimale", dims)
+		}
+	}
+}

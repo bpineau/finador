@@ -115,8 +115,8 @@ func window(res portfolio.SeriesResult, from, to domain.Date) ([]perf.Point, []p
 	}
 	var flows []perf.Flow
 	for _, fl := range res.Flows {
-		if fl.Date.Before(from) || to.Before(fl.Date) || !from.Before(fl.Date) {
-			continue // les flux du jour de base sont dans V0
+		if to.Before(fl.Date) || !from.Before(fl.Date) {
+			continue // les flux du jour de base (et avant) sont dans V0
 		}
 		flows = append(flows, perf.Flow{Date: fl.Date, Amount: fl.Amount})
 	}
