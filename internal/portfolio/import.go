@@ -67,7 +67,7 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 	if err != nil {
 		return zero, err
 	}
-	acc, err := ensureAccount(b, get("account"), get("currency"))
+	acc, err := EnsureAccount(b, get("account"), get("currency"))
 	if err != nil {
 		return zero, err
 	}
@@ -79,7 +79,7 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 	tx := domain.Transaction{Date: date, Account: acc.ID, Kind: kind, Note: get("note")}
 
 	if ref := get("asset"); ref != "" {
-		asset, err := ensureAsset(b, ref, ccy, get("group"))
+		asset, err := EnsureAsset(b, ref, ccy, get("group"))
 		if err != nil {
 			return zero, err
 		}
@@ -124,20 +124,9 @@ func hashTx(t domain.Transaction) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// EnsureAccount resolves an existing account by ref, or creates a new one when
-// not found. Ambiguity errors are propagated unchanged. ccy defaults to EUR when
-// empty.
+// EnsureAccount resolves an account reference or creates it (EUR by default)
+// when truly unknown; ambiguity always propagates instead of creating.
 func EnsureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
-	return ensureAccount(b, ref, ccy)
-}
-
-// EnsureAsset resolves an existing asset by ref, or creates a new one when not
-// found. Ambiguity errors are propagated unchanged.
-func EnsureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) (*domain.Asset, error) {
-	return ensureAsset(b, ref, ccy, group)
-}
-
-func ensureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
 	if ref == "" {
 		return nil, errors.New("empty account column")
 	}
@@ -155,7 +144,9 @@ func ensureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
 	return acc, b.AddAccount(acc)
 }
 
-func ensureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) (*domain.Asset, error) {
+// EnsureAsset resolves an asset reference or creates a security with the
+// reference as ticker; ambiguity always propagates instead of creating.
+func EnsureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) (*domain.Asset, error) {
 	if asset, err := b.Asset(ref); err == nil {
 		return asset, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {

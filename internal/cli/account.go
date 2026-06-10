@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -105,14 +104,7 @@ func accountEdit(a *app) *cobra.Command {
 						return err
 					}
 				}
-				for _, al := range addAlias {
-					if !slices.ContainsFunc(acc.Aliases, func(x string) bool { return strings.EqualFold(x, al) }) {
-						acc.Aliases = append(acc.Aliases, al)
-					}
-				}
-				for _, al := range rmAlias {
-					acc.Aliases = slices.DeleteFunc(acc.Aliases, func(x string) bool { return strings.EqualFold(x, al) })
-				}
+				acc.Aliases = applyAliasEdits(acc.Aliases, addAlias, rmAlias)
 				if err := b.CheckAccountRefs(acc); err != nil {
 					return err
 				}

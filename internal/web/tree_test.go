@@ -68,5 +68,3 @@ func TestBuildTreeByGroup(t *testing.T) {
 		t.Errorf("cash = %+v", liq)
 	}
 }
-
-// TestFlatAssets was removed: flatAssets and the "by asset" tab are deleted in J3.
