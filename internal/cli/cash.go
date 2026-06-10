@@ -10,11 +10,11 @@ import (
 )
 
 func cashCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "cash", Short: "Soldes de liquidités des comptes"}
+	cmd := &cobra.Command{Use: "cash", Short: "Account cash balances"}
 	var at, ccy string
 	set := &cobra.Command{
 		Use:   "set <compte> <solde>",
-		Short: "Pose le solde constaté d'un compte (les écarts entre relevés comptent comme performance — un apport se saisit avec deposit)",
+		Short: "Set the observed balance of an account (gaps between statements count as performance — use deposit for external contributions)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
@@ -24,7 +24,7 @@ func cashCmd(a *app) *cobra.Command {
 				}
 				amount, err := decimal.NewFromString(args[1])
 				if err != nil {
-					return fmt.Errorf("solde %q: %w", args[1], err)
+					return fmt.Errorf("invalid balance %q: %w", args[1], err)
 				}
 				date, err := dateOrToday(at)
 				if err != nil {
@@ -43,8 +43,8 @@ func cashCmd(a *app) *cobra.Command {
 			})
 		},
 	}
-	set.Flags().StringVar(&at, "at", "", "date AAAA-MM-JJ (défaut : aujourd'hui)")
-	set.Flags().StringVar(&ccy, "ccy", "", "devise (défaut : celle du compte)")
+	set.Flags().StringVar(&at, "at", "", "date YYYY-MM-DD (default: today)")
+	set.Flags().StringVar(&ccy, "ccy", "", "currency (default: account currency)")
 	cmd.AddCommand(set)
 	return cmd
 }
