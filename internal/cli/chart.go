@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +17,7 @@ func chartCmd(a *app) *cobra.Command {
 	var ccy, from, to string
 	var net bool
 	var width, height int
+	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "chart [portée]",
 		Short: "Courbe d'évolution de la valeur, dans le terminal",
@@ -34,6 +36,14 @@ func chartCmd(a *app) *cobra.Command {
 			scope, err := portfolio.ParseScope(b, ref)
 			if err != nil {
 				return err
+			}
+			excluded, err := parseExclusions(b, exclude)
+			if err != nil {
+				return err
+			}
+			if len(excluded) > 0 {
+				scope.Excluded = excluded
+				scope.Label += " (hors " + strings.Join(exclude, ",") + ")"
 			}
 			display, err := currencyOr(ccy, displayCurrency(b))
 			if err != nil {
@@ -83,5 +93,6 @@ func chartCmd(a *app) *cobra.Command {
 	cmd.Flags().BoolVar(&net, "net", false, "courbe nette d'impôt latent")
 	cmd.Flags().IntVar(&width, "width", 70, "largeur en caractères")
 	cmd.Flags().IntVar(&height, "height", 12, "hauteur en lignes")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
 	return cmd
 }
