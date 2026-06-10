@@ -386,3 +386,11 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 		t.Errorf("withdraw: %q", out)
 	}
 }
+
+func TestServeRefusesOfflineBindWarning(t *testing.T) {
+	db := newDB(t)
+	// pas de listen réel : on vérifie seulement la validation des flags
+	if _, err := tryRun(t, db, "serve", "--addr", "pas-une-adresse"); err == nil {
+		t.Fatal("adresse invalide acceptée")
+	}
+}
