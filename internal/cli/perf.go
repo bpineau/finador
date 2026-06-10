@@ -18,8 +18,8 @@ func perfCmd(a *app) *cobra.Command {
 	var ccy, from, to string
 	var exclude []string
 	cmd := &cobra.Command{
-		Use:   "perf [portée]",
-		Short: "Rendements (TWR, XIRR) par période et métriques de risque",
+		Use:   "perf [scope]",
+		Short: "Returns (TWR, XIRR) by period and risk metrics",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
@@ -42,7 +42,7 @@ func perfCmd(a *app) *cobra.Command {
 			}
 			if len(excluded) > 0 {
 				scope.Excluded = excluded
-				scope.Label += " (hors " + strings.Join(exclude, ",") + ")"
+				scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
 			}
 			display, err := currencyOr(ccy, displayCurrency(b))
 			if err != nil {
@@ -53,7 +53,7 @@ func perfCmd(a *app) *cobra.Command {
 				return err
 			}
 			if today := domain.Today(); today.Before(evalTo) {
-				fmt.Fprintf(cmd.ErrOrStderr(), "≈ borne future ramenée à aujourd'hui (%s)\n", today)
+				fmt.Fprintf(cmd.ErrOrStderr(), "≈ future date clamped to today (%s)\n", today)
 				evalTo = today
 			}
 			ensureDisplayFX(cmd, a, f, display)
@@ -87,8 +87,8 @@ func perfCmd(a *app) *cobra.Command {
 				return s
 			}
 
-			fmt.Fprintf(out, "%s — performance (%s), évalué au %s\n", scope.Label, display, evalTo)
-			fmt.Fprintf(out, "%-9s %14s %14s\n", "PÉRIODE", "TWR", "XIRR")
+			fmt.Fprintf(out, "%s — performance (%s), as of %s\n", scope.Label, display, evalTo)
+			fmt.Fprintf(out, "%-9s %14s %14s\n", "PERIOD", "TWR", "XIRR")
 			printRow := func(name, twrStr, xirrStr string, ts, xs float64) {
 				fmt.Fprintf(out, "%-9s %s %s\n",
 					name,
@@ -122,21 +122,21 @@ func perfCmd(a *app) *cobra.Command {
 				metrics.Sharpe, metrics.Sortino, pct(metrics.RiskFree))
 			dd := metrics.Drawdown
 			if dd.Depth < 0 {
-				rec := "non récupéré"
+				rec := "not recovered"
 				if dd.Recovered != nil {
-					rec = "récupéré le " + dd.Recovered.String()
+					rec = "recovered on " + dd.Recovered.String()
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "max drawdown %s (%s → %s, %s)\n", pct(dd.Depth), dd.Peak, dd.Trough, rec)
 			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), "max drawdown — aucun")
+				fmt.Fprintln(cmd.OutOrStdout(), "max drawdown — none")
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&ccy, "ccy", "", "devise (défaut : config currency, sinon EUR)")
-	cmd.Flags().StringVar(&from, "from", "", "début d'une fenêtre libre AAAA-MM-JJ")
-	cmd.Flags().StringVar(&to, "to", "", "date d'évaluation AAAA-MM-JJ (défaut : aujourd'hui)")
-	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: config currency, otherwise EUR)")
+	cmd.Flags().StringVar(&from, "from", "", "start of a custom window YYYY-MM-DD")
+	cmd.Flags().StringVar(&to, "to", "", "valuation date YYYY-MM-DD (default: today)")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
 	return cmd
 }
 

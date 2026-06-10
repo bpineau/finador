@@ -10,17 +10,17 @@ import (
 )
 
 func depositCmd(a *app) *cobra.Command {
-	return flowCmd(a, "deposit", domain.Deposit, "Apport externe vers un compte (base fiscale, XIRR)")
+	return flowCmd(a, "deposit", domain.Deposit, "External contribution to an account (tax basis, XIRR)")
 }
 
 func withdrawCmd(a *app) *cobra.Command {
-	return flowCmd(a, "withdraw", domain.Withdraw, "Retrait externe d'un compte")
+	return flowCmd(a, "withdraw", domain.Withdraw, "External withdrawal from an account")
 }
 
 func flowCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Command {
 	var ccy, note string
 	cmd := &cobra.Command{
-		Use:   use + " <compte> <montant> [date]",
+		Use:   use + " <account> <amount> [date]",
 		Short: short,
 		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -31,7 +31,7 @@ func flowCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comman
 				}
 				amount, err := decimal.NewFromString(args[1])
 				if err != nil {
-					return fmt.Errorf("montant %q: %w", args[1], err)
+					return fmt.Errorf("invalid amount %q: %w", args[1], err)
 				}
 				date := domain.Today()
 				if len(args) == 3 {
@@ -53,7 +53,7 @@ func flowCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comman
 			})
 		},
 	}
-	cmd.Flags().StringVar(&ccy, "ccy", "", "devise (défaut : celle du compte)")
-	cmd.Flags().StringVar(&note, "note", "", "note libre")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: account currency)")
+	cmd.Flags().StringVar(&note, "note", "", "free note")
 	return cmd
 }
