@@ -19,15 +19,19 @@ type Book struct {
 
 func NewBook() *Book { return &Book{Config: map[string]string{}} }
 
-// AddAccount rejects an ID or name that collides with any existing resolvable
-// reference (ID or name): allowing it would create a permanently shadowed entry.
+// AddAccount rejects an ID or name that collides exactly (case-insensitive)
+// with an existing account — exact field comparison avoids false duplicates
+// from the prefix tier.
 func (b *Book) AddAccount(a *Account) error {
 	if a.ID == "" {
 		return fmt.Errorf("compte %q: identifiant vide", a.Name)
 	}
-	for _, ref := range []string{string(a.ID), a.Name} {
-		if _, err := b.Account(ref); err == nil {
-			return fmt.Errorf("compte %q: %w", ref, ErrDuplicate)
+	for _, other := range b.Accounts {
+		if strings.EqualFold(string(other.ID), string(a.ID)) {
+			return fmt.Errorf("compte %q: %w", string(a.ID), ErrDuplicate)
+		}
+		if strings.EqualFold(other.Name, a.Name) {
+			return fmt.Errorf("compte %q: %w", a.Name, ErrDuplicate)
 		}
 	}
 	b.Accounts = append(b.Accounts, a)
@@ -43,21 +47,39 @@ func (b *Book) Account(ref string) (*Account, error) {
 }
 
 // AddAsset rejects any reference (ID, ticker, ISIN, alias, name) that already
-// resolves: allowing it would poison resolution with permanent ambiguity.
+// collides exactly (case-insensitive) with another asset — exact field
+// comparison avoids false duplicates from the prefix tier.
 func (b *Book) AddAsset(a *Asset) error {
 	if a.ID == "" {
 		return fmt.Errorf("actif %q: identifiant vide", a.Name)
 	}
-	refs := append([]string{string(a.ID), a.Ticker, a.ISIN, a.Name}, a.Aliases...)
-	for _, ref := range refs {
-		if ref == "" {
-			continue
-		}
-		if _, err := b.Asset(ref); err == nil {
-			return fmt.Errorf("actif %q: %w", ref, ErrDuplicate)
-		}
+	if err := b.CheckAssetRefs(a); err != nil {
+		return err
 	}
 	b.Assets = append(b.Assets, a)
+	return nil
+}
+
+// CheckAssetRefs verifies that none of a's references collides exactly with
+// another asset — adding or editing must not poison resolution.
+func (b *Book) CheckAssetRefs(a *Asset) error {
+	refs := append([]string{string(a.ID), a.Ticker, a.ISIN, a.Name}, a.Aliases...)
+	for _, other := range b.Assets {
+		if other.ID == a.ID {
+			continue
+		}
+		others := append([]string{string(other.ID), other.Ticker, other.ISIN, other.Name}, other.Aliases...)
+		for _, r := range refs {
+			if r == "" {
+				continue
+			}
+			for _, o := range others {
+				if o != "" && strings.EqualFold(r, o) {
+					return fmt.Errorf("référence %q déjà portée par %s: %w", r, other.ID, ErrDuplicate)
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -74,7 +96,9 @@ func (b *Book) Asset(ref string) (*Asset, error) {
 }
 
 // resolve returns the single item matching ref on the first tier that yields
-// any match; several matches on the same tier is an ambiguity.
+// any match; several matches on the same tier is an ambiguity. When every
+// exact tier fails, a unique case-insensitive PREFIX of any reference wins —
+// « add cw8 » without remembering the full id.
 func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*T, error) {
 	if ref == "" {
 		return nil, fmt.Errorf("%s (référence vide): %w", what, ErrNotFound)
@@ -93,7 +117,31 @@ func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*
 			return nil, fmt.Errorf("%s %q: %w", what, ref, ErrAmbiguous)
 		}
 	}
-	return nil, fmt.Errorf("%s %q: %w", what, ref, ErrNotFound)
+	// tier préfixe : sur TOUTES les références confondues
+	low := strings.ToLower(ref)
+	var hits []*T
+	var hitIDs []string
+	for _, it := range items {
+		for _, tier := range tiers {
+			found := lo.SomeBy(tier(it), func(s string) bool {
+				return s != "" && strings.HasPrefix(strings.ToLower(s), low)
+			})
+			if found {
+				hits = append(hits, it)
+				hitIDs = append(hitIDs, tiers[0](it)[0]) // l'ID, premier tier
+				break
+			}
+		}
+	}
+	switch len(hits) {
+	case 1:
+		return hits[0], nil
+	case 0:
+		return nil, fmt.Errorf("%s %q: %w", what, ref, ErrNotFound)
+	default:
+		return nil, fmt.Errorf("%s %q (candidats : %s): %w",
+			what, ref, strings.Join(hitIDs, ", "), ErrAmbiguous)
+	}
 }
 
 // Add appends t to the ledger with a fresh ID and returns the stored transaction.
