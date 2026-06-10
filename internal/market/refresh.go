@@ -41,7 +41,7 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		mergeDividends(&b.Market, asset.ID, data.Dividends)
 		if data.Currency != "" && data.Currency != asset.Currency {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
-				"%s cote en %s mais l'actif est déclaré en %s", asset.Ticker, data.Currency, asset.Currency))
+				"%s quotes in %s but the asset is declared in %s", asset.Ticker, data.Currency, asset.Currency))
 		}
 		sum.Fetched = append(sum.Fetched, asset.Ticker)
 	}

@@ -24,7 +24,7 @@ func NewBook() *Book { return &Book{Config: map[string]string{}} }
 // from the prefix tier.
 func (b *Book) AddAccount(a *Account) error {
 	if a.ID == "" {
-		return fmt.Errorf("compte %q: identifiant vide", a.Name)
+		return fmt.Errorf("account %q: empty identifier", a.Name)
 	}
 	for _, other := range b.Accounts {
 		if strings.EqualFold(string(other.ID), string(a.ID)) {
@@ -40,7 +40,7 @@ func (b *Book) AddAccount(a *Account) error {
 
 // Account resolves a reference: ID first, then free-form name — both case-insensitive.
 func (b *Book) Account(ref string) (*Account, error) {
-	return resolve(ref, "compte", b.Accounts,
+	return resolve(ref, "account", b.Accounts,
 		func(a *Account) []string { return []string{string(a.ID)} },
 		func(a *Account) []string { return []string{a.Name} },
 	)
@@ -51,7 +51,7 @@ func (b *Book) Account(ref string) (*Account, error) {
 // comparison avoids false duplicates from the prefix tier.
 func (b *Book) AddAsset(a *Asset) error {
 	if a.ID == "" {
-		return fmt.Errorf("actif %q: identifiant vide", a.Name)
+		return fmt.Errorf("asset %q: empty identifier", a.Name)
 	}
 	if err := b.CheckAssetRefs(a); err != nil {
 		return err
@@ -75,7 +75,7 @@ func (b *Book) CheckAssetRefs(a *Asset) error {
 			}
 			for _, o := range others {
 				if o != "" && strings.EqualFold(r, o) {
-					return fmt.Errorf("référence %q déjà portée par %s: %w", r, other.ID, ErrDuplicate)
+					return fmt.Errorf("reference %q already used by %s: %w", r, other.ID, ErrDuplicate)
 				}
 			}
 		}
@@ -86,7 +86,7 @@ func (b *Book) CheckAssetRefs(a *Asset) error {
 // Asset resolves a reference, trying tiers in order:
 // ID, ticker, ISIN, alias, then name — all case-insensitive.
 func (b *Book) Asset(ref string) (*Asset, error) {
-	return resolve(ref, "actif", b.Assets,
+	return resolve(ref, "asset", b.Assets,
 		func(a *Asset) []string { return []string{string(a.ID)} },
 		func(a *Asset) []string { return []string{a.Ticker} },
 		func(a *Asset) []string { return []string{a.ISIN} },
@@ -101,7 +101,7 @@ func (b *Book) Asset(ref string) (*Asset, error) {
 // « add cw8 » without remembering the full id.
 func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*T, error) {
 	if ref == "" {
-		return nil, fmt.Errorf("%s (référence vide): %w", what, ErrNotFound)
+		return nil, fmt.Errorf("%s (empty reference): %w", what, ErrNotFound)
 	}
 	for _, tier := range tiers {
 		matches := lo.Filter(items, func(it *T, _ int) bool {
@@ -139,7 +139,7 @@ func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*
 	case 0:
 		return nil, fmt.Errorf("%s %q: %w", what, ref, ErrNotFound)
 	default:
-		return nil, fmt.Errorf("%s %q (candidats : %s): %w",
+		return nil, fmt.Errorf("%s %q (candidates: %s): %w",
 			what, ref, strings.Join(hitIDs, ", "), ErrAmbiguous)
 	}
 }
@@ -152,7 +152,7 @@ func (b *Book) RemoveAsset(ref string) error {
 	}
 	for _, t := range b.Transactions {
 		if t.Asset == asset.ID {
-			return fmt.Errorf("l'actif %s est référencé par la transaction %d — supprimez d'abord ses transactions (finador tx list --asset %s)",
+			return fmt.Errorf("asset %s is referenced by transaction %d — delete its transactions first (finador tx list --asset %s)",
 				asset.ID, t.ID, asset.ID)
 		}
 	}

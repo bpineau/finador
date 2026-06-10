@@ -30,7 +30,7 @@ var txKindByName = lo.Invert(txKindNames)
 func ParseTxKind(s string) (TxKind, error) {
 	k, ok := txKindByName[strings.ToLower(s)]
 	if !ok {
-		return 0, fmt.Errorf("type de transaction %q inconnu", s)
+		return 0, fmt.Errorf("unknown transaction kind %q", s)
 	}
 	return k, nil
 }
@@ -40,7 +40,7 @@ func (k TxKind) String() string { return txKindNames[k] }
 func (k TxKind) MarshalText() ([]byte, error) {
 	name, ok := txKindNames[k]
 	if !ok {
-		return nil, fmt.Errorf("TxKind %d non défini", uint8(k))
+		return nil, fmt.Errorf("undefined TxKind %d", uint8(k))
 	}
 	return []byte(name), nil
 }
