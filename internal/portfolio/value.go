@@ -2,6 +2,7 @@ package portfolio
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/shopspring/decimal"
 
@@ -32,8 +33,25 @@ type Line struct {
 
 const staleAfterDays = 5
 
-func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx FX) (Valuation, error) {
+// ValueOption adjusts a single valuation — nothing is ever persisted.
+type ValueOption func(*valuer)
+
+// WithLinesByAccount breaks lines down by envelope instead of group; an
+// envelope line carries its positions AND its cash.
+func WithLinesByAccount() ValueOption { return func(v *valuer) { v.byAccount = true } }
+
+// WithPriceOverrides forces the price of given assets, in their quote
+// currency — the throwaway hypotheses of « value --what-if ddog=280 ».
+// For a property, the override replaces the whole estimate.
+func WithPriceOverrides(p map[domain.AssetID]float64) ValueOption {
+	return func(v *valuer) { v.overrides = p }
+}
+
+func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx FX, opts ...ValueOption) (Valuation, error) {
 	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
+	for _, o := range opts {
+		o(v)
+	}
 	out := Valuation{Currency: ccy}
 
 	lines := map[string]*Line{}
@@ -50,6 +68,13 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 	}
 	perAccount := map[domain.AccountID]float64{}
 
+	label := func(acc *domain.Account, asset *domain.Asset) string {
+		if v.byAccount {
+			return acc.Name
+		}
+		return scope.lineLabel(acc, asset)
+	}
+
 	// 1. positions titres
 	for _, h := range Holdings(b, at) {
 		if h.Asset.Kind == domain.Property || !scope.hasAsset(h.Account, h.Asset) {
@@ -63,7 +88,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		if err != nil {
 			return out, err
 		}
-		add(scope.lineLabel(h.Account, h.Asset), gross, tax)
+		add(label(h.Account, h.Asset), gross, tax)
 		perAccount[h.Account.ID] += gross
 	}
 
@@ -80,7 +105,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		if err != nil {
 			return out, err
 		}
-		add(scope.lineLabel(p.account, p.asset), gross, tax)
+		add(label(p.account, p.asset), gross, tax)
 		perAccount[p.account.ID] += gross
 	}
 
@@ -100,7 +125,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		if acc.Tax.Mode == domain.TaxOnValue {
 			tax = gross * rate(acc.Tax)
 		}
-		add(scope.lineLabel(acc, nil), gross, tax)
+		add(label(acc, nil), gross, tax)
 		perAccount[acc.ID] += gross
 	}
 
@@ -136,11 +161,18 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 }
 
 type valuer struct {
-	b     *domain.Book
-	fx    FX
-	at    domain.Date
-	ccy   domain.Currency
-	stale []string
+	b         *domain.Book
+	fx        FX
+	at        domain.Date
+	ccy       domain.Currency
+	stale     []string
+	byAccount bool
+	overrides map[domain.AssetID]float64
+}
+
+// trimFloat formats a float64 without trailing zeros.
+func trimFloat(f float64) string {
+	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
 func rate(t domain.TaxRule) float64 { f, _ := t.Rate.Float64(); return f }
@@ -153,6 +185,11 @@ func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (
 // positionValue: market close if a series exists, else last statement of the
 // (account, asset) pair, else zero — each fallback flagged.
 func (v *valuer) positionValue(h Holding) (float64, error) {
+	if ov, ok := v.overrides[h.Asset.ID]; ok {
+		v.stale = append(v.stale, fmt.Sprintf("hypothèse : %s à %s %s",
+			h.Asset.Name, trimFloat(ov), h.Asset.Currency))
+		return v.fx.Convert(toF(h.Qty)*ov, h.Asset.Currency, v.ccy, v.at)
+	}
 	if close, cdate, ok := v.b.Market.Prices[h.Asset.ID].At(v.at); ok {
 		if cdate.AddDays(staleAfterDays).Before(v.at) {
 			v.stale = append(v.stale, fmt.Sprintf("%s: dernier cours au %s", h.Asset.Name, cdate))
@@ -168,6 +205,11 @@ func (v *valuer) positionValue(h Holding) (float64, error) {
 }
 
 func (v *valuer) statementValue(acc domain.AccountID, asset *domain.Asset) (float64, error) {
+	if ov, ok := v.overrides[asset.ID]; ok {
+		v.stale = append(v.stale, fmt.Sprintf("hypothèse : %s à %s %s",
+			asset.Name, trimFloat(ov), asset.Currency))
+		return v.fx.Convert(ov, asset.Currency, v.ccy, v.at)
+	}
 	tx, ok := v.lastStatement(acc, asset.ID)
 	if !ok {
 		return 0, nil

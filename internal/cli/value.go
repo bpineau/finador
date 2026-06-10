@@ -15,9 +15,9 @@ import (
 )
 
 func valueCmd(a *app) *cobra.Command {
-	var ccy, at string
+	var ccy, at, by string
 	var net bool
-	var exclude []string
+	var exclude, whatIf []string
 	cmd := &cobra.Command{
 		Use:   "value [portée]",
 		Short: "Valeur du patrimoine — tout, un groupe, une enveloppe ou un actif",
@@ -54,11 +54,32 @@ func valueCmd(a *app) *cobra.Command {
 				return err
 			}
 			ensureDisplayFX(cmd, a, f, display)
-			val, err := portfolio.Value(b, scope, date, display, market.Converter{FX: b.Market.FX})
+			var opts []portfolio.ValueOption
+			switch by {
+			case "groupe":
+			case "enveloppe":
+				opts = append(opts, portfolio.WithLinesByAccount())
+			default:
+				return fmt.Errorf("--by %q: attendu groupe ou enveloppe", by)
+			}
+			overrides, err := parseWhatIf(b, whatIf)
+			if err != nil {
+				return err
+			}
+			if len(overrides) > 0 {
+				opts = append(opts, portfolio.WithPriceOverrides(overrides))
+			}
+			val, err := portfolio.Value(b, scope, date, display, market.Converter{FX: b.Market.FX}, opts...)
 			if err != nil {
 				return err
 			}
 			printValuation(cmd, scope, date, val, net)
+			if len(overrides) > 0 {
+				base, err := portfolio.Value(b, scope, date, display, market.Converter{FX: b.Market.FX})
+				if err == nil {
+					printWhatIfDelta(cmd, val, base)
+				}
+			}
 			return nil
 		},
 	}
@@ -66,7 +87,48 @@ func valueCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&at, "at", "", "date d'évaluation AAAA-MM-JJ (défaut : aujourd'hui)")
 	cmd.Flags().BoolVar(&net, "net", false, "affiche brut, impôt latent estimé et net")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
+	cmd.Flags().StringVar(&by, "by", "groupe", "ventilation des lignes : groupe ou enveloppe")
+	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "hypothèse jetable actif=prix (répétable), ex. ddog=280")
 	return cmd
+}
+
+// parseWhatIf reads "ref=prix" pairs into asset-ID overrides.
+func parseWhatIf(b *domain.Book, pairs []string) (map[domain.AssetID]float64, error) {
+	if len(pairs) == 0 {
+		return nil, nil
+	}
+	out := map[domain.AssetID]float64{}
+	for _, p := range pairs {
+		ref, val, ok := strings.Cut(p, "=")
+		if !ok {
+			return nil, fmt.Errorf("--what-if %q: attendu actif=prix", p)
+		}
+		asset, err := b.Asset(strings.TrimSpace(ref))
+		if err != nil {
+			return nil, fmt.Errorf("--what-if %s: %w", ref, err)
+		}
+		price, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
+		if err != nil || price < 0 {
+			return nil, fmt.Errorf("--what-if %s: prix %q invalide", ref, val)
+		}
+		out[asset.ID] = price
+	}
+	return out, nil
+}
+
+// printWhatIfDelta compares the hypothesis with reality.
+func printWhatIfDelta(cmd *cobra.Command, hyp, base portfolio.Valuation) {
+	out := cmd.OutOrStdout()
+	dg, dn := hyp.Gross-base.Gross, hyp.Net-base.Net
+	fmt.Fprintf(out, "\nvs réel : brut %+.2f %s", dg, string(hyp.Currency))
+	if base.Gross != 0 {
+		fmt.Fprintf(out, " (%+.2f%%)", dg/base.Gross*100)
+	}
+	fmt.Fprintf(out, " · net %+.2f %s", dn, string(hyp.Currency))
+	if base.Net != 0 {
+		fmt.Fprintf(out, " (%+.2f%%)", dn/base.Net*100)
+	}
+	fmt.Fprintln(out)
 }
 
 // displayCurrency: config "currency" si valide, sinon EUR.
