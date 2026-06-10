@@ -53,7 +53,7 @@
     {{end}}
   </table>
   <p class="sous-titre">
-    CAGR {{frPct .Met.CAGR}} · vol {{frPct .Met.Vol}} · Sharpe {{printf "%.2f" .Met.Sharpe}} · Sortino {{printf "%.2f" .Met.Sortino}}
+    CAGR {{frPct .Met.CAGR}} · vol {{frPct .Met.Vol}} · Sharpe {{frNum .Met.Sharpe}} · Sortino {{frNum .Met.Sortino}}
     {{if lt .Met.Drawdown.Depth 0.0}} · max drawdown {{frPct .Met.Drawdown.Depth}}{{end}}
   </p>
   {{else}}<p class="approx">pas encore assez d'historique.</p>{{end}}
