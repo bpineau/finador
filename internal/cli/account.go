@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -11,7 +13,7 @@ import (
 
 func accountCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "account", Short: "Manage accounts (PEA, CTO, PER, bank accounts…)"}
-	cmd.AddCommand(accountAdd(a), accountList(a))
+	cmd.AddCommand(accountAdd(a), accountList(a), accountEdit(a))
 	return cmd
 }
 
@@ -66,11 +68,63 @@ func accountList(a *app) *cobra.Command {
 				return err
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tNAME\tCURRENCY\tTAX")
+			fmt.Fprintln(w, "ID\tNAME\tCURRENCY\tTAX\tALIASES")
 			for _, acc := range f.Book.Accounts {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", acc.ID, acc.Name, acc.Currency, acc.Tax)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+					acc.ID, acc.Name, acc.Currency, acc.Tax,
+					strings.Join(acc.Aliases, ","))
 			}
 			return w.Flush()
 		},
 	}
+}
+
+func accountEdit(a *app) *cobra.Command {
+	var name, tax, ccy string
+	var addAlias, rmAlias []string
+	cmd := &cobra.Command{
+		Use:   "edit <account>",
+		Short: "Edit account fields passed as flags (name, tax, currency, aliases…)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.mutate(func(b *domain.Book) error {
+				acc, err := b.Account(args[0])
+				if err != nil {
+					return err
+				}
+				if name != "" {
+					acc.Name = name
+				}
+				if tax != "" {
+					if acc.Tax, err = domain.ParseTaxRule(tax); err != nil {
+						return err
+					}
+				}
+				if ccy != "" {
+					if acc.Currency, err = domain.ParseCurrency(ccy); err != nil {
+						return err
+					}
+				}
+				for _, al := range addAlias {
+					if !slices.ContainsFunc(acc.Aliases, func(x string) bool { return strings.EqualFold(x, al) }) {
+						acc.Aliases = append(acc.Aliases, al)
+					}
+				}
+				for _, al := range rmAlias {
+					acc.Aliases = slices.DeleteFunc(acc.Aliases, func(x string) bool { return strings.EqualFold(x, al) })
+				}
+				if err := b.CheckAccountRefs(acc); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Account %s updated\n", acc.ID)
+				return nil
+			})
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "new name")
+	cmd.Flags().StringVar(&tax, "tax", "", "new tax rule: none, gains:17.2%, value:20%")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "new account currency")
+	cmd.Flags().StringArrayVar(&addAlias, "add-alias", nil, "alias to add (repeatable)")
+	cmd.Flags().StringArrayVar(&rmAlias, "rm-alias", nil, "alias to remove (repeatable)")
+	return cmd
 }

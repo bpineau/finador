@@ -339,15 +339,22 @@ func TestDashboardTreeModes(t *testing.T) {
 	srv, _ := testServer(t)
 	// group mode (default): tree with details and intersection link
 	_, body := get(t, srv, "/")
-	for _, want := range []string{"<details", "/account/pea/group/actions", "by asset"} {
+	for _, want := range []string{"<details", "/account/pea/group/actions"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("group mode: %q missing", want)
 		}
 	}
-	// asset mode: flat list, direct asset link, no details
+	// "by asset" tab must be GONE
+	if strings.Contains(body, "by asset") {
+		t.Error("group mode: 'by asset' tab must not appear")
+	}
+	// ?by=asset is silently normalized to group: still shows the tree
 	_, body = get(t, srv, "/?by=asset")
-	if !strings.Contains(body, "/asset/cw8") {
-		t.Errorf("asset mode: asset link missing:\n%s", excerpt(body))
+	if !strings.Contains(body, "<details") {
+		t.Errorf("asset mode normalized to group: tree missing:\n%s", excerpt(body))
+	}
+	if strings.Contains(body, "by asset") {
+		t.Error("?by=asset should not render by-asset tab")
 	}
 	// active tab is not a link
 	if !strings.Contains(body, `actif-onglet`) {
@@ -486,6 +493,46 @@ func TestChartRanges(t *testing.T) {
 	// invalide → all (200, pas d'erreur)
 	if code, _ := get(t, srv, "/?range=zz"); code != http.StatusOK {
 		t.Errorf("invalid range = %d", code)
+	}
+}
+
+func TestTxCreateOnTheFly(t *testing.T) {
+	srv, f := testServer(t)
+	code, _, loc := postForm(t, srv, "/tx", url.Values{
+		"date": {"2026-06-03"}, "kind": {"deposit"}, "account": {"Brand New Bank"},
+		"amount": {"500"},
+	})
+	if code != http.StatusSeeOther || loc != "/tx" {
+		t.Fatalf("create-on-the-fly = %d → %q", code, loc)
+	}
+	if _, err := f.Book.Account("Brand New Bank"); err != nil {
+		t.Fatalf("account not created: %v", err)
+	}
+	// actif à la volée
+	code, _, _ = postForm(t, srv, "/tx", url.Values{
+		"date": {"2026-06-03"}, "kind": {"buy"}, "account": {"pea"},
+		"asset": {"NVDA"}, "qty": {"2"}, "amount": {"300"},
+	})
+	if code != http.StatusSeeOther {
+		t.Fatalf("asset on the fly = %d", code)
+	}
+	if a, err := f.Book.Asset("NVDA"); err != nil || a.Kind != domain.Security {
+		t.Fatalf("asset not created: %v %v", a, err)
+	}
+	// le formulaire est en datalist, plus en select
+	_, body := get(t, srv, "/tx")
+	if !strings.Contains(body, "<datalist") || strings.Contains(body, `<select id="account"`) {
+		t.Error("account field should be a datalist input")
+	}
+}
+
+func TestDashboardPie(t *testing.T) {
+	srv, _ := testServer(t)
+	_, body := get(t, srv, "/")
+	for _, want := range []string{"weights", "pie-legend", "pastille", `viewBox="0 0 190 190"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("pie: %q missing", want)
+		}
 	}
 }
 

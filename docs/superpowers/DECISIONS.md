@@ -115,6 +115,27 @@ inception) — ce sont des ENTRÉES CLI, changement cassant assumé ; --by group
 paramètre web ?by=. Les commentaires de code et docs/superpowers/ restent en français
 (pas une surface utilisateur). Le README perd ses sections changelog.
 
+## D14 — Création à la volée, retrait « by asset », donut d'allocation (v0.7)
+
+**Création à la volée web :** un compte inconnu saisi dans le formulaire de transaction
+naît EUR / taxe `none` ; un actif inconnu naît `security` avec `ticker = saisie` (mêmes
+règles que l'import CSV). Un typo crée donc une entité — assumé, car l'import CSV fait
+pareil, et `asset rm` / `tx edit` permettent de corriger. L'ambiguïté (préfixe non
+unique) est propagée comme erreur 400 sans création.
+
+**Onglet « by asset » retiré :** redondant avec l'onglet Assets qui affiche une ligne
+dense par position. `?by=asset` est normalisé silencieusement vers `group` ; `flatAssets`
+et son test sont supprimés comme code mort. Les onglets restants sont `by group` et
+`by account`.
+
+**Camembert (donut) d'allocation :** SVG serveur rendu par `chart.Pie` (taille 190 px),
+parts = groupes de tête + cash agrégés depuis `portfolio.Breakdown`, triés par montant
+décroissant avant l'affectation des couleurs. Palette feutrée `chart.PiePalette` cyclée
+(huit teintes papier). Légende HTML à droite : pastille couleur, libellé (lien groupe
+quand applicable), pourcentage arrondi, montant. Les couleurs venant d'une palette
+constante, `Color` est typé `template.CSS` pour éviter l'échappement html/template.
+Sections `property` incluses dans les poids (c'est du poids d'allocation).
+
 ## D13 — Sparklines 1W/1M/1Y (pas de « day »)
 
 **Contexte :** la demande était day/week/month, mais le cache ne contient que des

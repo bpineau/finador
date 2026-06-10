@@ -137,30 +137,6 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 	return out
 }
 
-// flatAssets aggregates each asset across envelopes (cash excluded), sorted
-// by descending value.
-func flatAssets(lines []portfolio.PositionLine) []node {
-	byAsset := map[string]*node{}
-	for _, l := range lines {
-		if l.Asset == nil {
-			continue
-		}
-		id := string(l.Asset.ID)
-		n, ok := byAsset[id]
-		if !ok {
-			n = &node{Label: l.Asset.Name, URL: "/asset/" + url.PathEscape(id)}
-			byAsset[id] = n
-		}
-		n.Gross += l.Gross
-	}
-	var out []node
-	for _, n := range byAsset {
-		out = append(out, *n)
-	}
-	sortNodes(out)
-	return out
-}
-
 // escapeGroup escapes each path segment, keeping the slashes routable.
 func escapeGroup(g string) string {
 	segs := strings.Split(g, "/")
