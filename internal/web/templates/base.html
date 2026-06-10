@@ -1,0 +1,24 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}finador{{end}}</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="manchette">
+  <a class="marque" href="/">FINADOR</a>
+  <span class="date-du-jour">{{frDate .Aujourdhui}}</span>
+  <nav>
+    <a href="/">Patrimoine</a>
+    <a href="/tx">Transactions</a>
+    <a href="/import">Import</a>
+  </nav>
+</header>
+<main>
+{{block "main" .}}{{end}}
+</main>
+<footer class="pied">finador — vos données restent dans votre fichier chiffré.</footer>
+</body>
+</html>{{end}}
