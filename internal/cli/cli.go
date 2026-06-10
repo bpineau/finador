@@ -47,7 +47,7 @@ func New(opts ...Option) *cobra.Command {
 	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "n'accède jamais au réseau (cache uniquement)")
 	root.AddCommand(initCmd(a), accountCmd(a), assetCmd(a), addCmd(a), sellCmd(a),
 		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a),
-		configCmd(a), lockCmd(a), valueCmd(a), refreshCmd(a), perfCmd(a))
+		configCmd(a), lockCmd(a), valueCmd(a), refreshCmd(a), perfCmd(a), chartCmd(a))
 	return root
 }
 
