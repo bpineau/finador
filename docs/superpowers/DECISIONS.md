@@ -49,7 +49,11 @@ prévention de doublons rend l'état non-réparable improbable) ; `config set` n
 les clés ; pas de verrou inter-processus (à revoir en phase D quand `serve` coexistera avec
 la CLI) ; fenêtre de crash entre les deux renames du Save (récupérable via .bak/.tmp) ;
 `Statement` sur un titre coté accepté (la sémantique sera fixée par la valorisation en
-phase B).
+phase B). Ajouts de la revue finale projet : résolution par préfixe non ambigu (le
+spec-exemple « add cw8 » exige un --id explicite aujourd'hui) ; validation de
+default-account au moment du config set ; dashboard web à dégrader comme chart quand
+le FX manque (aujourd'hui : page d'erreur propre, mais le bouton refresh est sur le
+dashboard lui-même).
 
 ## D7 — Le fichier .fin reste en version 1 avec le cache marché
 
