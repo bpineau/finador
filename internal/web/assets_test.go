@@ -2,8 +2,6 @@ package web
 
 import (
 	"testing"
-
-	"finador/internal/domain"
 )
 
 func TestSortSectionsPropertyLast(t *testing.T) {
@@ -22,5 +20,4 @@ func TestSortSectionsPropertyLast(t *testing.T) {
 		}
 	}
 	// keep domain imported — remove if unused elsewhere
-	_ = domain.Property
 }
