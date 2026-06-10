@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ import (
 
 func perfCmd(a *app) *cobra.Command {
 	var ccy, from, to string
+	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "perf [portée]",
 		Short: "Rendements (TWR, XIRR) par période et métriques de risque",
@@ -34,6 +36,14 @@ func perfCmd(a *app) *cobra.Command {
 			scope, err := portfolio.ParseScope(b, ref)
 			if err != nil {
 				return err
+			}
+			excluded, err := parseExclusions(b, exclude)
+			if err != nil {
+				return err
+			}
+			if len(excluded) > 0 {
+				scope.Excluded = excluded
+				scope.Label += " (hors " + strings.Join(exclude, ",") + ")"
 			}
 			display, err := currencyOr(ccy, displayCurrency(b))
 			if err != nil {
@@ -109,6 +119,7 @@ func perfCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&ccy, "ccy", "", "devise (défaut : config currency, sinon EUR)")
 	cmd.Flags().StringVar(&from, "from", "", "début d'une fenêtre libre AAAA-MM-JJ")
 	cmd.Flags().StringVar(&to, "to", "", "date d'évaluation AAAA-MM-JJ (défaut : aujourd'hui)")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
 	return cmd
 }
 
