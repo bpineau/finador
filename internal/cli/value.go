@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ import (
 func valueCmd(a *app) *cobra.Command {
 	var ccy, at string
 	var net bool
+	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "value [portée]",
 		Short: "Valeur du patrimoine — tout, un groupe, une enveloppe ou un actif",
@@ -34,6 +36,14 @@ func valueCmd(a *app) *cobra.Command {
 			scope, err := portfolio.ParseScope(b, ref)
 			if err != nil {
 				return err
+			}
+			excluded, err := parseExclusions(b, exclude)
+			if err != nil {
+				return err
+			}
+			if len(excluded) > 0 {
+				scope.Excluded = excluded
+				scope.Label += " (hors " + strings.Join(exclude, ",") + ")"
 			}
 			date, err := dateOrToday(at)
 			if err != nil {
@@ -55,6 +65,7 @@ func valueCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&ccy, "ccy", "", "devise d'affichage (défaut : config currency, sinon EUR)")
 	cmd.Flags().StringVar(&at, "at", "", "date d'évaluation AAAA-MM-JJ (défaut : aujourd'hui)")
 	cmd.Flags().BoolVar(&net, "net", false, "affiche brut, impôt latent estimé et net")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "actif(s) à exclure de la portée (répétable ou liste à virgules)")
 	return cmd
 }
 

@@ -387,6 +387,29 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 	}
 }
 
+func TestPerfAndValueExclude(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	// valeur sans cw8 : il ne reste que le cash (5000 − 5500 = −500)
+	out := runNet(t, db, "value", "--exclude", "cw8", "--at", "2026-06-05")
+	if !strings.Contains(out, "-500.00 EUR") {
+		t.Errorf("value --exclude:\n%s", out)
+	}
+	// perf accepte la même exclusion (liste à virgules)
+	out = runNet(t, db, "perf", "--exclude", "cw8", "--to", "2026-06-05")
+	if !strings.Contains(out, "origine") {
+		t.Errorf("perf --exclude:\n%s", out)
+	}
+	// référence inconnue dans --exclude → erreur propre
+	if _, err := tryRun(t, db, "value", "--exclude", "zzz"); err == nil {
+		t.Fatal("exclusion inconnue acceptée")
+	}
+}
+
 func TestServeRefusesOfflineBindWarning(t *testing.T) {
 	db := newDB(t)
 	// pas de listen réel : on vérifie seulement la validation des flags
