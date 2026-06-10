@@ -1,0 +1,18 @@
+{{define "import.html"}}{{template "base" .}}{{end}}
+{{define "title"}}import — finador{{end}}
+{{define "main"}}
+<section>
+  <h2>import CSV</h2>
+  {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+  {{if .Erreur}}<p class="flash erreur">{{.Erreur}}</p>{{end}}
+  <form method="post" action="/import" enctype="multipart/form-data">
+    <fieldset>
+      <legend>fichier de transactions</legend>
+      <p class="note-bas">colonnes par en-tête, ordre libre : date, kind, account, asset,
+      quantity, price, amount, currency, group, note. Le ré-import ignore les doublons.</p>
+      <input type="file" name="fichier" accept=".csv,text/csv">
+      <button type="submit">Importer</button>
+    </fieldset>
+  </form>
+</section>
+{{end}}

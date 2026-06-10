@@ -1,8 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -179,6 +181,44 @@ func excerpt(s string) string {
 		return s[:800]
 	}
 	return s
+}
+
+func TestImportUpload(t *testing.T) {
+	srv, f := testServer(t)
+	code, body := get(t, srv, "/import")
+	if code != http.StatusOK || !strings.Contains(body, "multipart/form-data") {
+		t.Fatalf("GET /import = %d", code)
+	}
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, _ := mw.CreateFormFile("fichier", "txs.csv")
+	part.Write([]byte("date,kind,account,asset,quantity,price,amount,currency,group,note\n" +
+		"2026-02-01,buy,PEA Zephyr,CW8.PA,3,540,,EUR,actions/monde,import web\n"))
+	mw.Close()
+	req := httptest.NewRequest(http.MethodPost, "/import", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST /import = %d\n%s", rec.Code, excerpt(rec.Body.String()))
+	}
+	if len(f.Book.Transactions) != 3 {
+		t.Errorf("transactions = %d, attendu 3", len(f.Book.Transactions))
+	}
+	// le flash de résultat est visible après redirection
+	code, body = get(t, srv, rec.Header().Get("Location"))
+	if code != http.StatusOK || !strings.Contains(body, "1 importée") {
+		t.Errorf("flash absent:\n%s", excerpt(body))
+	}
+}
+
+func TestRefreshButtonOffline(t *testing.T) {
+	srv, _ := testServer(t) // serveur en mode offline
+	code, _, loc := postForm(t, srv, "/refresh", url.Values{})
+	if code != http.StatusSeeOther || !strings.Contains(loc, "hors+ligne") && !strings.Contains(loc, "hors%20ligne") {
+		t.Fatalf("refresh offline = %d → %q", code, loc)
+	}
 }
 
 func postForm(t *testing.T, srv *Server, path string, form url.Values) (int, string, string) {

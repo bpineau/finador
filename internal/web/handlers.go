@@ -32,6 +32,8 @@ type dashData struct {
 	Met        perf.Metrics
 	Parts      []part
 	Warnings   []string
+	Flash      string
+	Erreur     string
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +50,12 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	data := dashData{Aujourdhui: today, Val: val}
+	data := dashData{
+		Aujourdhui: today,
+		Val:        val,
+		Flash:      r.URL.Query().Get("flash"),
+		Erreur:     r.URL.Query().Get("erreur"),
+	}
 
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
 		data.Curve = template.HTML(chart.SVG([]chart.Line{
