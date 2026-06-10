@@ -410,6 +410,37 @@ func TestPerfAndValueExclude(t *testing.T) {
 	}
 }
 
+func TestValueWhatIfAndByAccount(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+	run(t, db, "deposit", "PEA Zephyr", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	// hypothèse : cw8 à 600 → 10×600 − 500 = 5500 brut, et un delta vs réel (5100)
+	out := runNet(t, db, "value", "--what-if", "cw8=600", "--at", "2026-06-05")
+	for _, want := range []string{"5500.00 EUR", "hypothèse", "+400.00 EUR"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("what-if: %q manquant dans:\n%s", want, out)
+		}
+	}
+	// ventilation par enveloppe
+	out = runNet(t, db, "value", "--by", "enveloppe", "--at", "2026-06-05")
+	if !strings.Contains(out, "PEA Zephyr") {
+		t.Errorf("--by enveloppe:\n%s", out)
+	}
+	// erreurs propres
+	if _, err := tryRun(t, db, "value", "--what-if", "zzz=10"); err == nil {
+		t.Fatal("what-if sur actif inconnu accepté")
+	}
+	if _, err := tryRun(t, db, "value", "--what-if", "cw8"); err == nil {
+		t.Fatal("what-if sans prix accepté")
+	}
+	if _, err := tryRun(t, db, "value", "--by", "n'importe"); err == nil {
+		t.Fatal("--by invalide accepté")
+	}
+}
+
 func TestServeRefusesOfflineBindWarning(t *testing.T) {
 	db := newDB(t)
 	// pas de listen réel : on vérifie seulement la validation des flags
