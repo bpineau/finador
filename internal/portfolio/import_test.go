@@ -1,4 +1,4 @@
-package cli
+package portfolio
 
 import (
 	"strings"
@@ -15,7 +15,7 @@ const sampleCSV = `date,kind,account,asset,quantity,price,amount,currency,group,
 
 func TestImportCSV(t *testing.T) {
 	b := domain.NewBook()
-	added, skipped, err := importCSV(b, strings.NewReader(sampleCSV))
+	added, skipped, err := ImportCSV(b, strings.NewReader(sampleCSV))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,10 +44,10 @@ func TestImportCSV(t *testing.T) {
 
 func TestImportCSVIdempotent(t *testing.T) {
 	b := domain.NewBook()
-	if _, _, err := importCSV(b, strings.NewReader(sampleCSV)); err != nil {
+	if _, _, err := ImportCSV(b, strings.NewReader(sampleCSV)); err != nil {
 		t.Fatal(err)
 	}
-	added, skipped, err := importCSV(b, strings.NewReader(sampleCSV))
+	added, skipped, err := ImportCSV(b, strings.NewReader(sampleCSV))
 	if err != nil || added != 0 || skipped != 3 {
 		t.Fatalf("ré-import: added=%d skipped=%d err=%v", added, skipped, err)
 	}
@@ -56,7 +56,7 @@ func TestImportCSVIdempotent(t *testing.T) {
 func TestImportCSVBadLine(t *testing.T) {
 	b := domain.NewBook()
 	bad := "date,kind,account,amount,currency\n2026-13-45,buy,X,100,EUR\n"
-	if _, _, err := importCSV(b, strings.NewReader(bad)); err == nil || !strings.Contains(err.Error(), "ligne 2") {
+	if _, _, err := ImportCSV(b, strings.NewReader(bad)); err == nil || !strings.Contains(err.Error(), "ligne 2") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -70,7 +70,7 @@ func TestImportPropagatesAmbiguity(t *testing.T) {
 		&domain.Asset{ID: "a2", Kind: domain.Security, Name: "Deux", Aliases: []string{"dup"}, Currency: domain.EUR},
 	)
 	csv := "date,kind,account,asset,quantity,price,currency\n2026-01-15,buy,PEA,dup,1,10,EUR\n"
-	if _, _, err := importCSV(b, strings.NewReader(csv)); err == nil || !strings.Contains(err.Error(), "ambiguë") {
+	if _, _, err := ImportCSV(b, strings.NewReader(csv)); err == nil || !strings.Contains(err.Error(), "ambiguë") {
 		t.Fatalf("err = %v, attendu ambiguïté propagée", err)
 	}
 }
