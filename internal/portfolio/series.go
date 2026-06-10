@@ -390,7 +390,7 @@ func (w *walker) applyDividends(d domain.Date, collect bool) {
 				continue
 			}
 			gross := domain.Money{
-				Amount:   decimal.NewFromFloat(p.qty * ev.Amount),
+				Amount:   decimal.NewFromFloat(p.qty * ev.Amount * (1 - p.asset.Withholding)),
 				Currency: p.asset.Currency,
 			}
 			disp := w.conv(gross, w.ccy, d, p.asset.Name)
