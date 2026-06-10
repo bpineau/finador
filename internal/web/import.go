@@ -30,6 +30,10 @@ func (s *Server) importUpload(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// un CSV de transactions personnel tient largement sous 10 Mo : borne anti-DoS
+	if r.ContentLength > 10<<20 {
+		http.Redirect(w, r, "/import?erreur="+url.QueryEscape("fichier trop volumineux (10 Mo maximum)"), http.StatusSeeOther)
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	file, _, err := r.FormFile("fichier")
 	if err != nil {

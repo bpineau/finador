@@ -18,6 +18,7 @@ var styleCSS []byte
 
 var funcs = template.FuncMap{
 	"frMoney": frMoney,
+	"frNum":   frNum,
 	"frPct":   frPct,
 	"frDate":  frDate,
 	"frDelta": frDelta,
@@ -108,7 +109,12 @@ func symbol(c domain.Currency) string {
 // frPct: « +2,00 % » (espace fine avant %).
 func frPct(x float64) string {
 	s := fmt.Sprintf("%+.2f", x*100)
-	return strings.ReplaceAll(s, ".", ",") + " %"
+	return strings.ReplaceAll(strings.ReplaceAll(s, ".", ","), "-", "\u2212") + " %"
+}
+
+// frNum: nombre court à virgule française (Sharpe 1,26).
+func frNum(x float64) string {
+	return strings.ReplaceAll(strings.ReplaceAll(fmt.Sprintf("%.2f", x), ".", ","), "-", "\u2212")
 }
 
 func signe(x float64) string {
