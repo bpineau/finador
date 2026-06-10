@@ -29,6 +29,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.dashboard)
 	mux.HandleFunc("GET /style.css", s.stylesheet)
 	mux.HandleFunc("GET /group/{ref...}", s.scopePage)
+	mux.HandleFunc("GET /account/{ref}/group/{gpath...}", s.intersectPage)
 	mux.HandleFunc("GET /account/{ref}", s.scopePage)
 	mux.HandleFunc("GET /asset/{ref}", s.scopePage)
 	mux.HandleFunc("GET /tx", s.txPage)

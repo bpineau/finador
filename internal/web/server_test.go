@@ -296,6 +296,27 @@ func TestStylesheetThemesLinksAndTrees(t *testing.T) {
 	}
 }
 
+func TestIntersectionScopeView(t *testing.T) {
+	srv, _ := testServer(t)
+	code, body := get(t, srv, "/account/pea/group/actions")
+	if code != http.StatusOK {
+		t.Fatalf("GET intersection = %d\n%s", code, excerpt(body))
+	}
+	for _, want := range []string{"PEA BforBank", "actions", "Amundi MSCI World", "performance", "<svg"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("intersection: %q manquant", want)
+		}
+	}
+	// le cash de l'enveloppe n'apparaît PAS dans une portée croisée
+	if strings.Contains(body, "liquidités") {
+		t.Error("liquidités présentes dans une intersection enveloppe∩groupe")
+	}
+	// compte inconnu → 404
+	if code, _ := get(t, srv, "/account/zz9/group/actions"); code != http.StatusNotFound {
+		t.Errorf("intersection inconnue = %d", code)
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID
