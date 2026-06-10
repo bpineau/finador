@@ -232,8 +232,10 @@ finador serve [--addr 127.0.0.1:8451]
 ```
 
 Unlocks the file in the terminal, then serves the whole app — dashboard with
-allocation trees (by group / by account / by asset), drill-down scope pages with
-curves and performance, transaction entry/edit/delete, CSV import, quote refresh.
+allocation trees (by group / by account / by asset), an **assets tab** showing
+every holding on one dense row with 1W/1M/1Y sparklines and gross/net amounts,
+drill-down scope pages with curves and performance, transaction
+entry/edit/delete, CSV import, quote refresh.
 No web authentication: keep it on 127.0.0.1 (a loud warning is printed
 otherwise).
 
