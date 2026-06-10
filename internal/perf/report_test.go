@@ -1,6 +1,7 @@
 package perf
 
 import (
+	"math"
 	"testing"
 
 	"finador/internal/domain"
@@ -85,6 +86,26 @@ func TestReportXIRRDashOnShortNamedPeriods(t *testing.T) {
 	for _, row := range rows {
 		if longPeriods[row.Name] && !row.HasXIRR {
 			t.Errorf("période longue %q devrait avoir HasXIRR=true", row.Name)
+		}
+	}
+}
+
+func TestRiskFreeFromConfig(t *testing.T) {
+	cases := []struct {
+		cfg  map[string]string
+		want float64
+	}{
+		{map[string]string{"risk-free": "2.4%"}, 0.024},
+		{map[string]string{"risk-free": "2.4"}, 0.024},
+		{map[string]string{"risk-free": " 3.0% "}, 0.030},
+		{map[string]string{}, 0},
+		{map[string]string{"risk-free": ""}, 0},
+		{map[string]string{"risk-free": "abc%"}, 0},
+	}
+	for _, c := range cases {
+		got := RiskFreeFromConfig(c.cfg)
+		if math.Abs(got-c.want) > 1e-12 {
+			t.Errorf("RiskFreeFromConfig(%v) = %v, attendu %v", c.cfg, got, c.want)
 		}
 	}
 }
