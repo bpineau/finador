@@ -175,6 +175,13 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 .assets-table tr:hover td { background: var(--papier-2); }
 .assets-table .section-row:hover td { background: none; }
 
+/* ---- camembert d'allocation ---- */
+.camembert { display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; }
+.camembert figure { margin: 0; }
+.pie-legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 16rem; font-size: .85rem; }
+.pie-legend li { display: flex; align-items: baseline; gap: .55rem; padding: .22rem 0; }
+.pie-legend .pastille { width: .65rem; height: .65rem; flex: none; transform: translateY(1px); }
+
 /* ---- refresh discret en bas de la page assets ---- */
 .refresh-quiet { display: flex; justify-content: flex-end; margin-top: 1.2rem; }
 button.quiet {
