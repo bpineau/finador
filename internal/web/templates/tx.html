@@ -35,7 +35,7 @@
       <td class="nombre">{{.ID}}</td><td class="nombre">{{.Date}}</td><td>{{.Kind}}</td>
       <td>{{.Account}}</td><td>{{.Asset}}</td>
       <td class="nombre">{{.Qty}}</td><td class="nombre">{{.Amount}}</td><td>{{.Note}}</td>
-      <td class="actions"><form method="post" action="/tx/{{.ID}}/delete"><button class="lien" type="submit">suppr.</button></form></td>
+      <td class="actions"><a href="/tx/{{.ID}}/edit">édit.</a> <form method="post" action="/tx/{{.ID}}/delete"><button class="lien" type="submit">suppr.</button></form></td>
     </tr>
     {{end}}
   </table>

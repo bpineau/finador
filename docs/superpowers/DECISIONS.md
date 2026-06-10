@@ -84,6 +84,16 @@ inter-processus CLI/serve (D6 backlog) : dernière écriture gagnante, sauvegard
 atomiques — acceptable mono-utilisateur. **Alternative si refusé :** basic auth
 optionnelle (--auth user:pass) ou socket Unix.
 
+## D11 — Arborescence web en details/summary natifs, portée d'intersection
+
+**Contexte :** la répartition demandait des niveaux dépliables et des niveaux croisés
+cliquables (enveloppe ∩ groupe) sans JavaScript. **Choix :** <details>/<summary>
+natifs stylés au thème ; nouvelle portée ByAccountGroup (URL canonique
+/account/x/group/y — un motif Go ne supporte pas un segment multiple au milieu, pas
+de forme réciproque) ; agrégation des groupes au premier segment dans les arbres ;
+« liquidités » non cliquable (pas de page propre). **Alternative si refusé :**
+arbre toujours déplié, ou page dédiée au cash par enveloppe.
+
 ## D10 — Concurrence inter-processus : verrouillage optimiste
 
 **Contexte :** CLI et serve peuvent écrire le même fichier (D9 : dernière écriture
