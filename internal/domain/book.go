@@ -31,18 +31,26 @@ func (b *Book) CheckAccountRefs(a *Account) error {
 			continue
 		}
 		others := append([]string{string(other.ID), other.Name}, other.Aliases...)
-		for _, r := range refs {
-			if r == "" {
-				continue
-			}
-			for _, o := range others {
-				if o != "" && strings.EqualFold(r, o) {
-					return fmt.Errorf("reference %q already used by %s: %w", r, other.ID, ErrDuplicate)
-				}
-			}
+		if r, hit := refsCollide(refs, others); hit {
+			return fmt.Errorf("reference %q already used by %s: %w", r, other.ID, ErrDuplicate)
 		}
 	}
 	return nil
+}
+
+// refsCollide reports the first non-empty reference colliding, EqualFold.
+func refsCollide(refs, others []string) (string, bool) {
+	for _, r := range refs {
+		if r == "" {
+			continue
+		}
+		for _, o := range others {
+			if o != "" && strings.EqualFold(r, o) {
+				return r, true
+			}
+		}
+	}
+	return "", false
 }
 
 // AddAccount rejects an ID or name that collides exactly (case-insensitive)
@@ -92,15 +100,8 @@ func (b *Book) CheckAssetRefs(a *Asset) error {
 			continue
 		}
 		others := append([]string{string(other.ID), other.Ticker, other.ISIN, other.Name}, other.Aliases...)
-		for _, r := range refs {
-			if r == "" {
-				continue
-			}
-			for _, o := range others {
-				if o != "" && strings.EqualFold(r, o) {
-					return fmt.Errorf("reference %q already used by %s: %w", r, other.ID, ErrDuplicate)
-				}
-			}
+		if r, hit := refsCollide(refs, others); hit {
+			return fmt.Errorf("reference %q already used by %s: %w", r, other.ID, ErrDuplicate)
 		}
 	}
 	return nil

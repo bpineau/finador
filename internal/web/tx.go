@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -70,24 +71,39 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 	if err != nil {
 		return zero, err
 	}
-	acc, err := portfolio.EnsureAccount(b, r.FormValue("account"), "")
-	if err != nil {
-		return zero, err
-	}
-	tx := domain.Transaction{Date: date, Account: acc.ID, Kind: kind, Note: r.FormValue("note")}
 
-	ccy := acc.Currency
-	if ref := r.FormValue("asset"); ref != "" {
-		asset, err := portfolio.EnsureAsset(b, ref, ccy, "")
-		if err != nil {
+	// Résoudre les références SANS rien créer : un échec de validation plus
+	// bas ne doit laisser aucune entité orpheline dans le Book vivant.
+	accRef := r.FormValue("account")
+	if accRef == "" {
+		return zero, fmt.Errorf("account required")
+	}
+	acc, err := b.Account(accRef)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return zero, err // ambiguïté : jamais de création
+	}
+	accCcy := domain.EUR // devise d'un compte encore à créer
+	if acc != nil {
+		accCcy = acc.Currency
+	}
+
+	assetRef := r.FormValue("asset")
+	ccy := accCcy
+	var asset *domain.Asset
+	if assetRef != "" {
+		asset, err = b.Asset(assetRef)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return zero, err
 		}
-		tx.Asset = asset.ID
-		ccy = asset.Currency
+		if asset != nil {
+			ccy = asset.Currency
+		} // un actif à créer cotera dans la devise du compte
 	}
-	if (kind == domain.Buy || kind == domain.Sell || kind == domain.Dividend) && tx.Asset == "" {
+	if (kind == domain.Buy || kind == domain.Sell || kind == domain.Dividend) && assetRef == "" {
 		return zero, fmt.Errorf("a %s requires an asset", kind)
 	}
+
+	tx := domain.Transaction{Date: date, Kind: kind, Note: r.FormValue("note")}
 	if q := r.FormValue("qty"); q != "" {
 		qty, err := decimal.NewFromString(q)
 		if err != nil {
@@ -106,6 +122,22 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 		if ccy, err = domain.ParseCurrency(c); err != nil {
 			return zero, err
 		}
+	}
+
+	// Tout est valide : créer maintenant ce qui manque.
+	if acc == nil {
+		if acc, err = portfolio.EnsureAccount(b, accRef, ""); err != nil {
+			return zero, err
+		}
+	}
+	if assetRef != "" && asset == nil {
+		if asset, err = portfolio.EnsureAsset(b, assetRef, accCcy, ""); err != nil {
+			return zero, err
+		}
+	}
+	tx.Account = acc.ID
+	if asset != nil {
+		tx.Asset = asset.ID
 	}
 	tx.Amount = domain.Money{Amount: amount.Abs(), Currency: ccy}
 	return tx, nil

@@ -551,3 +551,20 @@ func TestTxDelete(t *testing.T) {
 		t.Errorf("delete unknown = %d", code)
 	}
 }
+
+func TestNoOrphanOnInvalidForm(t *testing.T) {
+	srv, f := testServer(t)
+	before, beforeAssets := len(f.Book.Accounts), len(f.Book.Assets)
+	// compte ET actif inconnus, mais quantité manquante → 400
+	code, _, _ := postForm(t, srv, "/tx", url.Values{
+		"date": {"2026-06-03"}, "kind": {"buy"}, "account": {"Ghost Bank"},
+		"asset": {"GHOST"}, "amount": {"100"},
+	})
+	if code != http.StatusBadRequest {
+		t.Fatalf("invalid form = %d, want 400", code)
+	}
+	if len(f.Book.Accounts) != before || len(f.Book.Assets) != beforeAssets {
+		t.Fatalf("orphan entities created: accounts %d→%d, assets %d→%d",
+			before, len(f.Book.Accounts), beforeAssets, len(f.Book.Assets))
+	}
+}
