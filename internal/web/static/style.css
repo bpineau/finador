@@ -154,6 +154,11 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 .fil-ariane { font-size: .8rem; color: var(--encre-2); }
 .fil-ariane a { color: inherit; }
 
+/* ---- sélecteur de période de courbe ---- */
+.ranges { display: flex; gap: .7rem; justify-content: flex-end; font-size: .72rem;
+  font-variant: small-caps; letter-spacing: .12em; margin-bottom: .3rem; color: var(--encre-2); }
+.ranges .active-range { font-weight: 600; border-bottom: 2px solid var(--encre); color: var(--encre); }
+
 /* ---- assets : lignes denses, pas de retour à la ligne ---- */
 .assets-table { table-layout: fixed; }
 .assets-table td, .assets-table th { white-space: nowrap; overflow: hidden; }
