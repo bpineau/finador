@@ -320,6 +320,35 @@ func TestPerfEndToEnd(t *testing.T) {
 	}
 }
 
+func TestChartEndToEnd(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8")
+	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	out := runNet(t, db, "chart", "--to", "2026-06-05")
+	hasBraille := false
+	for _, r := range out {
+		if r > 0x2800 && r <= 0x28FF {
+			hasBraille = true
+			break
+		}
+	}
+	if !hasBraille {
+		t.Errorf("aucun caractère braille:\n%s", out)
+	}
+	for _, want := range []string{"2026-01-10", "2026-06-05", "5.1k"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("chart: %q manquant dans:\n%s", want, out)
+		}
+	}
+	// --net produit aussi une courbe
+	if out := runNet(t, db, "chart", "--net", "--to", "2026-06-05"); !strings.Contains(out, "net") {
+		t.Errorf("chart --net:\n%s", out)
+	}
+}
+
 func TestAddTradeCashAndFlows(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
