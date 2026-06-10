@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"finador/internal/domain"
@@ -66,4 +67,18 @@ func accountFor(b *domain.Book, flag string, asset *domain.Asset) (*domain.Accou
 		return b.Accounts[0], nil
 	}
 	return nil, fmt.Errorf("specify the account with --account: %w", domain.ErrAmbiguous)
+}
+
+// applyAliasEdits adds then removes aliases, case-insensitively and without
+// duplicates — shared by asset edit and account edit.
+func applyAliasEdits(aliases, add, rm []string) []string {
+	for _, al := range add {
+		if !slices.ContainsFunc(aliases, func(x string) bool { return strings.EqualFold(x, al) }) {
+			aliases = append(aliases, al)
+		}
+	}
+	for _, al := range rm {
+		aliases = slices.DeleteFunc(aliases, func(x string) bool { return strings.EqualFold(x, al) })
+	}
+	return aliases
 }
