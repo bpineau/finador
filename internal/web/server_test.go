@@ -389,11 +389,11 @@ func TestAssetsPage(t *testing.T) {
 		t.Fatalf("GET /assets = %d\n%s", code, excerpt(body))
 	}
 	for _, want := range []string{
-		"actions/monde",          // en-tête de section : chemin complet
-		"/group/actions/monde",   // cliquable
-		"Amundi MSCI World",       // une ligne d'actif
-		"/asset/cw8",              // nom cliquable
-		"assets-table",            // table dense
+		"actions/monde",        // en-tête de section : chemin complet
+		"/group/actions/monde", // cliquable
+		"Amundi MSCI World",    // une ligne d'actif
+		"/asset/cw8",           // nom cliquable
+		"assets-table",         // table dense
 		"GROSS", "NET", "1W", "1M", "1Y",
 	} {
 		if !strings.Contains(body, want) {
