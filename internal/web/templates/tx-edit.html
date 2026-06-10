@@ -13,9 +13,11 @@
         <div><label for="kind">kind</label>
           <select id="kind" name="kind">{{$k := .Tx.Kind.String}}{{range .Kinds}}<option {{if eq . $k}}selected{{end}}>{{.}}</option>{{end}}</select></div>
         <div><label for="account">account</label>
-          <select id="account" name="account">{{$a := .Tx.Account}}{{range .Accounts}}<option value="{{.ID}}" {{if eq .ID $a}}selected{{end}}>{{.Name}}</option>{{end}}</select></div>
-        <div><label for="asset">asset (optional)</label>
-          <select id="asset" name="asset">{{$s := .Tx.Asset}}<option value=""></option>{{range .Assets}}<option value="{{.ID}}" {{if eq .ID $s}}selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+          <input id="account" name="account" list="accounts-list" value="{{.AccountName}}" placeholder="existing or new">
+          <datalist id="accounts-list">{{range .Accounts}}<option value="{{.Name}}">{{end}}</datalist></div>
+        <div><label for="asset">asset</label>
+          <input id="asset" name="asset" list="assets-list" value="{{.AssetName}}" placeholder="optional — existing or new">
+          <datalist id="assets-list">{{range .Assets}}<option value="{{.Name}}">{{end}}</datalist></div>
         <div><label for="qty">quantity</label><input id="qty" name="qty" value="{{.Tx.Quantity}}"></div>
         <div><label for="amount">total amount</label><input id="amount" name="amount" value="{{.Tx.Amount.Amount}}"></div>
         <div><label for="ccy">currency</label><input id="ccy" name="ccy" value="{{.Tx.Amount.Currency}}"></div>

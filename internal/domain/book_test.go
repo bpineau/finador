@@ -204,6 +204,29 @@ func TestCheckAssetRefsCollision(t *testing.T) {
 	}
 }
 
+func TestAccountAliases(t *testing.T) {
+	b := sampleBook(t)
+	pea, _ := b.Account("pea-zephyr")
+	pea.Aliases = []string{"pea", "bfb"}
+	if err := b.CheckAccountRefs(pea); err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{"PEA", "bfb", "BFB"} {
+		if acc, err := b.Account(ref); err != nil || acc.ID != "pea-zephyr" {
+			t.Errorf("Account(%q) = %v, %v", ref, acc, err)
+		}
+	}
+	// collision d'alias avec un nom existant → ErrDuplicate
+	if err := b.AddAccount(&Account{ID: "autre", Name: "Autre", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	autre, _ := b.Account("autre")
+	autre.Aliases = []string{"PEA Zephyr"}
+	if err := b.CheckAccountRefs(autre); !errors.Is(err, ErrDuplicate) {
+		t.Errorf("collision = %v", err)
+	}
+}
+
 func TestParsePercent(t *testing.T) {
 	for in, want := range map[string]float64{"15%": 0.15, "0%": 0, "30": 0.30} {
 		got, err := ParsePercent(in)

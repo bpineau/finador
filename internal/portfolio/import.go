@@ -124,6 +124,19 @@ func hashTx(t domain.Transaction) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+// EnsureAccount resolves an existing account by ref, or creates a new one when
+// not found. Ambiguity errors are propagated unchanged. ccy defaults to EUR when
+// empty.
+func EnsureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
+	return ensureAccount(b, ref, ccy)
+}
+
+// EnsureAsset resolves an existing asset by ref, or creates a new one when not
+// found. Ambiguity errors are propagated unchanged.
+func EnsureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) (*domain.Asset, error) {
+	return ensureAsset(b, ref, ccy, group)
+}
+
 func ensureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
 	if ref == "" {
 		return nil, errors.New("empty account column")

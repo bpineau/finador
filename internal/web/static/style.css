@@ -132,13 +132,13 @@ legend {
   font-variant: small-caps; letter-spacing: .14em; font-size: .78rem;
   padding: 0 .5rem; background: var(--papier); border: 1px solid var(--encre);
 }
-label { display: block; font-size: .75rem; color: var(--encre-2); margin: .6rem 0 .15rem; font-variant: small-caps; letter-spacing: .1em; }
+label { display: block; font-size: .75rem; color: var(--encre-2); margin: .6rem 0 .15rem; font-variant: small-caps; letter-spacing: .1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 input, select, textarea {
   font-family: var(--mono); font-size: .9rem; color: var(--encre);
   background: #fffdf6; border: 1px solid var(--filet); padding: .35rem .5rem; width: 100%;
 }
 input:focus, select:focus { outline: 2px solid var(--encre); outline-offset: 1px; }
-.champs { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .8rem; }
+.champs { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .8rem; }
 button {
   font-family: var(--serif); font-variant: small-caps; letter-spacing: .18em;
   background: var(--encre); color: var(--papier); border: 1px solid var(--encre);
@@ -174,6 +174,13 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 }
 .assets-table tr:hover td { background: var(--papier-2); }
 .assets-table .section-row:hover td { background: none; }
+
+/* ---- camembert d'allocation ---- */
+.camembert { display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; }
+.camembert figure { margin: 0; }
+.pie-legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 16rem; font-size: .85rem; }
+.pie-legend li { display: flex; align-items: baseline; gap: .55rem; padding: .22rem 0; }
+.pie-legend .pastille { width: .65rem; height: .65rem; flex: none; transform: translateY(1px); }
 
 /* ---- refresh discret en bas de la page assets ---- */
 .refresh-quiet { display: flex; justify-content: flex-end; margin-top: 1.2rem; }
