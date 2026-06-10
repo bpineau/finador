@@ -1,0 +1,28 @@
+{{define "assets.html"}}{{template "base" .}}{{end}}
+{{define "title"}}assets — finador{{end}}
+{{define "main"}}
+<section>
+  <h2>assets</h2>
+  {{range .Warnings}}<p class="approx">≈ {{.}}</p>{{end}}
+  <table class="assets-table">
+    <tr><th>asset</th><th>1W</th><th>1M</th><th>1Y</th><th class="nombre">GROSS</th><th class="nombre">NET</th></tr>
+    {{range .Sections}}
+    <tr class="section-row">
+      <td colspan="4">{{if .URL}}<a href="{{.URL}}">{{.Group}}</a>{{else}}{{.Group}}{{end}}</td>
+      <td class="nombre">{{fmtMoney .Gross $.Ccy}}</td>
+      <td class="nombre">{{fmtMoney .Net $.Ccy}}</td>
+    </tr>
+    {{range .Rows}}
+    <tr>
+      <td class="asset-name"><a href="{{.URL}}">{{.Name}}</a></td>
+      <td class="sparkcell">{{.Spark1W}}</td>
+      <td class="sparkcell">{{.Spark1M}}</td>
+      <td class="sparkcell">{{.Spark1Y}}</td>
+      <td class="nombre">{{fmtMoney .Gross $.Ccy}}</td>
+      <td class="nombre">{{fmtMoney .Net $.Ccy}}</td>
+    </tr>
+    {{end}}
+    {{end}}
+  </table>
+</section>
+{{end}}
