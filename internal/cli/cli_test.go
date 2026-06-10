@@ -294,6 +294,32 @@ func TestValueDisplayFXMissing(t *testing.T) {
 	}
 }
 
+func TestPerfEndToEnd(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	out := runNet(t, db, "perf", "--to", "2026-06-05")
+	// série : 5000 plat jusqu'au 1er juin (l'achat est neutre), puis
+	// 06-05 : 10×560 − 500 = 5100 → TWR origine = +2.00 %
+	for _, want := range []string{"PÉRIODE", "TWR", "XIRR", "origine", "+2.00%", "CAGR", "Sharpe", "Sortino", "max drawdown"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("perf: %q manquant dans:\n%s", want, out)
+		}
+	}
+	// XIRR des fenêtres courtes : tiret
+	if !strings.Contains(out, "—") {
+		t.Errorf("tiret XIRR absent:\n%s", out)
+	}
+
+	// portée inexistante → erreur propre
+	if _, err := tryRun(t, db, "perf", "nimporte"); err == nil {
+		t.Fatal("portée inconnue acceptée")
+	}
+}
+
 func TestAddTradeCashAndFlows(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
