@@ -56,7 +56,7 @@ func TestImportCSVIdempotent(t *testing.T) {
 func TestImportCSVBadLine(t *testing.T) {
 	b := domain.NewBook()
 	bad := "date,kind,account,amount,currency\n2026-13-45,buy,X,100,EUR\n"
-	if _, _, err := ImportCSV(b, strings.NewReader(bad)); err == nil || !strings.Contains(err.Error(), "ligne 2") {
+	if _, _, err := ImportCSV(b, strings.NewReader(bad)); err == nil || !strings.Contains(err.Error(), "line 2") {
 		t.Fatalf("err = %v", err)
 	}
 }

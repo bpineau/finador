@@ -151,7 +151,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 			exact += t
 		}
 		if d := exact - out.Tax; d > 0.01 || d < -0.01 {
-			out.TaxNote = "impôt total calculé par enveloppe ; la ventilation par ligne est approximative"
+			out.TaxNote = "total tax follows the per-account rule; the per-line breakdown is approximate"
 		}
 		out.Tax = exact
 	}
@@ -186,27 +186,27 @@ func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (
 // (account, asset) pair, else zero — each fallback flagged.
 func (v *valuer) positionValue(h Holding) (float64, error) {
 	if ov, ok := v.overrides[h.Asset.ID]; ok {
-		v.stale = append(v.stale, fmt.Sprintf("hypothèse : %s à %s %s",
+		v.stale = append(v.stale, fmt.Sprintf("what-if: %s at %s %s",
 			h.Asset.Name, trimFloat(ov), h.Asset.Currency))
 		return v.fx.Convert(toF(h.Qty)*ov, h.Asset.Currency, v.ccy, v.at)
 	}
 	if close, cdate, ok := v.b.Market.Prices[h.Asset.ID].At(v.at); ok {
 		if cdate.AddDays(staleAfterDays).Before(v.at) {
-			v.stale = append(v.stale, fmt.Sprintf("%s: dernier cours au %s", h.Asset.Name, cdate))
+			v.stale = append(v.stale, fmt.Sprintf("%s: last quote on %s", h.Asset.Name, cdate))
 		}
 		return v.fx.Convert(toF(h.Qty)*close, h.Asset.Currency, v.ccy, v.at)
 	}
 	if tx, ok := v.lastStatement(h.Account.ID, h.Asset.ID); ok {
-		v.stale = append(v.stale, fmt.Sprintf("%s: valorisé par relevé du %s", h.Asset.Name, tx.Date))
+		v.stale = append(v.stale, fmt.Sprintf("%s: valued from its %s statement", h.Asset.Name, tx.Date))
 		return v.convertAt(tx.Amount, v.ccy, v.at)
 	}
-	v.stale = append(v.stale, fmt.Sprintf("%s: aucun cours ni relevé — compté pour 0", h.Asset.Name))
+	v.stale = append(v.stale, fmt.Sprintf("%s: no quote nor statement — counted as 0", h.Asset.Name))
 	return 0, nil
 }
 
 func (v *valuer) statementValue(acc domain.AccountID, asset *domain.Asset) (float64, error) {
 	if ov, ok := v.overrides[asset.ID]; ok {
-		v.stale = append(v.stale, fmt.Sprintf("hypothèse : %s à %s %s",
+		v.stale = append(v.stale, fmt.Sprintf("what-if: %s at %s %s",
 			asset.Name, trimFloat(ov), asset.Currency))
 		return v.fx.Convert(ov, asset.Currency, v.ccy, v.at)
 	}

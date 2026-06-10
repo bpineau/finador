@@ -60,12 +60,12 @@ func Series(b *domain.Book, scope Scope, from, to domain.Date, ccy domain.Curren
 	txs := Sorted(b)
 	if from.IsZero() {
 		if len(txs) == 0 {
-			return SeriesResult{}, errors.New("aucune transaction : rien à tracer")
+			return SeriesResult{}, errors.New("no transactions: nothing to plot")
 		}
 		from = txs[0].Date
 	}
 	if to.Before(from) {
-		return SeriesResult{}, errors.New("borne de fin antérieure au début")
+		return SeriesResult{}, errors.New("end date before start date")
 	}
 
 	w := newWalker(b, scope, ccy, fx)
@@ -202,9 +202,8 @@ func (w *walker) warnings() []string {
 		for i < len(key) && key[i] != ':' {
 			i++
 		}
-		label := key[:i]
 		ccy := key[i+1:]
-		out = append(out, fmt.Sprintf("%s: conversion %s impossible — valeur comptée 0", label, ccy))
+		out = append(out, fmt.Sprintf("cannot convert %s — counted as 0", ccy))
 	}
 	return out
 }

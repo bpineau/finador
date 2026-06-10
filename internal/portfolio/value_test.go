@@ -93,7 +93,7 @@ func TestValueAll(t *testing.T) {
 	for _, l := range v.Lines {
 		labels[l.Label] = true
 	}
-	for _, want := range []string{"actions", "immo", "liquidités"} {
+	for _, want := range []string{"actions", "immo", "cash"} {
 		if !labels[want] {
 			t.Errorf("ligne %q absente (%v)", want, v.Lines)
 		}
@@ -258,12 +258,12 @@ func TestValueWhatIf(t *testing.T) {
 	// le marqueur d'hypothèse est présent
 	found := false
 	for _, s := range v.Stale {
-		if strings.Contains(s, "hypothèse") {
+		if strings.Contains(s, "what-if") {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("marqueur d'hypothèse absent: %v", v.Stale)
+		t.Errorf("what-if marker absent: %v", v.Stale)
 	}
 }
 
