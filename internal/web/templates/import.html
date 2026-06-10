@@ -2,16 +2,16 @@
 {{define "title"}}import — finador{{end}}
 {{define "main"}}
 <section>
-  <h2>import CSV</h2>
+  <h2>CSV import</h2>
   {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
-  {{if .Erreur}}<p class="flash erreur">{{.Erreur}}</p>{{end}}
+  {{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
   <form method="post" action="/import" enctype="multipart/form-data">
     <fieldset>
-      <legend>fichier de transactions</legend>
-      <p class="note-bas">colonnes par en-tête, ordre libre : date, kind, account, asset,
-      quantity, price, amount, currency, group, note. Le ré-import ignore les doublons.</p>
-      <input type="file" name="fichier" accept=".csv,text/csv">
-      <button type="submit">Importer</button>
+      <legend>transactions file</legend>
+      <p class="note-bas">columns by header, any order: date, kind, account, asset,
+      quantity, price, amount, currency, group, note. Re-importing skips duplicates.</p>
+      <input type="file" name="file" accept=".csv,text/csv">
+      <button type="submit">Import</button>
     </fieldset>
   </form>
 </section>

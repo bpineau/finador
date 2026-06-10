@@ -2,26 +2,26 @@
 {{define "title"}}transactions — finador{{end}}
 {{define "main"}}
 <section>
-  <h2>nouvelle écriture</h2>
-  {{if .Erreur}}<p class="flash erreur">{{.Erreur}}</p>{{end}}
+  <h2>new entry</h2>
+  {{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
   {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
   <form method="post" action="/tx">
     <fieldset>
-      <legend>bordereau</legend>
+      <legend>entry slip</legend>
       <div class="champs">
-        <div><label for="date">date</label><input id="date" name="date" placeholder="AAAA-MM-JJ" value="{{.Aujourdhui}}"></div>
-        <div><label for="kind">type</label>
+        <div><label for="date">date</label><input id="date" name="date" placeholder="YYYY-MM-DD" value="{{.Today}}"></div>
+        <div><label for="kind">kind</label>
           <select id="kind" name="kind">{{range .Kinds}}<option>{{.}}</option>{{end}}</select></div>
-        <div><label for="account">compte</label>
+        <div><label for="account">account</label>
           <select id="account" name="account">{{range .Accounts}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></div>
-        <div><label for="asset">actif (optionnel)</label>
+        <div><label for="asset">asset (optional)</label>
           <select id="asset" name="asset"><option value=""></option>{{range .Assets}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></div>
-        <div><label for="qty">quantité</label><input id="qty" name="qty"></div>
-        <div><label for="amount">montant total</label><input id="amount" name="amount"></div>
-        <div><label for="ccy">devise (optionnel)</label><input id="ccy" name="ccy" placeholder="EUR"></div>
+        <div><label for="qty">quantity</label><input id="qty" name="qty"></div>
+        <div><label for="amount">total amount</label><input id="amount" name="amount"></div>
+        <div><label for="ccy">currency (optional)</label><input id="ccy" name="ccy" placeholder="EUR"></div>
         <div><label for="note">note</label><input id="note" name="note"></div>
       </div>
-      <button type="submit">Enregistrer</button>
+      <button type="submit">Save</button>
     </fieldset>
   </form>
 </section>
@@ -29,13 +29,13 @@
 <section>
   <h2>ledger</h2>
   <table>
-    <tr><th>id</th><th>date</th><th>type</th><th>compte</th><th>actif</th><th class="nombre">qté</th><th class="nombre">montant</th><th>note</th><th></th></tr>
+    <tr><th>id</th><th>date</th><th>kind</th><th>account</th><th>asset</th><th class="nombre">qty</th><th class="nombre">amount</th><th>note</th><th></th></tr>
     {{range .Txs}}
     <tr>
       <td class="nombre">{{.ID}}</td><td class="nombre">{{.Date}}</td><td>{{.Kind}}</td>
       <td>{{.Account}}</td><td>{{.Asset}}</td>
       <td class="nombre">{{.Qty}}</td><td class="nombre">{{.Amount}}</td><td>{{.Note}}</td>
-      <td class="actions"><a href="/tx/{{.ID}}/edit">édit.</a> <form method="post" action="/tx/{{.ID}}/delete"><button class="lien" type="submit">suppr.</button></form></td>
+      <td class="actions"><a href="/tx/{{.ID}}/edit">edit</a> <form method="post" action="/tx/{{.ID}}/delete"><button class="lien" type="submit">delete</button></form></td>
     </tr>
     {{end}}
   </table>

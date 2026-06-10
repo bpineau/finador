@@ -119,7 +119,7 @@ func TestForgedParamsRejectedCleanly(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Open(path, "s3cret"); err == nil || !strings.Contains(err.Error(), "hors bornes") {
+	if _, err := Open(path, "s3cret"); err == nil || !strings.Contains(err.Error(), "out of bounds") {
 		t.Fatalf("attendu erreur de bornes, eu: %v", err)
 	}
 }

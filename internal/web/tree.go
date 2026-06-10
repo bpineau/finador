@@ -17,13 +17,13 @@ type node struct {
 }
 
 // buildTree shapes position lines into the two-then-three-level tree:
-// mode "enveloppe": account → top-group → assets (cash = leaf « liquidités »);
-// mode "groupe": top-group → account (intersection link) → assets, with a
-// « liquidités » root whose children are envelopes. Every level sorts by
+// mode "account": account → top-group → assets (cash = leaf "cash");
+// mode "group": top-group → account (intersection link) → assets, with a
+// "cash" root whose children are envelopes. Every level sorts by
 // descending value.
 func buildTree(lines []portfolio.PositionLine, mode string) []node {
 	type key2 struct{ a, b string }
-	if mode == "enveloppe" {
+	if mode == "account" {
 		// account → group → assets
 		byAcc := map[string]*node{}
 		grp := map[key2]*node{}
@@ -70,7 +70,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 			}
 			sortNodes(root.Children)
 			if cash != 0 {
-				root.Children = append(root.Children, node{Label: "liquidités", Gross: cash})
+				root.Children = append(root.Children, node{Label: "cash", Gross: cash})
 			}
 			out = append(out, *root)
 		}
@@ -78,10 +78,10 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 		return out
 	}
 
-	// mode "groupe" : top-group → account → assets ; cash → racine liquidités
+	// mode "group": top-group → account → assets ; cash → root "cash"
 	byGrp := map[string]*node{}
 	sub := map[key2]*node{}
-	cashRoot := node{Label: "liquidités"}
+	cashRoot := node{Label: "cash"}
 	cashByAcc := map[string]*node{}
 	for _, l := range lines {
 		if l.Asset == nil {
@@ -172,7 +172,7 @@ func escapeGroup(g string) string {
 
 func topGroup(g string) string {
 	if g == "" {
-		return "(sans groupe)"
+		return "(ungrouped)"
 	}
 	head, _, _ := strings.Cut(strings.ToLower(g), "/")
 	return head

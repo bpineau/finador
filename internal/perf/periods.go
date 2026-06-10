@@ -13,13 +13,13 @@ import (
 func PeriodRange(name string, today domain.Date) (from, to domain.Date, err error) {
 	to = today
 	switch name {
-	case "1j":
+	case "1d":
 		return today.AddDays(-1), to, nil
-	case "2j":
+	case "2d":
 		return today.AddDays(-2), to, nil
-	case "5j":
+	case "5d":
 		return today.AddDays(-5), to, nil
-	case "7j":
+	case "7d":
 		return today.AddDays(-7), to, nil
 	case "1m":
 		return domain.DateOf(today.Time().AddDate(0, -1, 0)), to, nil
@@ -27,16 +27,16 @@ func PeriodRange(name string, today domain.Date) (from, to domain.Date, err erro
 		return domain.DateOf(today.Time().AddDate(0, -3, 0)), to, nil
 	case "ytd":
 		return domain.Date{Year: today.Year - 1, Month: 12, Day: 31}, to, nil
-	case "1a":
+	case "1y":
 		return domain.DateOf(today.Time().AddDate(-1, 0, 0)), to, nil
-	case "an-1":
+	case "prev-yr":
 		return domain.Date{Year: today.Year - 2, Month: 12, Day: 31},
 			domain.Date{Year: today.Year - 1, Month: 12, Day: 31}, nil
 	}
-	return from, to, fmt.Errorf("période %q inconnue (1j, 2j, 5j, 7j, 1m, 3m, ytd, 1a, an-1)", name)
+	return from, to, fmt.Errorf("unknown period %q (1d, 2d, 5d, 7d, 1m, 3m, ytd, 1y, prev-yr)", name)
 }
 
 // Names lists the period table shown by `finador perf`, in display order.
 func Names() []string {
-	return []string{"1j", "5j", "1m", "3m", "ytd", "1a", "an-1"}
+	return []string{"1d", "5d", "1m", "3m", "ytd", "1y", "prev-yr"}
 }

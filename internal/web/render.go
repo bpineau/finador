@@ -17,12 +17,12 @@ var templateFS embed.FS
 var styleCSS []byte
 
 var funcs = template.FuncMap{
-	"frMoney": frMoney,
-	"frNum":   frNum,
-	"frPct":   frPct,
-	"frDate":  frDate,
-	"frDelta": frDelta,
-	"signe":   signe,
+	"fmtMoney": fmtMoney,
+	"fmtNum":   fmtNum,
+	"fmtPct":   fmtPct,
+	"fmtDate":  fmtDate,
+	"fmtDelta": fmtDelta,
+	"signe":    signe,
 }
 
 // pages maps page filename → a clone of base with the page parsed in.
@@ -49,18 +49,18 @@ func init() {
 func (s *Server) render(w http.ResponseWriter, status int, page string, data any) {
 	tmpl, ok := pages[page]
 	if !ok {
-		http.Error(w, "template introuvable: "+page, http.StatusInternalServerError)
+		http.Error(w, "template not found: "+page, http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if err := tmpl.ExecuteTemplate(w, "base", data); err != nil {
-		fmt.Fprintf(w, "<!-- erreur de rendu: %v -->", err)
+		fmt.Fprintf(w, "<!-- render error: %v -->", err)
 	}
 }
 
 func (s *Server) renderError(w http.ResponseWriter, status int, msg string) {
-	s.render(w, status, "error.html", map[string]any{"Message": msg, "Aujourdhui": domain.Today()})
+	s.render(w, status, "error.html", map[string]any{"Message": msg, "Today": domain.Today()})
 }
 
 func (s *Server) stylesheet(w http.ResponseWriter, _ *http.Request) {
@@ -68,26 +68,25 @@ func (s *Server) stylesheet(w http.ResponseWriter, _ *http.Request) {
 	w.Write(styleCSS)
 }
 
-// frMoney typesets an amount the French way: thin no-break thousands (U+202F),
-// decimal comma, currency symbol after a no-break space (U+00A0).
-func frMoney(v float64, ccy domain.Currency) string {
+// fmtMoney typesets an amount the English way: comma thousands, point decimal,
+// currency symbol after a no-break space (U+00A0). Negative amounts use U+2212.
+func fmtMoney(v float64, ccy domain.Currency) string {
 	neg := v < 0
 	if neg {
 		v = -v
 	}
-	// arrondi UNE fois en centimes totaux puis découpe : sinon la retenue se
-	// perd quand les centimes arrondissent à 100 (0,995 → « 0,00 »)
+	// round once to total cents to avoid carry loss (e.g. 0.995 -> "0.00")
 	total := int64(v*100 + 0.5)
 	whole, cents := total/100, total%100
 	digits := fmt.Sprintf("%d", whole)
 	var b strings.Builder
 	for i, r := range digits {
 		if i > 0 && (len(digits)-i)%3 == 0 {
-			b.WriteRune(' ') // U+202F NARROW NO-BREAK SPACE
+			b.WriteRune(',')
 		}
 		b.WriteRune(r)
 	}
-	out := fmt.Sprintf("%s,%02d %s", b.String(), cents, symbol(ccy))
+	out := fmt.Sprintf("%s.%02d %s", b.String(), cents, symbol(ccy))
 	if neg {
 		return "−" + out
 	}
@@ -106,15 +105,15 @@ func symbol(c domain.Currency) string {
 	return string(c)
 }
 
-// frPct: « +2,00 % » (espace fine avant %).
-func frPct(x float64) string {
+// fmtPct: "+2.00%" (no space before %).
+func fmtPct(x float64) string {
 	s := fmt.Sprintf("%+.2f", x*100)
-	return strings.ReplaceAll(strings.ReplaceAll(s, ".", ","), "-", "\u2212") + " %"
+	return strings.ReplaceAll(s, "-", "−") + "%"
 }
 
-// frNum: nombre court à virgule française (Sharpe 1,26).
-func frNum(x float64) string {
-	return strings.ReplaceAll(strings.ReplaceAll(fmt.Sprintf("%.2f", x), ".", ","), "-", "\u2212")
+// fmtNum: short decimal number (Sharpe 1.26).
+func fmtNum(x float64) string {
+	return strings.ReplaceAll(fmt.Sprintf("%.2f", x), "-", "−")
 }
 
 func signe(x float64) string {
@@ -127,14 +126,14 @@ func signe(x float64) string {
 	return ""
 }
 
-func frDelta(x float64) string { return frPct(x) }
+func fmtDelta(x float64) string { return fmtPct(x) }
 
-var frMonths = [...]string{"janvier", "février", "mars", "avril", "mai", "juin",
-	"juillet", "août", "septembre", "octobre", "novembre", "décembre"}
-var frDays = [...]string{"dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"}
+var enMonths = [...]string{"January", "February", "March", "April", "May", "June",
+	"July", "August", "September", "October", "November", "December"}
+var enDays = [...]string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
 
-// frDate: « mercredi 10 juin 2026 ».
-func frDate(d domain.Date) string {
+// fmtDate: "Wednesday 10 June 2026".
+func fmtDate(d domain.Date) string {
 	t := d.Time()
-	return fmt.Sprintf("%s %d %s %d", frDays[int(t.Weekday())], d.Day, frMonths[int(d.Month)-1], d.Year)
+	return fmt.Sprintf("%s %d %s %d", enDays[int(t.Weekday())], d.Day, enMonths[int(d.Month)-1], d.Year)
 }

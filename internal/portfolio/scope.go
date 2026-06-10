@@ -32,7 +32,7 @@ type Scope struct {
 
 func ParseScope(b *domain.Book, ref string) (Scope, error) {
 	if ref == "" {
-		return Scope{Kind: All, Label: "patrimoine"}, nil
+		return Scope{Kind: All, Label: "portfolio"}, nil
 	}
 	low := strings.ToLower(ref)
 	for _, a := range b.Assets {
@@ -50,7 +50,7 @@ func ParseScope(b *domain.Book, ref string) (Scope, error) {
 	} else if errors.Is(err, domain.ErrAmbiguous) {
 		return Scope{}, err
 	}
-	return Scope{}, fmt.Errorf("portée %q (ni groupe, ni compte, ni actif): %w", ref, domain.ErrNotFound)
+	return Scope{}, fmt.Errorf("unknown scope %q (not a group, account or asset): %w", ref, domain.ErrNotFound)
 }
 
 // IntersectScope is the crossed level of the web trees: the assets of one
@@ -104,15 +104,15 @@ func (s Scope) hasCash(acc *domain.Account) bool {
 
 // lineLabel groups the breakdown lines: top-level group for All, next path
 // segment (or asset name) inside a group, asset name inside an account,
-// account name for an asset scope. Cash lines are labelled "liquidités".
+// account name for an asset scope. Cash lines are labelled "cash".
 func (s Scope) lineLabel(acc *domain.Account, asset *domain.Asset) string {
 	if asset == nil {
-		return "liquidités"
+		return "cash"
 	}
 	switch s.Kind {
 	case All:
 		if asset.Group == "" {
-			return "(sans groupe)"
+			return "(ungrouped)"
 		}
 		head, _, _ := strings.Cut(strings.ToLower(asset.Group), "/")
 		return head
