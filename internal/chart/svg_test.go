@@ -48,3 +48,13 @@ func TestSVGDeterministic(t *testing.T) {
 		t.Error("sortie SVG non déterministe")
 	}
 }
+
+func TestSVGEscapesLabels(t *testing.T) {
+	out := SVG([]Line{{Label: "a<b>&c", Color: "#000000", Points: ramp(3)}}, 800, 300)
+	if strings.Contains(out, "a<b>") {
+		t.Error("label non échappé dans le SVG")
+	}
+	if !strings.Contains(out, "a&lt;b&gt;&amp;c") {
+		t.Errorf("échappement attendu absent:\n%s", out)
+	}
+}
