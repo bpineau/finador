@@ -70,7 +70,7 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 	if err != nil {
 		return zero, err
 	}
-	acc, err := b.Account(r.FormValue("account"))
+	acc, err := portfolio.EnsureAccount(b, r.FormValue("account"), "")
 	if err != nil {
 		return zero, err
 	}
@@ -78,7 +78,7 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 
 	ccy := acc.Currency
 	if ref := r.FormValue("asset"); ref != "" {
-		asset, err := b.Asset(ref)
+		asset, err := portfolio.EnsureAsset(b, ref, ccy, "")
 		if err != nil {
 			return zero, err
 		}
@@ -112,12 +112,14 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 }
 
 type txEditData struct {
-	Today    domain.Date
-	Tx       *domain.Transaction
-	Accounts []*domain.Account
-	Assets   []*domain.Asset
-	Kinds    []string
-	Error    string
+	Today       domain.Date
+	Tx          *domain.Transaction
+	AccountName string
+	AssetName   string
+	Accounts    []*domain.Account
+	Assets      []*domain.Asset
+	Kinds       []string
+	Error       string
 }
 
 func (s *Server) findTx(w http.ResponseWriter, r *http.Request) (*domain.Transaction, bool) {
@@ -154,6 +156,15 @@ func (s *Server) renderTxEdit(w http.ResponseWriter, status int, tx *domain.Tran
 		Assets:   b.Assets,
 		Kinds:    []string{"buy", "sell", "deposit", "withdraw", "dividend", "fee", "statement"},
 		Error:    errMsg,
+	}
+	// Pre-fill resolved names for datalist inputs.
+	if acc, err := b.Account(string(tx.Account)); err == nil {
+		data.AccountName = acc.Name
+	}
+	if tx.Asset != "" {
+		if asset, err := b.Asset(string(tx.Asset)); err == nil {
+			data.AssetName = asset.Name
+		}
 	}
 	s.render(w, status, "tx-edit.html", data)
 }
