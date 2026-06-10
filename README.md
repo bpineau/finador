@@ -123,7 +123,8 @@ de passe pour le scripting ; `FINADOR_DB` remplace le chemin par défaut.
   identifiant, ticker, ISIN, alias ou nom d'actif — plus besoin de l'ID complet.
   Ambiguïté → message listant les candidats.
 - **`--exclude`** : toute portée peut écarter un ou plusieurs actifs —
-  `perf --exclude btc,ddog`, `value --exclude immo`.
+  `perf --exclude btc,ddog`, `value actions --exclude aapl` (actifs uniquement, par
+  ticker/ISIN/alias/référence courte).
 - **`--by enveloppe`** : `value --by enveloppe` ventile le patrimoine par compte
   (PEA, CTO…) plutôt que par groupe. Disponible aussi dans le web (`/?par=enveloppe`).
 - **`--what-if`** : hypothèses jetables sur les prix —
