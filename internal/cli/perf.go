@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -65,7 +64,7 @@ func perfCmd(a *app) *cobra.Command {
 
 			pts := res.PerfPoints(false)
 			fls := res.PerfFlows()
-			rf := riskFree(b)
+			rf := perf.RiskFreeFromConfig(b.Config)
 			rows, metrics := perf.Report(pts, fls, evalTo, rf)
 
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
@@ -170,17 +169,4 @@ func pctSigned(x float64) string {
 // pct formats a fraction as an unsigned percentage: "2.00%".
 func pct(x float64) string {
 	return strconv.FormatFloat(x*100, 'f', 2, 64) + "%"
-}
-
-// riskFree reads config "risk-free" ("2.4%"), defaulting to zero.
-func riskFree(b *domain.Book) float64 {
-	s := strings.TrimSuffix(strings.TrimSpace(b.Config["risk-free"]), "%")
-	if s == "" {
-		return 0
-	}
-	v, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return 0
-	}
-	return v / 100
 }
