@@ -38,6 +38,8 @@ type assetsData struct {
 	Ccy      domain.Currency
 	Sections []assetSection
 	Warnings []string
+	Flash    string
+	Error    string
 }
 
 func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +50,8 @@ func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
 	ccy := displayCurrency(b)
 	fx := market.Converter{FX: b.Market.FX}
 
-	data := assetsData{Today: today, Ccy: ccy}
+	data := assetsData{Today: today, Ccy: ccy,
+		Flash: r.URL.Query().Get("flash"), Error: r.URL.Query().Get("error")}
 	bySection := map[string]*assetSection{}
 	var rawWarnings []string
 
