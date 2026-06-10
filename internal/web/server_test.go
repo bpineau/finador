@@ -286,6 +286,102 @@ func TestDashboardByEnvelope(t *testing.T) {
 	}
 }
 
+func TestStylesheetThemesLinksAndTrees(t *testing.T) {
+	srv, _ := testServer(t)
+	_, css := get(t, srv, "/style.css")
+	for _, want := range []string{"main a {", "details", "summary", "--garance"} {
+		if !strings.Contains(css, want) {
+			t.Errorf("style.css: %q manquant", want)
+		}
+	}
+}
+
+func TestIntersectionScopeView(t *testing.T) {
+	srv, _ := testServer(t)
+	code, body := get(t, srv, "/account/pea/group/actions")
+	if code != http.StatusOK {
+		t.Fatalf("GET intersection = %d\n%s", code, excerpt(body))
+	}
+	for _, want := range []string{"PEA Zephyr", "actions", "Amundi MSCI World", "performance", "<svg"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("intersection: %q manquant", want)
+		}
+	}
+	// le cash de l'enveloppe n'apparaît PAS dans une portée croisée
+	if strings.Contains(body, "liquidités") {
+		t.Error("liquidités présentes dans une intersection enveloppe∩groupe")
+	}
+	// compte inconnu → 404
+	if code, _ := get(t, srv, "/account/zz9/group/actions"); code != http.StatusNotFound {
+		t.Errorf("intersection inconnue = %d", code)
+	}
+}
+
+func TestDashboardTreeModes(t *testing.T) {
+	srv, _ := testServer(t)
+	// mode groupe (défaut) : arbre avec details et lien d'intersection
+	_, body := get(t, srv, "/")
+	for _, want := range []string{"<details", "/account/pea/group/actions", "par actif"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("mode groupe: %q manquant", want)
+		}
+	}
+	// mode actif : liste plate, lien direct actif, pas de details
+	_, body = get(t, srv, "/?par=actif")
+	if !strings.Contains(body, "/asset/cw8") {
+		t.Errorf("mode actif: lien actif manquant:\n%s", excerpt(body))
+	}
+	// l'onglet courant n'est pas un lien
+	if !strings.Contains(body, `actif-onglet`) {
+		t.Errorf("onglet actif non marqué")
+	}
+}
+
+func TestTxEditWeb(t *testing.T) {
+	srv, f := testServer(t)
+	id := f.Book.Transactions[1].ID // le buy cw8
+
+	code, body := get(t, srv, fmt.Sprintf("/tx/%d/edit", id))
+	if code != http.StatusOK {
+		t.Fatalf("GET edit = %d", code)
+	}
+	for _, want := range []string{`value="2026-06-01"`, `value="10"`, "Amundi MSCI World", "bordereau"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("formulaire d'édition: %q manquant", want)
+		}
+	}
+
+	// modification quantité + montant
+	code, body, loc := postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
+		"date": {"2026-06-01"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
+		"qty": {"12"}, "amount": {"6600"}, "note": {"corrigé via web"},
+	})
+	if code != http.StatusSeeOther || loc != "/tx" {
+		t.Fatalf("POST edit = %d → %q\n%s", code, loc, excerpt(body))
+	}
+	tx, err := f.Book.Tx(id)
+	if err != nil || tx.Quantity.String() != "12" || tx.Amount.Amount.String() != "6600" || tx.Note != "corrigé via web" {
+		t.Fatalf("tx après édition: %+v, %v", tx, err)
+	}
+
+	// validation en échec → 400, rien modifié
+	code, body, _ = postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
+		"date": {"pas-une-date"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
+		"qty": {"12"}, "amount": {"6600"},
+	})
+	if code != http.StatusBadRequest {
+		t.Fatalf("POST edit invalide = %d", code)
+	}
+	// id inconnu → 404
+	if code, _ := get(t, srv, "/tx/999/edit"); code != http.StatusNotFound {
+		t.Errorf("GET edit inconnu = %d", code)
+	}
+	// la liste /tx porte le lien d'édition
+	if _, body := get(t, srv, "/tx"); !strings.Contains(body, fmt.Sprintf("/tx/%d/edit", id)) {
+		t.Errorf("lien édit. absent de /tx")
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID

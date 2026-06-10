@@ -38,11 +38,8 @@ type scopeData struct {
 func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	b := s.file.Book
-	today := domain.Today()
 	ref := r.PathValue("ref")
-
-	scope, err := portfolio.ParseScope(b, ref)
+	scope, err := portfolio.ParseScope(s.file.Book, ref)
 	if err != nil {
 		status := http.StatusNotFound
 		if !errors.Is(err, domain.ErrNotFound) {
@@ -51,6 +48,27 @@ func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, status, "portée introuvable : "+ref)
 		return
 	}
+	s.renderScope(w, scope)
+}
+
+func (s *Server) intersectPage(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	b := s.file.Book
+	acc, err := b.Account(r.PathValue("ref"))
+	if err != nil {
+		s.renderError(w, http.StatusNotFound, "compte introuvable : "+r.PathValue("ref"))
+		return
+	}
+	scope := portfolio.IntersectScope(acc, r.PathValue("gpath"))
+	s.renderScope(w, scope)
+}
+
+// renderScope renders the scope.html view for any Scope. The caller must hold
+// at least s.mu.RLock.
+func (s *Server) renderScope(w http.ResponseWriter, scope portfolio.Scope) {
+	b := s.file.Book
+	today := domain.Today()
 	fx := market.Converter{FX: b.Market.FX}
 	ccy := displayCurrency(b)
 	val, err := portfolio.Value(b, scope, today, ccy, fx)
