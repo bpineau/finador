@@ -12,8 +12,8 @@ import (
 
 func importCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "import <fichier.csv>",
-		Short: "Importe des transactions (colonnes par en-tête ; ré-import sans doublon)",
+		Use:   "import <file.csv>",
+		Short: "Import transactions (columns by header; re-import is idempotent)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			file, err := os.Open(args[0])
@@ -29,7 +29,7 @@ func importCmd(a *app) *cobra.Command {
 			}); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%d importée(s), %d ignorée(s) (doublons)\n", added, skipped)
+			fmt.Fprintf(cmd.OutOrStdout(), "%d imported, %d skipped (duplicates)\n", added, skipped)
 			return nil
 		},
 	}

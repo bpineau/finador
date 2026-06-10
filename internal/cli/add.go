@@ -13,17 +13,17 @@ import (
 
 func addCmd(a *app) *cobra.Command {
 	return tradeCmd(a, "add", domain.Buy,
-		"Enregistre un achat (ou une vente : sell, ou quantité négative après --)")
+		"Record a buy (or a sell: use sell, or a negative quantity after --)")
 }
 
 func sellCmd(a *app) *cobra.Command {
-	return tradeCmd(a, "sell", domain.Sell, "Enregistre une vente")
+	return tradeCmd(a, "sell", domain.Sell, "Record a sell")
 }
 
 func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Command {
 	var account, note, ccy string
 	cmd := &cobra.Command{
-		Use:   use + " <actif> <quantité> [@prix-unitaire|total] [date]",
+		Use:   use + " <asset> <quantity> [@unit-price|total] [date]",
 		Short: short,
 		Args:  cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -34,7 +34,7 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comma
 				}
 				qty, err := decimal.NewFromString(args[1])
 				if err != nil || qty.IsZero() {
-					return fmt.Errorf("quantité %q invalide", args[1])
+					return fmt.Errorf("invalid quantity %q", args[1])
 				}
 				total, date, err := parseTradeTail(args[2:], qty)
 				if err != nil {
@@ -64,9 +64,9 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comma
 			})
 		},
 	}
-	cmd.Flags().StringVar(&account, "account", "", "enveloppe (nom ou id)")
-	cmd.Flags().StringVar(&note, "note", "", "note libre")
-	cmd.Flags().StringVar(&ccy, "ccy", "", "devise du montant (défaut : celle de l'actif)")
+	cmd.Flags().StringVar(&account, "account", "", "account (name or id)")
+	cmd.Flags().StringVar(&note, "note", "", "free note")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "amount currency (default: asset currency)")
 	return cmd
 }
 
@@ -86,11 +86,11 @@ func parseTradeTail(rest []string, qty decimal.Decimal) (total decimal.Decimal, 
 		} else if t, terr := decimal.NewFromString(arg); terr == nil {
 			total = t.Abs()
 		} else {
-			return total, date, fmt.Errorf("argument %q incompris (attendu @prix, total ou date)", arg)
+			return total, date, fmt.Errorf("unexpected argument %q (expected @price, total or date)", arg)
 		}
 	}
 	if total.IsZero() {
-		return total, date, errors.New("prix manquant : @prix-unitaire ou montant total")
+		return total, date, errors.New("missing price: @unit-price or total amount")
 	}
 	return total, date, nil
 }

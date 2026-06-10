@@ -39,14 +39,14 @@ func New(opts ...Option) *cobra.Command {
 	}
 	root := &cobra.Command{
 		Use:           "finador",
-		Short:         "Suivi de patrimoine chiffré — CLI et web, single binary",
+		Short:         "Encrypted personal wealth tracker — CLI and web, single binary",
 		SilenceUsage:  true,
 		SilenceErrors: true, // main les affiche, une seule fois
 	}
-	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "fichier de données chiffré")
-	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "ne pas mémoriser le mot de passe")
-	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "n'accède jamais au réseau (cache uniquement)")
-	root.PersistentFlags().BoolVar(&a.noColor, "no-color", false, "désactive les couleurs")
+	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "encrypted data file")
+	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "do not store the password in the keychain")
+	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "never access the network (cache only)")
+	root.PersistentFlags().BoolVar(&a.noColor, "no-color", false, "disable colors")
 	root.AddCommand(initCmd(a), accountCmd(a), assetCmd(a), addCmd(a), sellCmd(a),
 		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a),
 		configCmd(a), lockCmd(a), valueCmd(a), refreshCmd(a), perfCmd(a), chartCmd(a),
@@ -69,11 +69,11 @@ func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
 	}
 	sum := market.Refresh(cmd.Context(), f.Book, a.marketSource(), false)
 	for _, w := range sum.Warnings {
-		fmt.Fprintln(cmd.ErrOrStderr(), "avertissement:", w)
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
 	}
 	if len(sum.Fetched) > 0 {
 		if err := f.Save(); err != nil {
-			fmt.Fprintln(cmd.ErrOrStderr(), "avertissement: cache non sauvegardé:", err)
+			fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)
 		}
 	}
 }
