@@ -50,7 +50,7 @@ func SVG(lines []Line, w, h int) string {
 	for i := range 4 {
 		gv := lo + (hi-lo)*float64(3-i)/3
 		gy := y(gv)
-		fmt.Fprintf(&b, `<line x1="%s" y1="%s" x2="%d" y2="%s" stroke="#dddddd" stroke-width="1"/>`+"\n",
+		fmt.Fprintf(&b, `<line x1="%s" y1="%s" x2="%d" y2="%s" stroke="#c9c0ad" stroke-width="1"/>`+"\n",
 			f(float64(padL)), f(gy), w-padR, f(gy))
 		fmt.Fprintf(&b, `<text x="%d" y="%s" text-anchor="end" fill="#666666">%s</text>`+"\n",
 			padL-6, f(gy+4), formatCompact(gv))
