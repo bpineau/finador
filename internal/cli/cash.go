@@ -14,7 +14,7 @@ func cashCmd(a *app) *cobra.Command {
 	var at, ccy string
 	set := &cobra.Command{
 		Use:   "set <compte> <solde>",
-		Short: "Pose le solde constaté d'un compte à une date",
+		Short: "Pose le solde constaté d'un compte (les écarts entre relevés comptent comme performance — un apport se saisit avec deposit)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {

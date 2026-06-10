@@ -58,3 +58,15 @@ phase A qui réécrirait ce fichier perdrait silencieusement ces champs. **Choix
 bump de version — ces champs sont des caches refetchables (un `finador refresh` les
 reconstruit), et toutes les phases sont livrées ensemble. **Alternative si refusé :**
 bump l'octet de version à 2 et refuser les versions inconnues.
+
+## D8 — Première estimation/relevé = adoption (flux), pas performance
+
+**Contexte :** la revue finale de phase C a montré qu'un bien estimé pour la première fois
+en cours d'historique (ou un compte ajouté par son premier relevé) faisait exploser le TWR
+du patrimoine (+4300 %) : la valeur saute sans flux compensateur. **Choix :** le premier
+relevé d'un couple (compte, actif) et le premier relevé de cash d'un compte sont traités
+comme des apports externes (adoption) dans les séries de performance ; les relevés suivants
+mesurent la performance (intérêts d'un livret, revalorisation d'un bien). Conséquence
+assumée : pour un compte alimenté par deposits PUIS réconcilié par un premier relevé,
+l'écart de première réconciliation est compté comme apport, pas comme performance.
+**Alternative si refusé :** documenter le piège et exiger un deposit initial explicite.
