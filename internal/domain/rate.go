@@ -10,7 +10,7 @@ import (
 func ParsePercent(s string) (float64, error) {
 	v, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "%"), 64)
 	if err != nil || v < 0 || v > 100 {
-		return 0, fmt.Errorf("pourcentage %q invalide (attendu 0%% à 100%%)", s)
+		return 0, fmt.Errorf("invalid percentage %q (expected 0%% to 100%%)", s)
 	}
 	return v / 100, nil
 }

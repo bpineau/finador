@@ -27,7 +27,7 @@ func (m Money) String() string { return m.Amount.String() + " " + string(m.Curre
 func ParseCurrency(s string) (Currency, error) {
 	c := strings.ToUpper(strings.TrimSpace(s))
 	if len(c) != 3 || strings.ContainsFunc(c, func(r rune) bool { return r < 'A' || r > 'Z' }) {
-		return "", fmt.Errorf("devise %q invalide (attendu code ISO à 3 lettres, ex. EUR)", s)
+		return "", fmt.Errorf("invalid currency %q (expected a 3-letter ISO code, e.g. EUR)", s)
 	}
 	return Currency(c), nil
 }

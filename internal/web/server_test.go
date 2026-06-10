@@ -19,7 +19,7 @@ import (
 	"finador/internal/store"
 )
 
-// fakeSource : données déterministes, jamais de réseau dans les tests web.
+// fakeSource: deterministic data, never hits the network in web tests.
 type fakeSource struct{}
 
 func (fakeSource) Resolve(context.Context, string) (market.SymbolInfo, error) {
@@ -47,7 +47,7 @@ func day(t *testing.T, s string) domain.Date {
 
 func dec(s string) decimal.Decimal { return decimal.RequireFromString(s) }
 
-// testServer construit un store réel en /tmp avec un livre représentatif.
+// testServer builds a real store in /tmp with a representative book.
 func testServer(t *testing.T) (*Server, *store.File) {
 	t.Helper()
 	f, err := store.Create(filepath.Join(t.TempDir(), "web.fin"), "test")
@@ -74,7 +74,7 @@ func testServer(t *testing.T) (*Server, *store.File) {
 	if err := f.Save(); err != nil {
 		t.Fatal(err)
 	}
-	srv := NewServer(f, fakeSource{}, true) // offline : pas de refresh auto en test
+	srv := NewServer(f, fakeSource{}, true) // offline: no auto-refresh in tests
 	return srv, f
 }
 
@@ -93,19 +93,19 @@ func TestDashboard(t *testing.T) {
 		t.Fatalf("GET / = %d\n%s", code, body)
 	}
 	for _, want := range []string{
-		"FINADOR",    // manchette
-		"patrimoine", // libellé héros
-		"5", "100",   // 5 100,00 € (formatage français, espaces fines)
-		"€", // devise suffixée
+		"FINADOR",   // brand
+		"net worth", // hero label
+		"5", "100",  // 5,100.00 € (English formatting with comma)
+		"€", // currency suffix
 		"style.css",
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("dashboard: %q manquant", want)
+			t.Errorf("dashboard: %q missing", want)
 		}
 	}
-	// le formatage français exact : espace fine U+202F entre milliers, virgule
-	if !strings.Contains(body, "5 100,00") {
-		t.Errorf("montant français manquant (5\\u202f100,00):\n%s", excerpt(body))
+	// exact English format: comma thousands separator, point decimal, U+00A0 before symbol
+	if !strings.Contains(body, "5,100.00") {
+		t.Errorf("English amount format missing (5,100.00):\n%s", excerpt(body))
 	}
 }
 
@@ -113,14 +113,14 @@ func TestStyleSheet(t *testing.T) {
 	srv, _ := testServer(t)
 	code, body := get(t, srv, "/style.css")
 	if code != http.StatusOK || !strings.Contains(body, "--papier") || !strings.Contains(body, "--encre") {
-		t.Fatalf("style.css = %d, palette absente", code)
+		t.Fatalf("style.css = %d, palette missing", code)
 	}
 }
 
 func TestNotFound(t *testing.T) {
 	srv, _ := testServer(t)
 	code, body := get(t, srv, "/nimporte/quoi")
-	if code != http.StatusNotFound || !strings.Contains(body, "introuvable") {
+	if code != http.StatusNotFound || !strings.Contains(body, "not found") {
 		t.Fatalf("404 = %d\n%s", code, body)
 	}
 }
@@ -132,22 +132,22 @@ func TestDashboardComplete(t *testing.T) {
 		t.Fatalf("GET / = %d", code)
 	}
 	for _, want := range []string{
-		"<svg",           // courbe inline
-		"répartition",    // section
-		"actions",        // groupe de tête (lié vers /group/actions)
-		"/group/actions", // lien de portée
-		"liquidités",
-		"performance", // section perfs
-		"origine",     // ligne du tableau de périodes
+		"<svg",           // inline curve
+		"allocation",     // section
+		"actions",        // leading group (linked to /group/actions)
+		"/group/actions", // scope link
+		"cash",
+		"performance", // perf section
+		"inception",   // period table row
 		"TWR",
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("dashboard: %q manquant", want)
+			t.Errorf("dashboard: %q missing", want)
 		}
 	}
-	// les courbes portent les couleurs du thème
+	// curves carry theme colours
 	if !strings.Contains(body, "#1c1914") || !strings.Contains(body, "#1e6e4e") {
-		t.Error("couleurs de courbe hors thème")
+		t.Error("curve colours out of theme")
 	}
 }
 
@@ -156,7 +156,7 @@ func TestScopeViews(t *testing.T) {
 	for path, want := range map[string][]string{
 		"/group/actions":       {"actions", "<svg", "Amundi MSCI World", "performance"},
 		"/group/actions/monde": {"actions/monde"},
-		"/account/pea":         {"PEA Zephyr", "liquidités", "transactions récentes"},
+		"/account/pea":         {"PEA Zephyr", "cash", "recent transactions"},
 		"/asset/cw8":           {"Amundi MSCI World", "PEA Zephyr"},
 	} {
 		code, body := get(t, srv, path)
@@ -166,13 +166,13 @@ func TestScopeViews(t *testing.T) {
 		}
 		for _, w := range want {
 			if !strings.Contains(body, w) {
-				t.Errorf("%s: %q manquant", path, w)
+				t.Errorf("%s: %q missing", path, w)
 			}
 		}
 	}
-	// portée inconnue → 404 propre
-	if code, body := get(t, srv, "/asset/inexistant"); code != http.StatusNotFound || !strings.Contains(body, "introuvable") {
-		t.Errorf("scope inconnue = %d\n%s", code, excerpt(body))
+	// unknown scope → clean 404
+	if code, body := get(t, srv, "/asset/inexistant"); code != http.StatusNotFound || !strings.Contains(body, "unknown scope") {
+		t.Errorf("unknown scope = %d\n%s", code, excerpt(body))
 	}
 }
 
@@ -192,7 +192,7 @@ func TestImportUpload(t *testing.T) {
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	part, _ := mw.CreateFormFile("fichier", "txs.csv")
+	part, _ := mw.CreateFormFile("file", "txs.csv")
 	part.Write([]byte("date,kind,account,asset,quantity,price,amount,currency,group,note\n" +
 		"2026-02-01,buy,PEA Zephyr,CW8.PA,3,540,,EUR,actions/monde,import web\n"))
 	mw.Close()
@@ -204,19 +204,19 @@ func TestImportUpload(t *testing.T) {
 		t.Fatalf("POST /import = %d\n%s", rec.Code, excerpt(rec.Body.String()))
 	}
 	if len(f.Book.Transactions) != 3 {
-		t.Errorf("transactions = %d, attendu 3", len(f.Book.Transactions))
+		t.Errorf("transactions = %d, want 3", len(f.Book.Transactions))
 	}
-	// le flash de résultat est visible après redirection
+	// flash result visible after redirect
 	code, body = get(t, srv, rec.Header().Get("Location"))
-	if code != http.StatusOK || !strings.Contains(body, "1 importée") {
-		t.Errorf("flash absent:\n%s", excerpt(body))
+	if code != http.StatusOK || !strings.Contains(body, "1 imported") {
+		t.Errorf("flash missing:\n%s", excerpt(body))
 	}
 }
 
 func TestRefreshButtonOffline(t *testing.T) {
-	srv, _ := testServer(t) // serveur en mode offline
+	srv, _ := testServer(t) // offline server
 	code, _, loc := postForm(t, srv, "/refresh", url.Values{})
-	if code != http.StatusSeeOther || !strings.Contains(loc, "hors+ligne") && !strings.Contains(loc, "hors%20ligne") {
+	if code != http.StatusSeeOther || !strings.Contains(loc, "offline") && !strings.Contains(loc, "cannot+refresh") && !strings.Contains(loc, "cannot%20refresh") {
 		t.Fatalf("refresh offline = %d → %q", code, loc)
 	}
 }
@@ -236,14 +236,14 @@ func TestTxListAndAdd(t *testing.T) {
 	if code != http.StatusOK || !strings.Contains(body, "buy") || !strings.Contains(body, "deposit") {
 		t.Fatalf("GET /tx = %d\n%s", code, excerpt(body))
 	}
-	// le formulaire propose comptes et actifs
+	// form offers accounts and assets
 	for _, want := range []string{"PEA Zephyr", "Amundi MSCI World", "<form", `name="kind"`} {
 		if !strings.Contains(body, want) {
-			t.Errorf("/tx: %q manquant", want)
+			t.Errorf("/tx: %q missing", want)
 		}
 	}
 
-	// saisie d'un achat → 303 puis visible, et persisté dans le fichier
+	// add a buy → 303 then visible, persisted in file
 	code, body, loc := postForm(t, srv, "/tx", url.Values{
 		"date": {"2026-06-03"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
 		"qty": {"2"}, "amount": {"1115"}, "note": {"via web"},
@@ -252,37 +252,37 @@ func TestTxListAndAdd(t *testing.T) {
 		t.Fatalf("POST /tx = %d → %q\n%s", code, loc, excerpt(body))
 	}
 	if _, body = get(t, srv, "/tx"); !strings.Contains(body, "via web") {
-		t.Error("transaction ajoutée invisible")
+		t.Error("added transaction not visible")
 	}
 	if len(f.Book.Transactions) != 3 {
-		t.Errorf("transactions = %d, attendu 3", len(f.Book.Transactions))
+		t.Errorf("transactions = %d, want 3", len(f.Book.Transactions))
 	}
 
-	// saisie invalide → 400 avec message, rien d'écrit
+	// invalid input → 400 with message, nothing written
 	code, body, _ = postForm(t, srv, "/tx", url.Values{
 		"date": {"2026-06-03"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
 		"qty": {"abc"}, "amount": {"10"},
 	})
-	if code != http.StatusBadRequest || !strings.Contains(body, "quantité") {
-		t.Fatalf("POST invalide = %d\n%s", code, excerpt(body))
+	if code != http.StatusBadRequest || !strings.Contains(body, "quantity") {
+		t.Fatalf("POST invalid = %d\n%s", code, excerpt(body))
 	}
 	if len(f.Book.Transactions) != 3 {
-		t.Error("la saisie invalide a écrit quelque chose")
+		t.Error("invalid input wrote something")
 	}
 }
 
-func TestDashboardByEnvelope(t *testing.T) {
+func TestDashboardByAccount(t *testing.T) {
 	srv, _ := testServer(t)
-	code, body := get(t, srv, "/?par=enveloppe")
+	code, body := get(t, srv, "/?by=account")
 	if code != http.StatusOK {
-		t.Fatalf("GET /?par=enveloppe = %d", code)
+		t.Fatalf("GET /?by=account = %d", code)
 	}
 	if !strings.Contains(body, "PEA Zephyr") || !strings.Contains(body, "/account/") {
-		t.Errorf("ventilation par enveloppe absente:\n%s", excerpt(body))
+		t.Errorf("by-account breakdown missing:\n%s", excerpt(body))
 	}
-	// le lien de bascule est présent dans les deux modes
-	if !strings.Contains(body, "par groupe") {
-		t.Errorf("lien de bascule absent")
+	// toggle link is present
+	if !strings.Contains(body, "by group") {
+		t.Errorf("toggle link missing")
 	}
 }
 
@@ -291,7 +291,7 @@ func TestStylesheetThemesLinksAndTrees(t *testing.T) {
 	_, css := get(t, srv, "/style.css")
 	for _, want := range []string{"main a {", "details", "summary", "--garance"} {
 		if !strings.Contains(css, want) {
-			t.Errorf("style.css: %q manquant", want)
+			t.Errorf("style.css: %q missing", want)
 		}
 	}
 }
@@ -304,81 +304,81 @@ func TestIntersectionScopeView(t *testing.T) {
 	}
 	for _, want := range []string{"PEA Zephyr", "actions", "Amundi MSCI World", "performance", "<svg"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("intersection: %q manquant", want)
+			t.Errorf("intersection: %q missing", want)
 		}
 	}
-	// le cash de l'enveloppe n'apparaît PAS dans une portée croisée
-	if strings.Contains(body, "liquidités") {
-		t.Error("liquidités présentes dans une intersection enveloppe∩groupe")
+	// cash from the account must NOT appear in a crossed scope
+	if strings.Contains(body, "cash") {
+		t.Error("cash present in an account∩group intersection scope")
 	}
-	// compte inconnu → 404
+	// unknown account → 404
 	if code, _ := get(t, srv, "/account/zz9/group/actions"); code != http.StatusNotFound {
-		t.Errorf("intersection inconnue = %d", code)
+		t.Errorf("unknown intersection = %d", code)
 	}
 }
 
 func TestDashboardTreeModes(t *testing.T) {
 	srv, _ := testServer(t)
-	// mode groupe (défaut) : arbre avec details et lien d'intersection
+	// group mode (default): tree with details and intersection link
 	_, body := get(t, srv, "/")
-	for _, want := range []string{"<details", "/account/pea/group/actions", "par actif"} {
+	for _, want := range []string{"<details", "/account/pea/group/actions", "by asset"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("mode groupe: %q manquant", want)
+			t.Errorf("group mode: %q missing", want)
 		}
 	}
-	// mode actif : liste plate, lien direct actif, pas de details
-	_, body = get(t, srv, "/?par=actif")
+	// asset mode: flat list, direct asset link, no details
+	_, body = get(t, srv, "/?by=asset")
 	if !strings.Contains(body, "/asset/cw8") {
-		t.Errorf("mode actif: lien actif manquant:\n%s", excerpt(body))
+		t.Errorf("asset mode: asset link missing:\n%s", excerpt(body))
 	}
-	// l'onglet courant n'est pas un lien
+	// active tab is not a link
 	if !strings.Contains(body, `actif-onglet`) {
-		t.Errorf("onglet actif non marqué")
+		t.Errorf("active tab not marked")
 	}
 }
 
 func TestTxEditWeb(t *testing.T) {
 	srv, f := testServer(t)
-	id := f.Book.Transactions[1].ID // le buy cw8
+	id := f.Book.Transactions[1].ID // the cw8 buy
 
 	code, body := get(t, srv, fmt.Sprintf("/tx/%d/edit", id))
 	if code != http.StatusOK {
 		t.Fatalf("GET edit = %d", code)
 	}
-	for _, want := range []string{`value="2026-06-01"`, `value="10"`, "Amundi MSCI World", "bordereau"} {
+	for _, want := range []string{`value="2026-06-01"`, `value="10"`, "Amundi MSCI World", "entry slip"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("formulaire d'édition: %q manquant", want)
+			t.Errorf("edit form: %q missing", want)
 		}
 	}
 
-	// modification quantité + montant
+	// update quantity + amount
 	code, body, loc := postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
 		"date": {"2026-06-01"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
-		"qty": {"12"}, "amount": {"6600"}, "note": {"corrigé via web"},
+		"qty": {"12"}, "amount": {"6600"}, "note": {"edited via web"},
 	})
 	if code != http.StatusSeeOther || loc != "/tx" {
 		t.Fatalf("POST edit = %d → %q\n%s", code, loc, excerpt(body))
 	}
 	tx, err := f.Book.Tx(id)
-	if err != nil || tx.Quantity.String() != "12" || tx.Amount.Amount.String() != "6600" || tx.Note != "corrigé via web" {
-		t.Fatalf("tx après édition: %+v, %v", tx, err)
+	if err != nil || tx.Quantity.String() != "12" || tx.Amount.Amount.String() != "6600" || tx.Note != "edited via web" {
+		t.Fatalf("tx after edit: %+v, %v", tx, err)
 	}
 
-	// validation en échec → 400, rien modifié
+	// validation failure → 400, nothing changed
 	code, body, _ = postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
-		"date": {"pas-une-date"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
+		"date": {"not-a-date"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
 		"qty": {"12"}, "amount": {"6600"},
 	})
 	if code != http.StatusBadRequest {
-		t.Fatalf("POST edit invalide = %d", code)
+		t.Fatalf("POST edit invalid = %d", code)
 	}
-	// id inconnu → 404
+	// unknown id → 404
 	if code, _ := get(t, srv, "/tx/999/edit"); code != http.StatusNotFound {
-		t.Errorf("GET edit inconnu = %d", code)
+		t.Errorf("GET edit unknown = %d", code)
 	}
-	// la liste /tx porte le lien d'édition
+	// /tx list has the edit link
 	if _, body := get(t, srv, "/tx"); !strings.Contains(body, fmt.Sprintf("/tx/%d/edit", id)) {
-		t.Errorf("lien édit. absent de /tx")
+		t.Errorf("edit link missing from /tx")
 	}
 }
 
@@ -390,10 +390,10 @@ func TestTxDelete(t *testing.T) {
 		t.Fatalf("delete = %d → %q", code, loc)
 	}
 	if len(f.Book.Transactions) != 1 {
-		t.Errorf("transactions = %d, attendu 1", len(f.Book.Transactions))
+		t.Errorf("transactions = %d, want 1", len(f.Book.Transactions))
 	}
-	// id inconnu → 404
+	// unknown id → 404
 	if code, _, _ := postForm(t, srv, "/tx/999/delete", url.Values{}); code != http.StatusNotFound {
-		t.Errorf("delete inconnu = %d", code)
+		t.Errorf("delete unknown = %d", code)
 	}
 }

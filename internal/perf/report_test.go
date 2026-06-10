@@ -29,17 +29,17 @@ func TestReportOrigineHasTWR(t *testing.T) {
 
 	var origRow *Row
 	for i := range rows {
-		if rows[i].Name == "origine" {
+		if rows[i].Name == "inception" {
 			origRow = &rows[i]
 		}
 	}
 	if origRow == nil {
-		t.Fatal("ligne origine absente")
+		t.Fatal("inception row absent")
 	}
 	if !origRow.HasTWR {
-		t.Fatal("origine.HasTWR doit être true")
+		t.Fatal("inception.HasTWR should be true")
 	}
-	approx(t, "TWR origine", origRow.TWR, 0.02, 1e-9)
+	approx(t, "TWR inception", origRow.TWR, 0.02, 1e-9)
 }
 
 func TestReportXIRRPresentOnLongWindow(t *testing.T) {
@@ -51,15 +51,15 @@ func TestReportXIRRPresentOnLongWindow(t *testing.T) {
 
 	var origRow *Row
 	for i := range rows {
-		if rows[i].Name == "origine" {
+		if rows[i].Name == "inception" {
 			origRow = &rows[i]
 		}
 	}
 	if origRow == nil {
-		t.Fatal("ligne origine absente")
+		t.Fatal("inception row absent")
 	}
 	if !origRow.HasXIRR {
-		t.Fatal("XIRR attendu sur fenêtre longue")
+		t.Fatal("XIRR expected on long window")
 	}
 }
 
@@ -75,17 +75,17 @@ func TestReportXIRRDashOnShortNamedPeriods(t *testing.T) {
 
 	rows, _ := Report(pts, nil, evalTo, 0)
 
-	shortPeriods := map[string]bool{"1j": true, "2j": true, "5j": true, "7j": true}
+	shortPeriods := map[string]bool{"1d": true, "2d": true, "5d": true, "7d": true}
 	for _, row := range rows {
 		if shortPeriods[row.Name] && row.HasXIRR {
-			t.Errorf("période courte %q ne devrait pas avoir HasXIRR=true", row.Name)
+			t.Errorf("short period %q should not have HasXIRR=true", row.Name)
 		}
 	}
-	// les périodes longues (1m, 3m, 1a) doivent avoir XIRR
-	longPeriods := map[string]bool{"1m": true, "3m": true, "1a": true}
+	// long periods (1m, 3m, 1y) must have XIRR
+	longPeriods := map[string]bool{"1m": true, "3m": true, "1y": true}
 	for _, row := range rows {
 		if longPeriods[row.Name] && !row.HasXIRR {
-			t.Errorf("période longue %q devrait avoir HasXIRR=true", row.Name)
+			t.Errorf("long period %q should have HasXIRR=true", row.Name)
 		}
 	}
 }
@@ -105,7 +105,7 @@ func TestRiskFreeFromConfig(t *testing.T) {
 	for _, c := range cases {
 		got := RiskFreeFromConfig(c.cfg)
 		if math.Abs(got-c.want) > 1e-12 {
-			t.Errorf("RiskFreeFromConfig(%v) = %v, attendu %v", c.cfg, got, c.want)
+			t.Errorf("RiskFreeFromConfig(%v) = %v, want %v", c.cfg, got, c.want)
 		}
 	}
 }
@@ -118,9 +118,9 @@ func TestReportMetricsNotEmpty(t *testing.T) {
 	_, metrics := Report(pts, nil, evalTo, 0.02)
 
 	if metrics.CAGR == 0 && metrics.Vol == 0 {
-		t.Error("CAGR et Vol ne peuvent pas être tous les deux à 0 sur une série non triviale")
+		t.Error("CAGR and Vol cannot both be 0 on a non-trivial series")
 	}
 	if metrics.RiskFree != 0.02 {
-		t.Errorf("RiskFree = %v, attendu 0.02", metrics.RiskFree)
+		t.Errorf("RiskFree = %v, want 0.02", metrics.RiskFree)
 	}
 }
