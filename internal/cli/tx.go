@@ -30,8 +30,9 @@ func parseTxID(s string) (domain.TxID, error) {
 func txList(a *app) *cobra.Command {
 	var account, asset, kind string
 	cmd := &cobra.Command{
-		Use:  "list",
-		Args: cobra.NoArgs,
+		Use:   "list",
+		Short: "List transactions",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f, err := a.open()
 			if err != nil {

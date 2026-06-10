@@ -68,7 +68,7 @@ func perfCmd(a *app) *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), "≈ %s\n", w)
 			}
 			if len(res.Points) < 2 {
-				return errors.New("pas assez d'historique pour mesurer une performance")
+				return errors.New("not enough history to measure performance")
 			}
 
 			pts := res.PerfPoints(false)

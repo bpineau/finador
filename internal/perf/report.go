@@ -38,7 +38,7 @@ type Metrics struct {
 }
 
 // Report builds the standard period table + metrics for a daily series.
-// It covers each period returned by Names() plus the "origine" row.
+// It covers each period returned by Names() plus the "inception" row.
 // Points and flows are expressed in display currency (raw series output).
 // rf is the annualized risk-free rate (e.g. 0.024 for 2.4 %).
 func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row, Metrics) {

@@ -23,7 +23,7 @@ func assetAdd(a *app) *cobra.Command {
 	var kind, name, isin, ccy, group, id string
 	var aliases []string
 	cmd := &cobra.Command{
-		Use:   "add <ticker|nom>",
+		Use:   "add <ticker|name>",
 		Short: "Declare an asset: Yahoo ticker for a security, name for a property",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -73,7 +73,7 @@ func assetAdd(a *app) *cobra.Command {
 func assetSet(a *app) *cobra.Command {
 	var at, account, ccy string
 	cmd := &cobra.Command{
-		Use:   "set <actif> <valeur>",
+		Use:   "set <asset> <value>",
 		Short: "Set a dated valuation (properties, unlisted holdings)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -102,7 +102,7 @@ func assetSet(a *app) *cobra.Command {
 					Date: date, Account: acc.ID, Asset: asset.ID, Kind: domain.Statement,
 					Amount: domain.Money{Amount: value, Currency: effectiveCcy},
 				})
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s = %s au %s\n", tx.ID, asset.Name, tx.Amount, tx.Date)
+				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s = %s on %s\n", tx.ID, asset.Name, tx.Amount, tx.Date)
 				return nil
 			})
 		},
@@ -115,8 +115,9 @@ func assetSet(a *app) *cobra.Command {
 
 func assetList(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:  "list",
-		Args: cobra.NoArgs,
+		Use:   "list",
+		Short: "List assets",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f, err := a.open()
 			if err != nil {
@@ -142,7 +143,7 @@ func assetEdit(a *app) *cobra.Command {
 	var name, ticker, isin, group, ccy, withholding string
 	var addAlias, rmAlias []string
 	cmd := &cobra.Command{
-		Use:   "edit <actif>",
+		Use:   "edit <asset>",
 		Short: "Edit fields passed as flags (aliases, ISIN, withholding tax…)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -202,7 +203,7 @@ func assetEdit(a *app) *cobra.Command {
 
 func assetRm(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "rm <actif>",
+		Use:   "rm <asset>",
 		Short: "Delete an asset with no transactions (and purge its quote cache)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
