@@ -46,12 +46,10 @@ func SVG(lines []Line, w, h int) string {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" font-family="ui-monospace,monospace" font-size="11">`+"\n", w, h)
-	// grille + étiquettes d'échelle
+	// étiquettes d'échelle (pas de lignes de grille)
 	for i := range 4 {
 		gv := lo + (hi-lo)*float64(3-i)/3
 		gy := y(gv)
-		fmt.Fprintf(&b, `<line x1="%s" y1="%s" x2="%d" y2="%s" stroke="#c9c0ad" stroke-width="1"/>`+"\n",
-			f(float64(padL)), f(gy), w-padR, f(gy))
 		fmt.Fprintf(&b, `<text x="%d" y="%s" text-anchor="end" fill="#666666">%s</text>`+"\n",
 			padL-6, f(gy+4), formatCompact(gv))
 	}
