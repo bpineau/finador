@@ -415,8 +415,15 @@ func TestAssetsPage(t *testing.T) {
 	if !strings.Contains(body, `viewBox="0 0 72 20"`) {
 		t.Error("sparklines should be 72x20")
 	}
+	// table-layout:fixed lit la PREMIÈRE rangée : les th doivent porter la classe
+	if !strings.Contains(body, `<th class="sparkcell">1W</th>`) {
+		t.Error("header cells must carry sparkcell so fixed layout sizes the columns")
+	}
+	if !strings.Contains(body, `class="refresh-quiet"`) {
+		t.Error("quiet refresh button should live at the bottom of /assets")
+	}
 	_, css := get(t, srv, "/style.css")
-	for _, want := range []string{".assets-table .asset-name { padding-left:", "width: 78px"} {
+	for _, want := range []string{".assets-table .asset-name { padding-left:", "width: 76px"} {
 		if !strings.Contains(css, want) {
 			t.Errorf("style.css: %q missing", want)
 		}
