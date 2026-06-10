@@ -117,7 +117,7 @@ de passe pour le scripting ; `FINADOR_DB` remplace le chemin par défaut.
   `docs/superpowers/DECISIONS.md` ; la spec et les plans d'implémentation dans
   `docs/superpowers/`.
 
-## Nouveautés v0.2
+## Nouveautés v0.2/v0.3
 
 - **Références courtes** : `add cw8` fonctionne si « cw8 » est un préfixe unique d'un
   identifiant, ticker, ISIN, alias ou nom d'actif — plus besoin de l'ID complet.
@@ -142,6 +142,15 @@ de passe pour le scripting ; `FINADOR_DB` remplace le chemin par défaut.
   disque (taille + mtime) à l'ouverture ; `Save()` vérifie sous flock qu'un autre
   processus n'a pas modifié le fichier entre-temps — si c'est le cas, l'écriture est
   refusée avec le message « relancez la commande » plutôt qu'écraser silencieusement.
+
+- **Édition des transactions au web** : `GET /tx/{id}/edit` affiche le bordereau
+  prérempli ; `POST /tx/{id}/edit` revalide et sauve — l'identifiant et l'empreinte
+  d'import sont préservés (une ligne éditée ne revient pas au ré-import suivant).
+- **Répartition à 3 modes** : le dashboard propose « par groupe », « par enveloppe »
+  et « par actif » — arborescence dépliable `<details>/<summary>` à 3 niveaux, zéro
+  JavaScript, chaque niveau croisé (enveloppe ∩ groupe) est cliquable.
+- **Liens au thème** : toutes les ancres de l'interface utilisent la palette encre/garance
+  du thème ; plus de bleu navigateur par défaut.
 
 ## Limites assumées (v1)
 

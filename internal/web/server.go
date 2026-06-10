@@ -34,6 +34,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /asset/{ref}", s.scopePage)
 	mux.HandleFunc("GET /tx", s.txPage)
 	mux.HandleFunc("POST /tx", s.txCreate)
+	mux.HandleFunc("GET /tx/{id}/edit", s.txEditPage)
+	mux.HandleFunc("POST /tx/{id}/edit", s.txEditSubmit)
 	mux.HandleFunc("POST /tx/{id}/delete", s.txDelete)
 	mux.HandleFunc("GET /import", s.importPage)
 	mux.HandleFunc("POST /import", s.importUpload)
