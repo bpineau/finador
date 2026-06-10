@@ -138,7 +138,7 @@ func TestDashboardComplete(t *testing.T) {
 		"/group/actions", // lien de portée
 		"liquidités",
 		"performance", // section perfs
-		"origine",     // ligne du tableau de périodes
+		"inception",   // ligne du tableau de périodes
 		"TWR",
 	} {
 		if !strings.Contains(body, want) {
@@ -156,7 +156,7 @@ func TestScopeViews(t *testing.T) {
 	for path, want := range map[string][]string{
 		"/group/actions":       {"actions", "<svg", "Amundi MSCI World", "performance"},
 		"/group/actions/monde": {"actions/monde"},
-		"/account/pea":         {"PEA Zephyr", "liquidités", "transactions récentes"},
+		"/account/pea":         {"PEA Zephyr", "cash", "transactions récentes"},
 		"/asset/cw8":           {"Amundi MSCI World", "PEA Zephyr"},
 	} {
 		code, body := get(t, srv, path)
@@ -308,8 +308,8 @@ func TestIntersectionScopeView(t *testing.T) {
 		}
 	}
 	// le cash de l'enveloppe n'apparaît PAS dans une portée croisée
-	if strings.Contains(body, "liquidités") {
-		t.Error("liquidités présentes dans une intersection enveloppe∩groupe")
+	if strings.Contains(body, "cash") {
+		t.Error("cash present in an account∩group intersection scope")
 	}
 	// compte inconnu → 404
 	if code, _ := get(t, srv, "/account/zz9/group/actions"); code != http.StatusNotFound {

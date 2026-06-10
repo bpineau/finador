@@ -23,7 +23,7 @@ func ImportCSV(b *domain.Book, r io.Reader) (added, skipped int, err error) {
 	cr.TrimLeadingSpace = true
 	header, err := cr.Read()
 	if err != nil {
-		return 0, 0, fmt.Errorf("en-tête CSV: %w", err)
+		return 0, 0, fmt.Errorf("CSV header: %w", err)
 	}
 	col := map[string]int{}
 	for i, name := range header {
@@ -45,7 +45,7 @@ func ImportCSV(b *domain.Book, r io.Reader) (added, skipped int, err error) {
 		}
 		tx, err := rowToTx(b, get)
 		if err != nil {
-			return added, skipped, fmt.Errorf("ligne %d: %w", line, err)
+			return added, skipped, fmt.Errorf("line %d: %w", line, err)
 		}
 		if b.HasImportHash(tx.ImportHash) {
 			skipped++
@@ -89,7 +89,7 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 	qty := decimal.Zero
 	if q := get("quantity"); q != "" {
 		if qty, err = decimal.NewFromString(q); err != nil {
-			return zero, fmt.Errorf("quantité %q: %w", q, err)
+			return zero, fmt.Errorf("invalid quantity %q: %w", q, err)
 		}
 	}
 	tx.Quantity = qty.Abs()
@@ -98,16 +98,16 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 	switch {
 	case get("amount") != "":
 		if amount, err = decimal.NewFromString(get("amount")); err != nil {
-			return zero, fmt.Errorf("montant %q: %w", get("amount"), err)
+			return zero, fmt.Errorf("invalid amount %q: %w", get("amount"), err)
 		}
 	case get("price") != "":
 		price, err := decimal.NewFromString(get("price"))
 		if err != nil {
-			return zero, fmt.Errorf("prix %q: %w", get("price"), err)
+			return zero, fmt.Errorf("invalid price %q: %w", get("price"), err)
 		}
 		amount = price.Mul(tx.Quantity)
 	default:
-		return zero, errors.New("ni amount ni price")
+		return zero, errors.New("neither amount nor price")
 	}
 	tx.Amount = domain.Money{Amount: amount.Abs(), Currency: ccy}
 	tx.ImportHash = hashTx(tx)
@@ -126,7 +126,7 @@ func hashTx(t domain.Transaction) string {
 
 func ensureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
 	if ref == "" {
-		return nil, errors.New("colonne account vide")
+		return nil, errors.New("empty account column")
 	}
 	if acc, err := b.Account(ref); err == nil {
 		return acc, nil

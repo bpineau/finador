@@ -55,7 +55,7 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 		}
 		rows = append(rows, periodRow(name, points, flows, pf, pt))
 	}
-	rows = append(rows, periodRow("origine", points, flows, origin, evalTo))
+	rows = append(rows, periodRow("inception", points, flows, origin, evalTo))
 
 	// Métriques sur la fenêtre complète depuis l'origine
 	allPts, allFlows := windowSlice(points, flows, origin, evalTo)
