@@ -37,7 +37,7 @@
       <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{frPct .XIRR}}{{else}}—{{end}}</td></tr>
     {{end}}
   </table>
-  <p class="sous-titre">CAGR {{frPct .Met.CAGR}} · vol {{frPct .Met.Vol}} · Sharpe {{printf "%.2f" .Met.Sharpe}} · Sortino {{printf "%.2f" .Met.Sortino}}</p>
+  <p class="sous-titre">CAGR {{frPct .Met.CAGR}} · vol {{frPct .Met.Vol}} · Sharpe {{frNum .Met.Sharpe}} · Sortino {{frNum .Met.Sortino}}</p>
   {{end}}
 </section>
 
