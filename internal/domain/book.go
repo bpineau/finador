@@ -19,29 +19,52 @@ type Book struct {
 
 func NewBook() *Book { return &Book{Config: map[string]string{}} }
 
+// CheckAccountRefs verifies that none of a's references (ID, Name, Aliases)
+// collides exactly (case-insensitive) with another account — adding or
+// editing must not poison resolution. When called for an edit, a must
+// already be a pointer into b.Accounts so that the account is skipped
+// when comparing against itself.
+func (b *Book) CheckAccountRefs(a *Account) error {
+	refs := append([]string{string(a.ID), a.Name}, a.Aliases...)
+	for _, other := range b.Accounts {
+		if other == a { // same pointer: skip self (edit scenario)
+			continue
+		}
+		others := append([]string{string(other.ID), other.Name}, other.Aliases...)
+		for _, r := range refs {
+			if r == "" {
+				continue
+			}
+			for _, o := range others {
+				if o != "" && strings.EqualFold(r, o) {
+					return fmt.Errorf("reference %q already used by %s: %w", r, other.ID, ErrDuplicate)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // AddAccount rejects an ID or name that collides exactly (case-insensitive)
-// with an existing account — exact field comparison avoids false duplicates
-// from the prefix tier.
+// with an existing account — delegates to CheckAccountRefs.
 func (b *Book) AddAccount(a *Account) error {
 	if a.ID == "" {
 		return fmt.Errorf("account %q: empty identifier", a.Name)
 	}
-	for _, other := range b.Accounts {
-		if strings.EqualFold(string(other.ID), string(a.ID)) {
-			return fmt.Errorf("account %q: %w", string(a.ID), ErrDuplicate)
-		}
-		if strings.EqualFold(other.Name, a.Name) {
-			return fmt.Errorf("account %q: %w", a.Name, ErrDuplicate)
-		}
+	if err := b.CheckAccountRefs(a); err != nil {
+		return err
 	}
 	b.Accounts = append(b.Accounts, a)
 	return nil
 }
 
-// Account resolves a reference: ID first, then free-form name — both case-insensitive.
+// Account resolves a reference: ID first, then aliases, then free-form name —
+// all case-insensitive. Alias tier deliberately outranks name so that
+// user-chosen short names always win.
 func (b *Book) Account(ref string) (*Account, error) {
 	return resolve(ref, "account", b.Accounts,
 		func(a *Account) []string { return []string{string(a.ID)} },
+		func(a *Account) []string { return a.Aliases },
 		func(a *Account) []string { return []string{a.Name} },
 	)
 }

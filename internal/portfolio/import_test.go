@@ -61,6 +61,42 @@ func TestImportCSVBadLine(t *testing.T) {
 	}
 }
 
+func TestEnsureAccountEnsureAsset(t *testing.T) {
+	b := domain.NewBook()
+	// EnsureAccount creates on ErrNotFound
+	acc, err := EnsureAccount(b, "My Bank", "EUR")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acc.Name != "My Bank" || acc.Currency != domain.EUR {
+		t.Fatalf("account = %+v", acc)
+	}
+	// second call resolves the existing one
+	acc2, err := EnsureAccount(b, "My Bank", "")
+	if err != nil || acc2.ID != acc.ID {
+		t.Fatalf("second resolve = %v, %v", acc2, err)
+	}
+	// empty ccy defaults to EUR
+	acc3, err := EnsureAccount(b, "Other", "")
+	if err != nil || acc3.Currency != domain.EUR {
+		t.Fatalf("default EUR = %v, %v", acc3, err)
+	}
+
+	// EnsureAsset creates on ErrNotFound
+	asset, err := EnsureAsset(b, "NVDA", domain.USD, "tech")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asset.Name != "NVDA" || asset.Kind != domain.Security || asset.Currency != domain.USD {
+		t.Fatalf("asset = %+v", asset)
+	}
+	// second call resolves
+	asset2, err := EnsureAsset(b, "NVDA", domain.EUR, "")
+	if err != nil || asset2.ID != asset.ID {
+		t.Fatalf("second asset resolve = %v, %v", asset2, err)
+	}
+}
+
 func TestImportPropagatesAmbiguity(t *testing.T) {
 	b := domain.NewBook()
 	// Injection directe des deux actifs pour simuler un livre legacy/corrompu
