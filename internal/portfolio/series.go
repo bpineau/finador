@@ -396,7 +396,8 @@ func (w *walker) applyDividends(d domain.Date, collect bool) {
 			disp := w.conv(gross, w.ccy, d, p.asset.Name)
 			acc := w.accounts[p.acc.ID]
 			if acc.tracked {
-				cashAmt := w.convF(p.qty*ev.Amount, p.asset.Currency, acc.acc.Currency, d, p.asset.Name)
+				// même retenue à la source que value.go : le cash reçoit le NET
+				cashAmt := w.convF(p.qty*ev.Amount*(1-p.asset.Withholding), p.asset.Currency, acc.acc.Currency, d, p.asset.Name)
 				acc.cash += cashAmt
 			}
 			switch {
