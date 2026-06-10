@@ -44,7 +44,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 			k := key2{accID, g}
 			child, ok := grp[k]
 			if !ok {
-				child = &node{Label: g, URL: "/account/" + url.PathEscape(accID) + "/group/" + g}
+				child = &node{Label: g, URL: "/account/" + url.PathEscape(accID) + "/group/" + escapeGroup(g)}
 				grp[k] = child
 			}
 			child.Gross += l.Gross
@@ -98,7 +98,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 		g := topGroup(l.Asset.Group)
 		root, ok := byGrp[g]
 		if !ok {
-			root = &node{Label: g, URL: "/group/" + g}
+			root = &node{Label: g, URL: "/group/" + escapeGroup(g)}
 			byGrp[g] = root
 		}
 		root.Gross += l.Gross
@@ -106,7 +106,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 		k := key2{g, accID}
 		child, ok := sub[k]
 		if !ok {
-			child = &node{Label: l.Account.Name, URL: "/account/" + url.PathEscape(accID) + "/group/" + g}
+			child = &node{Label: l.Account.Name, URL: "/account/" + url.PathEscape(accID) + "/group/" + escapeGroup(g)}
 			sub[k] = child
 		}
 		child.Gross += l.Gross
@@ -159,6 +159,15 @@ func flatAssets(lines []portfolio.PositionLine) []node {
 	}
 	sortNodes(out)
 	return out
+}
+
+// escapeGroup escapes each path segment, keeping the slashes routable.
+func escapeGroup(g string) string {
+	segs := strings.Split(g, "/")
+	for i, s := range segs {
+		segs[i] = url.PathEscape(s)
+	}
+	return strings.Join(segs, "/")
 }
 
 func topGroup(g string) string {
