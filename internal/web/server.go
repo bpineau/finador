@@ -45,5 +45,5 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
-	s.renderError(w, http.StatusNotFound, "page introuvable : "+r.URL.Path)
+	s.renderError(w, http.StatusNotFound, "page not found: "+r.URL.Path)
 }
