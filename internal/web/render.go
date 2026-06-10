@@ -16,6 +16,9 @@ var templateFS embed.FS
 //go:embed static/style.css
 var styleCSS []byte
 
+//go:embed static/favicon.ico
+var faviconICO []byte
+
 var funcs = template.FuncMap{
 	"fmtMoney": fmtMoney,
 	"fmtNum":   fmtNum,
@@ -66,6 +69,12 @@ func (s *Server) renderError(w http.ResponseWriter, status int, msg string) {
 func (s *Server) stylesheet(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	w.Write(styleCSS)
+}
+
+func (s *Server) favicon(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "image/x-icon")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(faviconICO)
 }
 
 // fmtMoney typesets an amount the English way: comma thousands, point decimal,
