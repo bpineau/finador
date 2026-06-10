@@ -69,13 +69,4 @@ func TestBuildTreeByGroup(t *testing.T) {
 	}
 }
 
-func TestFlatAssets(t *testing.T) {
-	flat := flatAssets(sampleLines(t))
-	// maison, cw8 (6720+1120 aggregated), apple — cash not included
-	if len(flat) != 3 || flat[0].Label != "Maison" {
-		t.Fatalf("flat = %+v", flat)
-	}
-	if flat[1].Label != "CW8" || flat[1].Gross != 7840 || flat[1].URL != "/asset/cw8" {
-		t.Errorf("cw8 aggregate = %+v", flat[1])
-	}
-}
+// TestFlatAssets was removed: flatAssets and the "by asset" tab are deleted in J3.

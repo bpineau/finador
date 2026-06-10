@@ -33,7 +33,6 @@ type dashData struct {
 	RangeLinks []tab
 	Range      string
 	Tree       []node
-	Flat       []node
 	Warnings   []string
 	Flash      string
 	Error      string
@@ -98,8 +97,8 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 
 	mode := r.URL.Query().Get("by")
 	switch mode {
-	case "account", "asset":
-		// valid modes
+	case "account":
+		// valid mode
 	default:
 		mode = "group"
 	}
@@ -138,7 +137,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		Tabs: []tab{
 			{"by group", tabURL("group"), mode == "group"},
 			{"by account", tabURL("account"), mode == "account"},
-			{"by asset", tabURL("asset"), mode == "asset"},
 		},
 	}
 
@@ -159,11 +157,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if mode == "asset" {
-		data.Flat = flatAssets(lines)
-	} else {
-		data.Tree = buildTree(lines, mode)
-	}
+	data.Tree = buildTree(lines, mode)
 
 	s.render(w, http.StatusOK, "dashboard.html", data)
 }

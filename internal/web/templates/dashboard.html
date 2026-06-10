@@ -27,13 +27,6 @@
     <div class="onglets">
       {{range .Tabs}}{{if .Active}}<span class="actif-onglet">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
     </div>
-    {{if eq .Mode "asset"}}
-    <ul class="arbre">
-      {{range .Flat}}
-      <li class="feuille"><a href="{{.URL}}">{{.Label}}</a><span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></li>
-      {{end}}
-    </ul>
-    {{else}}
     <ul class="arbre">
       {{range .Tree}}
       <li><details>
@@ -53,7 +46,6 @@
       </details></li>
       {{end}}
     </ul>
-    {{end}}
   </div>
 </section>
 
