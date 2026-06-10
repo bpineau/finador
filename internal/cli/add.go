@@ -78,7 +78,7 @@ func parseTradeTail(rest []string, qty decimal.Decimal) (total decimal.Decimal, 
 		if unit, ok := strings.CutPrefix(arg, "@"); ok {
 			p, perr := decimal.NewFromString(unit)
 			if perr != nil {
-				return total, date, fmt.Errorf("prix %q: %w", arg, perr)
+				return total, date, fmt.Errorf("invalid price %q: %w", arg, perr)
 			}
 			total = p.Mul(qty.Abs())
 		} else if d, derr := domain.ParseDate(arg); derr == nil {

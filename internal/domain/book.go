@@ -28,10 +28,10 @@ func (b *Book) AddAccount(a *Account) error {
 	}
 	for _, other := range b.Accounts {
 		if strings.EqualFold(string(other.ID), string(a.ID)) {
-			return fmt.Errorf("compte %q: %w", string(a.ID), ErrDuplicate)
+			return fmt.Errorf("account %q: %w", string(a.ID), ErrDuplicate)
 		}
 		if strings.EqualFold(other.Name, a.Name) {
-			return fmt.Errorf("compte %q: %w", a.Name, ErrDuplicate)
+			return fmt.Errorf("account %q: %w", a.Name, ErrDuplicate)
 		}
 	}
 	b.Accounts = append(b.Accounts, a)

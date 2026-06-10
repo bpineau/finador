@@ -13,7 +13,7 @@ func cashCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "cash", Short: "Account cash balances"}
 	var at, ccy string
 	set := &cobra.Command{
-		Use:   "set <compte> <solde>",
+		Use:   "set <account> <balance>",
 		Short: "Set the observed balance of an account (gaps between statements count as performance — use deposit for external contributions)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -38,7 +38,7 @@ func cashCmd(a *app) *cobra.Command {
 					Date: date, Account: acc.ID, Kind: domain.Statement,
 					Amount: domain.Money{Amount: amount, Currency: effectiveCcy},
 				})
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s : %s au %s\n", tx.ID, acc.Name, tx.Amount, tx.Date)
+				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s: %s on %s\n", tx.ID, acc.Name, tx.Amount, tx.Date)
 				return nil
 			})
 		},

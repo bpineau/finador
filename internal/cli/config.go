@@ -13,8 +13,9 @@ import (
 func configCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "config", Short: "Settings: default-account, keychain-ttl, risk-free…"}
 	set := &cobra.Command{
-		Use:  "set <key> <value>",
-		Args: cobra.ExactArgs(2),
+		Use:   "set <key> <value>",
+		Short: "Set a config key",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				b.Config[args[0]] = args[1]
@@ -23,8 +24,9 @@ func configCmd(a *app) *cobra.Command {
 		},
 	}
 	get := &cobra.Command{
-		Use:  "get [key]",
-		Args: cobra.MaximumNArgs(1),
+		Use:   "get [key]",
+		Short: "Show config",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
 			if err != nil {
