@@ -30,13 +30,31 @@ const (
 	nonceSize  = 12
 )
 
+// ErrConcurrent signale qu'un autre processus a modifié le fichier depuis son
+// ouverture : on ne l'écrase pas, on demande de relancer.
+var ErrConcurrent = errors.New("fichier modifié par un autre processus depuis l'ouverture — relancez la commande")
+
+type diskStamp struct {
+	size  int64
+	mtime int64 // ns
+}
+
+func stampOf(path string) (diskStamp, bool) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return diskStamp{}, false
+	}
+	return diskStamp{size: info.Size(), mtime: info.ModTime().UnixNano()}, true
+}
+
 // File is an open, decrypted portfolio file.
 type File struct {
 	Path string
 	Book *domain.Book
 
-	key [32]byte
-	hdr header
+	key  [32]byte
+	hdr  header
+	disk diskStamp // (size, mtime) captured at Open; zero at Create
 }
 
 // header is the clear, authenticated prefix of the file.
@@ -140,6 +158,7 @@ func Open(path, password string) (*File, error) {
 		return nil, fmt.Errorf("%s: contenu illisible: %w", path, err)
 	}
 	f.Book = book
+	f.disk, _ = stampOf(path)
 	return f, nil
 }
 
@@ -156,7 +175,22 @@ func (f *File) gcm() cipher.AEAD {
 }
 
 // Save writes atomically: tmp + fsync + rename; the previous version becomes .bak.
+// Before writing, it acquires a sidecar lock and checks that no other process has
+// written since this File was opened (optimistic concurrency — ErrConcurrent if stale).
 func (f *File) Save() error {
+	unlock, err := lockSidecar(f.Path + ".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	// Stamp check: only when we have a baseline (Open sets it; Create leaves it zero).
+	if f.disk != (diskStamp{}) {
+		if cur, ok := stampOf(f.Path); ok && cur != f.disk {
+			return fmt.Errorf("%s: %w", f.Path, ErrConcurrent)
+		}
+	}
+
 	var plain bytes.Buffer
 	zw := gzip.NewWriter(&plain)
 	if err := json.NewEncoder(zw).Encode(f.Book); err != nil {
@@ -196,5 +230,9 @@ func (f *File) Save() error {
 			return err
 		}
 	}
-	return os.Rename(tmp, f.Path)
+	if err := os.Rename(tmp, f.Path); err != nil {
+		return err
+	}
+	f.disk, _ = stampOf(f.Path)
+	return nil
 }
