@@ -51,7 +51,7 @@ finador account add "PEA Zephyr" --tax gains:17.2%
 finador account add "CTO IBKR"     --tax gains:30%
 finador account add "Livret A"
 
-finador asset add CW8.PA --group actions/monde        # résolu via Yahoo (nom, devise)
+finador asset add CW8.PA --id cw8 --group actions/monde   # résolu via Yahoo (nom, devise)
 finador add cw8 10 @550 2026-06-01 --account "PEA Zephyr"
 finador deposit "PEA Zephyr" 5000 2026-01-10        # apport externe (base fiscale, XIRR)
 finador cash set "Livret A" 11250                     # relevé de solde
@@ -96,7 +96,7 @@ au-delà de 127.0.0.1 (un avertissement s'affiche si vous le faites quand même)
 finador config set currency EUR        # devise d'affichage par défaut
 finador config set risk-free 2.4%      # taux sans risque pour Sharpe/Sortino
 finador config set keychain-ttl 8h     # durée de mémorisation du mot de passe
-finador config set default-account pea # enveloppe par défaut des saisies
+finador config set default-account pea-zephyr  # enveloppe par défaut des saisies
 ```
 
 `--offline` (toutes commandes) interdit le réseau et travaille sur le cache ;
