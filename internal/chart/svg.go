@@ -2,13 +2,15 @@ package chart
 
 import (
 	"fmt"
+	"html"
 	"math"
 	"strings"
 
 	"finador/internal/perf"
 )
 
-// Line is one curve of an SVG chart.
+// Line is one curve of an SVG chart. Label is escaped before rendering;
+// Color is written verbatim and must stay a trusted constant.
 type Line struct {
 	Label  string
 	Color  string
@@ -74,7 +76,7 @@ func SVG(lines []Line, w, h int) string {
 	lx := padL
 	for _, l := range lines {
 		fmt.Fprintf(&b, `<rect x="%d" y="4" width="10" height="3" fill="%s"/><text x="%d" y="10" fill="#444444">%s</text>`+"\n",
-			lx, l.Color, lx+14, l.Label)
+			lx, l.Color, lx+14, html.EscapeString(l.Label))
 		lx += 14 + 8*len(l.Label) + 16
 	}
 	fmt.Fprintf(&b, `<text x="%d" y="%d" fill="#666666">%s</text>`+"\n", padL, h-8, first.Points[0].Date)
