@@ -32,7 +32,7 @@ const (
 
 // ErrConcurrent signale qu'un autre processus a modifié le fichier depuis son
 // ouverture : on ne l'écrase pas, on demande de relancer.
-var ErrConcurrent = errors.New("fichier modifié par un autre processus depuis l'ouverture — relancez la commande")
+var ErrConcurrent = errors.New("file modified by another process since it was opened — retry the command")
 
 type diskStamp struct {
 	size  int64
@@ -95,7 +95,7 @@ func (h header) encode() []byte {
 
 func decodeHeader(path string, raw []byte) (header, error) {
 	if len(raw) < headerSize+nonceSize || string(raw[:len(magic)]) != magic {
-		return header{}, fmt.Errorf("%s n'est pas un fichier finador", path)
+		return header{}, fmt.Errorf("%s is not a finador file", path)
 	}
 	rest := raw[len(magic):]
 	h := header{
@@ -110,10 +110,10 @@ func decodeHeader(path string, raw []byte) (header, error) {
 	if h.Time < 1 || h.Time > 16 ||
 		h.MemoryKB < 8 || h.MemoryKB > 1<<20 || // ≤ 1 GiB
 		h.Threads < 1 || h.Threads > 16 {
-		return header{}, fmt.Errorf("%s: paramètres Argon2 hors bornes", path)
+		return header{}, fmt.Errorf("%s: Argon2 parameters out of bounds", path)
 	}
 	if h.Version != 1 {
-		return header{}, fmt.Errorf("%s: version %d non gérée (finador trop ancien ?)", path, h.Version)
+		return header{}, fmt.Errorf("%s: unsupported version %d (finador too old?)", path, h.Version)
 	}
 	return h, nil
 }
@@ -121,7 +121,7 @@ func decodeHeader(path string, raw []byte) (header, error) {
 // Create makes a new encrypted file holding an empty Book. It refuses to overwrite.
 func Create(path, password string) (*File, error) {
 	if _, err := os.Stat(path); err == nil {
-		return nil, fmt.Errorf("%s existe déjà", path)
+		return nil, fmt.Errorf("%s already exists", path)
 	}
 	f := &File{Path: path, Book: domain.NewBook(), hdr: defaultHeader()}
 	f.key = f.hdr.deriveKey(password)
@@ -134,7 +134,7 @@ func Open(path, password string) (*File, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("%s n'existe pas — lancez 'finador init' pour le créer", path)
+			return nil, fmt.Errorf("%s does not exist — run 'finador init' to create it", path)
 		}
 		return nil, err
 	}
@@ -150,12 +150,12 @@ func Open(path, password string) (*File, error) {
 	}
 	zr, err := gzip.NewReader(bytes.NewReader(plain))
 	if err != nil {
-		return nil, fmt.Errorf("%s: contenu illisible: %w", path, err)
+		return nil, fmt.Errorf("%s: unreadable content: %w", path, err)
 	}
 	defer zr.Close()
 	book := domain.NewBook()
 	if err := json.NewDecoder(zr).Decode(book); err != nil {
-		return nil, fmt.Errorf("%s: contenu illisible: %w", path, err)
+		return nil, fmt.Errorf("%s: unreadable content: %w", path, err)
 	}
 	f.Book = book
 	f.disk, _ = stampOf(path)

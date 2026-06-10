@@ -32,14 +32,14 @@ func ParseTaxRule(s string) (TaxRule, error) {
 	}
 	mode, pct, ok := strings.Cut(s, ":")
 	if !ok {
-		return TaxRule{}, fmt.Errorf("règle fiscale %q: attendu none, gains:N%% ou value:N%%", s)
+		return TaxRule{}, fmt.Errorf("invalid tax rule %q: expected none, gains:N%% or value:N%%", s)
 	}
 	rate, err := decimal.NewFromString(strings.TrimSuffix(pct, "%"))
 	if err != nil {
-		return TaxRule{}, fmt.Errorf("règle fiscale %q: taux invalide: %w", s, err)
+		return TaxRule{}, fmt.Errorf("invalid tax rule %q: invalid rate: %w", s, err)
 	}
 	if rate.IsNegative() || rate.GreaterThan(hundred) {
-		return TaxRule{}, fmt.Errorf("règle fiscale %q: taux hors de [0%%, 100%%]", s)
+		return TaxRule{}, fmt.Errorf("invalid tax rule %q: rate outside [0%%, 100%%]", s)
 	}
 	rule := TaxRule{Rate: rate.Div(hundred)}
 	switch mode {
@@ -48,7 +48,7 @@ func ParseTaxRule(s string) (TaxRule, error) {
 	case "value":
 		rule.Mode = TaxOnValue
 	default:
-		return TaxRule{}, fmt.Errorf("règle fiscale %q: mode %q inconnu", s, mode)
+		return TaxRule{}, fmt.Errorf("invalid tax rule %q: unknown mode %q", s, mode)
 	}
 	return rule, nil
 }
