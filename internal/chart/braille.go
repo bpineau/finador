@@ -17,6 +17,8 @@ func Braille(points []perf.Point, width, height int) string {
 	if len(points) == 0 {
 		return ""
 	}
+	// des dimensions nulles ou négatives (flags utilisateur) ne doivent jamais paniquer
+	width, height = max(width, 10), max(height, 2)
 	lo, hi := bounds(points)
 	if hi == lo {
 		hi = lo + 1 // série plate : on lui donne de l'épaisseur
