@@ -337,6 +337,51 @@ func TestDashboardTreeModes(t *testing.T) {
 	}
 }
 
+func TestTxEditWeb(t *testing.T) {
+	srv, f := testServer(t)
+	id := f.Book.Transactions[1].ID // le buy cw8
+
+	code, body := get(t, srv, fmt.Sprintf("/tx/%d/edit", id))
+	if code != http.StatusOK {
+		t.Fatalf("GET edit = %d", code)
+	}
+	for _, want := range []string{`value="2026-06-01"`, `value="10"`, "Amundi MSCI World", "bordereau"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("formulaire d'édition: %q manquant", want)
+		}
+	}
+
+	// modification quantité + montant
+	code, body, loc := postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
+		"date": {"2026-06-01"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
+		"qty": {"12"}, "amount": {"6600"}, "note": {"corrigé via web"},
+	})
+	if code != http.StatusSeeOther || loc != "/tx" {
+		t.Fatalf("POST edit = %d → %q\n%s", code, loc, excerpt(body))
+	}
+	tx, err := f.Book.Tx(id)
+	if err != nil || tx.Quantity.String() != "12" || tx.Amount.Amount.String() != "6600" || tx.Note != "corrigé via web" {
+		t.Fatalf("tx après édition: %+v, %v", tx, err)
+	}
+
+	// validation en échec → 400, rien modifié
+	code, body, _ = postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
+		"date": {"pas-une-date"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
+		"qty": {"12"}, "amount": {"6600"},
+	})
+	if code != http.StatusBadRequest {
+		t.Fatalf("POST edit invalide = %d", code)
+	}
+	// id inconnu → 404
+	if code, _ := get(t, srv, "/tx/999/edit"); code != http.StatusNotFound {
+		t.Errorf("GET edit inconnu = %d", code)
+	}
+	// la liste /tx porte le lien d'édition
+	if _, body := get(t, srv, "/tx"); !strings.Contains(body, fmt.Sprintf("/tx/%d/edit", id)) {
+		t.Errorf("lien édit. absent de /tx")
+	}
+}
+
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID

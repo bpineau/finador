@@ -1,0 +1,28 @@
+{{define "tx-edit.html"}}{{template "base" .}}{{end}}
+{{define "title"}}édition — finador{{end}}
+{{define "main"}}
+<p class="fil-ariane"><a href="/tx">transactions</a> → édition [{{.Tx.ID}}]</p>
+<section>
+  <h2>corriger l'écriture [{{.Tx.ID}}]</h2>
+  {{if .Erreur}}<p class="flash erreur">{{.Erreur}}</p>{{end}}
+  <form method="post" action="/tx/{{.Tx.ID}}/edit">
+    <fieldset>
+      <legend>bordereau</legend>
+      <div class="champs">
+        <div><label for="date">date</label><input id="date" name="date" value="{{.Tx.Date}}"></div>
+        <div><label for="kind">type</label>
+          <select id="kind" name="kind">{{$k := .Tx.Kind.String}}{{range .Kinds}}<option {{if eq . $k}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+        <div><label for="account">compte</label>
+          <select id="account" name="account">{{$a := .Tx.Account}}{{range .Accounts}}<option value="{{.ID}}" {{if eq .ID $a}}selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+        <div><label for="asset">actif (optionnel)</label>
+          <select id="asset" name="asset">{{$s := .Tx.Asset}}<option value=""></option>{{range .Assets}}<option value="{{.ID}}" {{if eq .ID $s}}selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+        <div><label for="qty">quantité</label><input id="qty" name="qty" value="{{.Tx.Quantity}}"></div>
+        <div><label for="amount">montant total</label><input id="amount" name="amount" value="{{.Tx.Amount.Amount}}"></div>
+        <div><label for="ccy">devise</label><input id="ccy" name="ccy" value="{{.Tx.Amount.Currency}}"></div>
+        <div><label for="note">note</label><input id="note" name="note" value="{{.Tx.Note}}"></div>
+      </div>
+      <button type="submit">Enregistrer la correction</button>
+    </fieldset>
+  </form>
+</section>
+{{end}}
