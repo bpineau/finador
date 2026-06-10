@@ -104,7 +104,7 @@ func (s Scope) hasCash(acc *domain.Account) bool {
 
 // lineLabel groups the breakdown lines: top-level group for All, next path
 // segment (or asset name) inside a group, asset name inside an account,
-// account name for an asset scope. Cash lines are labelled "liquidités".
+// account name for an asset scope. Cash lines are labelled "cash".
 func (s Scope) lineLabel(acc *domain.Account, asset *domain.Asset) string {
 	if asset == nil {
 		return "cash"
