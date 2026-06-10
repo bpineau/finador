@@ -472,6 +472,31 @@ func TestAssetEditAndRm(t *testing.T) {
 	}
 }
 
+func TestAccountEdit(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
+	run(t, db, "account", "add", "Savings")
+	run(t, db, "account", "edit", "pea-bforbank", "--add-alias", "p")
+	out := run(t, db, "account", "list")
+	if !strings.Contains(out, "ALIASES") || !strings.Contains(out, "p") {
+		t.Errorf("aliases column:\n%s", out)
+	}
+	// l'alias résout pour la saisie
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8")
+	run(t, db, "deposit", "p", "1000", "2026-01-10")
+	if out := run(t, db, "tx", "list", "--account", "p"); !strings.Contains(out, "deposit") {
+		t.Errorf("alias should resolve in tx list:\n%s", out)
+	}
+	// collision refusée, --rm-alias marche, edit du taux marche
+	if _, err := tryRun(t, db, "account", "edit", "Savings", "--add-alias", "PEA BforBank"); err == nil {
+		t.Fatal("alias collision accepted")
+	}
+	run(t, db, "account", "edit", "pea-bforbank", "--rm-alias", "p", "--tax", "gains:30%")
+	if out := run(t, db, "account", "list"); !strings.Contains(out, "gains:30%") {
+		t.Errorf("tax edit:\n%s", out)
+	}
+}
+
 func TestPerfColors(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank")
