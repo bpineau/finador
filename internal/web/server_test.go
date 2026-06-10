@@ -117,6 +117,24 @@ func TestStyleSheet(t *testing.T) {
 	}
 }
 
+func TestFavicon(t *testing.T) {
+	srv, _ := testServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/x-icon" {
+		t.Fatalf("favicon = %d %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	body := rec.Body.Bytes()
+	if len(body) < 6 || body[0] != 0 || body[1] != 0 || body[2] != 1 || body[3] != 0 {
+		t.Error("not an ICO (bad magic)")
+	}
+	// le lien force le rechargement par une URL versionnée
+	if _, home := get(t, srv, "/"); !strings.Contains(home, `href="/favicon.ico?v=1"`) {
+		t.Error("base template must reference /favicon.ico?v=1 (cache-buster)")
+	}
+}
+
 func TestNotFound(t *testing.T) {
 	srv, _ := testServer(t)
 	code, body := get(t, srv, "/nimporte/quoi")
