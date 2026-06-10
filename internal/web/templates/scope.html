@@ -1,0 +1,54 @@
+{{define "scope.html"}}{{template "base" .}}{{end}}
+{{define "title"}}{{.Label}} — finador{{end}}
+{{define "main"}}
+<p class="fil-ariane"><a href="/">patrimoine</a> → {{.Label}}</p>
+<section class="heros">
+  <p class="libelle">{{.Label}} — net d'impôt latent</p>
+  <p class="chiffre-une">{{frMoney .Val.Net .Val.Currency}}</p>
+  <p class="sous-titre">brut {{frMoney .Val.Gross .Val.Currency}} · impôt latent {{frMoney .Val.Tax .Val.Currency}}</p>
+  {{range .Val.Stale}}<p class="approx">≈ {{.}}</p>{{end}}
+  {{range .Warnings}}<p class="approx">≈ {{.}}</p>{{end}}
+</section>
+
+<section>
+  <h2>évolution</h2>
+  {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">pas encore assez d'historique.</p>{{end}}
+</section>
+
+<section>
+  <h2>composition</h2>
+  <table>
+    <tr><th>ligne</th><th class="nombre">brut</th><th class="nombre">impôt</th><th class="nombre">net</th></tr>
+    {{range .Val.Lines}}
+    <tr><td>{{.Label}}</td><td class="nombre">{{frMoney .Gross $.Val.Currency}}</td>
+        <td class="nombre">{{frMoney .Tax $.Val.Currency}}</td><td class="nombre">{{frMoney .Net $.Val.Currency}}</td></tr>
+    {{end}}
+  </table>
+</section>
+
+<section>
+  <h2>performance</h2>
+  {{if .Rows}}
+  <table>
+    <tr><th>période</th><th class="nombre">TWR</th><th class="nombre">XIRR</th></tr>
+    {{range .Rows}}
+    <tr><td>{{.Name}}</td>
+      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{frPct .TWR}}{{else}}—{{end}}</td>
+      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{frPct .XIRR}}{{else}}—{{end}}</td></tr>
+    {{end}}
+  </table>
+  <p class="sous-titre">CAGR {{frPct .Met.CAGR}} · vol {{frPct .Met.Vol}} · Sharpe {{printf "%.2f" .Met.Sharpe}} · Sortino {{printf "%.2f" .Met.Sortino}}</p>
+  {{end}}
+</section>
+
+<section>
+  <h2>transactions récentes</h2>
+  <table>
+    <tr><th>date</th><th>type</th><th>compte</th><th>actif</th><th class="nombre">qté</th><th class="nombre">montant</th></tr>
+    {{range .Txs}}
+    <tr><td class="nombre">{{.Date}}</td><td>{{.Kind}}</td><td>{{.Account}}</td><td>{{.Asset}}</td>
+        <td class="nombre">{{.Qty}}</td><td class="nombre">{{.Amount}}</td></tr>
+    {{end}}
+  </table>
+</section>
+{{end}}
