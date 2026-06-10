@@ -83,3 +83,14 @@ avertissement très visible pour tout autre bind, aucun cookie/session. Pas de v
 inter-processus CLI/serve (D6 backlog) : dernière écriture gagnante, sauvegardes
 atomiques — acceptable mono-utilisateur. **Alternative si refusé :** basic auth
 optionnelle (--auth user:pass) ou socket Unix.
+
+## D10 — Concurrence inter-processus : verrouillage optimiste
+
+**Contexte :** CLI et serve peuvent écrire le même fichier (D9 : dernière écriture
+gagnante). Un verrou exclusif dur bloquerait la CLI pendant toute la durée de serve.
+**Choix :** verrouillage optimiste — chaque File retient (taille, mtime ns) à
+l'ouverture ; Save vérifie sous flock que le disque n'a pas bougé, sinon
+ErrConcurrent (« relancez »). serve, après une écriture CLI, refusera ses propres
+sauvegardes jusqu'à redémarrage : préférable à l'écrasement silencieux.
+**Alternative si refusé :** verrou dur par processus, ou rechargement automatique
+du Book dans serve sur détection de changement.

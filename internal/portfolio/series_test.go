@@ -219,3 +219,28 @@ func TestSeriesWarnsOnConversionFailure(t *testing.T) {
 		t.Fatal("aucun avertissement de conversion")
 	}
 }
+
+func TestSeriesMatchesValueWithWithholdingDividend(t *testing.T) {
+	// le test d'or de base n'a pas de dividende : celui-ci verrouille la
+	// retenue à la source identique des deux côtés (value.go ↔ series.go)
+	b := valuationBook(t)
+	cw8, _ := b.Asset("cw8")
+	cw8.Withholding = 0.15
+	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
+		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
+	}
+	at := mustDate("2026-06-05")
+	for _, ref := range []string{"", "PEA"} {
+		want, err := Value(b, scopeOf(t, b, ref), at, domain.EUR, fxStub{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := Series(b, scopeOf(t, b, ref), mustDate("2026-01-01"), at, domain.EUR, fxStub{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		last := res.Points[len(res.Points)-1]
+		approx(t, "gross("+ref+")", last.Gross, want.Gross)
+		approx(t, "net("+ref+")", last.Net, want.Net)
+	}
+}

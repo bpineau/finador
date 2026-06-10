@@ -387,6 +387,116 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 	}
 }
 
+func TestPerfAndValueExclude(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+	run(t, db, "deposit", "PEA Zephyr", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	// valeur sans cw8 : il ne reste que le cash (5000 − 5500 = −500)
+	out := runNet(t, db, "value", "--exclude", "cw8", "--at", "2026-06-05")
+	if !strings.Contains(out, "-500.00 EUR") {
+		t.Errorf("value --exclude:\n%s", out)
+	}
+	// perf accepte la même exclusion (liste à virgules)
+	out = runNet(t, db, "perf", "--exclude", "cw8", "--to", "2026-06-05")
+	if !strings.Contains(out, "origine") {
+		t.Errorf("perf --exclude:\n%s", out)
+	}
+	// référence inconnue dans --exclude → erreur propre
+	if _, err := tryRun(t, db, "value", "--exclude", "zzz"); err == nil {
+		t.Fatal("exclusion inconnue acceptée")
+	}
+}
+
+func TestValueWhatIfAndByAccount(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions/monde")
+	run(t, db, "deposit", "PEA Zephyr", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	// hypothèse : cw8 à 600 → 10×600 − 500 = 5500 brut, et un delta vs réel (5100)
+	out := runNet(t, db, "value", "--what-if", "cw8=600", "--at", "2026-06-05")
+	for _, want := range []string{"5500.00 EUR", "hypothèse", "+400.00 EUR"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("what-if: %q manquant dans:\n%s", want, out)
+		}
+	}
+	// ventilation par enveloppe
+	out = runNet(t, db, "value", "--by", "enveloppe", "--at", "2026-06-05")
+	if !strings.Contains(out, "PEA Zephyr") {
+		t.Errorf("--by enveloppe:\n%s", out)
+	}
+	// erreurs propres
+	if _, err := tryRun(t, db, "value", "--what-if", "zzz=10"); err == nil {
+		t.Fatal("what-if sur actif inconnu accepté")
+	}
+	if _, err := tryRun(t, db, "value", "--what-if", "cw8"); err == nil {
+		t.Fatal("what-if sans prix accepté")
+	}
+	if _, err := tryRun(t, db, "value", "--by", "n'importe"); err == nil {
+		t.Fatal("--by invalide accepté")
+	}
+}
+
+func TestAssetEditAndRm(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--group", "actions")
+	run(t, db, "asset", "add", "VIZR", "--id", "vizr", "--group", "actions")
+
+	run(t, db, "asset", "edit", "vizr", "--add-alias", "Vizor", "--withholding", "15%")
+	out := run(t, db, "asset", "list")
+	if !strings.Contains(out, "Vizor") || !strings.Contains(out, "15") {
+		t.Errorf("asset list après edit:\n%s", out)
+	}
+	// l'alias résout
+	run(t, db, "asset", "edit", "vizr", "--rm-alias", "Vizor")
+	if out = run(t, db, "asset", "list"); strings.Contains(out, "Vizor,") {
+		t.Errorf("alias non retiré:\n%s", out)
+	}
+	// collision refusée
+	if _, err := tryRun(t, db, "asset", "edit", "vizr", "--add-alias", "CW8.PA"); err == nil {
+		t.Fatal("collision d'alias acceptée")
+	}
+	// rm : refus si référencé, ok sinon
+	run(t, db, "add", "cw8", "1", "@550", "2026-06-01")
+	if _, err := tryRun(t, db, "asset", "rm", "cw8"); err == nil {
+		t.Fatal("rm d'un actif référencé accepté")
+	}
+	run(t, db, "asset", "rm", "vizr")
+	if out = run(t, db, "asset", "list"); strings.Contains(out, "vizr") {
+		t.Errorf("vizr devrait avoir disparu:\n%s", out)
+	}
+}
+
+func TestPerfColors(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8")
+	run(t, db, "deposit", "PEA Zephyr", "5000", "2026-01-10")
+	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+
+	// pas un terminal → pas de couleur par défaut
+	out := runNet(t, db, "perf", "--to", "2026-06-05")
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("séquences ANSI sans terminal:\n%q", out)
+	}
+	// forçage pour les tests : les TWR positifs sont verts
+	t.Setenv("FINADOR_FORCE_COLOR", "1")
+	out = runNet(t, db, "perf", "--to", "2026-06-05")
+	if !strings.Contains(out, "\x1b[32m") {
+		t.Errorf("vert absent avec FINADOR_FORCE_COLOR:\n%q", out)
+	}
+	// --no-color gagne sur le forçage
+	out = runNet(t, db, "perf", "--no-color", "--to", "2026-06-05")
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("--no-color inopérant:\n%q", out)
+	}
+}
+
 func TestServeRefusesOfflineBindWarning(t *testing.T) {
 	db := newDB(t)
 	// pas de listen réel : on vérifie seulement la validation des flags
