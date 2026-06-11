@@ -1,0 +1,6 @@
+#!/bin/sh
+# finador pre-commit gate: gofmt, vet, lint, tests (race runs in `make check`).
+# Bypass once with: git commit --no-verify
+set -e
+cd "$(git rev-parse --show-toplevel)"
+make --no-print-directory fmt-check vet lint test

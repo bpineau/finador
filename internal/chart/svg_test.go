@@ -44,7 +44,9 @@ func TestSVGEmpty(t *testing.T) {
 
 func TestSVGDeterministic(t *testing.T) {
 	lines := []Line{{Label: "brut", Color: "#0a7d4b", Points: ramp(30)}}
-	if SVG(lines, 800, 300) != SVG(lines, 800, 300) {
+	a := SVG(lines, 800, 300)
+	b := SVG(lines, 800, 300)
+	if a != b {
 		t.Error("sortie SVG non déterministe")
 	}
 }

@@ -390,7 +390,7 @@ func TestTxEditWeb(t *testing.T) {
 	}
 
 	// validation failure → 400, nothing changed
-	code, body, _ = postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
+	code, _, _ = postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
 		"date": {"not-a-date"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
 		"qty": {"12"}, "amount": {"6600"},
 	})
