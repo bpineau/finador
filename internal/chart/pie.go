@@ -8,9 +8,11 @@ import (
 
 // PiePalette is the muted, paper-friendly palette of the allocation donut.
 // Handlers cycle through it and reuse the same colors in the HTML legend.
+// No ink-black here: slices sort by weight, and a dominant near-black wedge
+// reads as a rendering bug on paper.
 var PiePalette = []string{
-	"#1c1914", "#1e6e4e", "#9a6b1f", "#a3332e",
-	"#48657a", "#7d5a4f", "#5d564a", "#8a8466",
+	"#1e6e4e", "#9a6b1f", "#a3332e", "#48657a",
+	"#7d5a4f", "#6e5a7e", "#5d564a", "#8a8466",
 }
 
 // Pie renders a donut: one path per positive value, colors supplied by the
@@ -38,7 +40,7 @@ func Pie(values []float64, colors []string, size int) string {
 			continue
 		}
 		frac := v / total
-		color := "#1c1914"
+		color := PiePalette[i%len(PiePalette)]
 		if i < len(colors) {
 			color = colors[i]
 		}
