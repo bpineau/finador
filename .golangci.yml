@@ -1,0 +1,23 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Idiomatic discards: terminal/HTTP writes have no actionable error,
+      # and Close on read paths or error paths is best-effort cleanup.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*compress/gzip.Reader).Close
+        - (net/http.ResponseWriter).Write
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [errcheck]
+      # QF* are stylistic quickfixes; the untagged switches in series.go mix
+      # equality and compound conditions on purpose.
+      - text: "QF1002"
+        linters: [staticcheck]
