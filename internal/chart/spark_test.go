@@ -41,7 +41,9 @@ func TestSparklineDegenerate(t *testing.T) {
 }
 
 func TestSparklineDeterministic(t *testing.T) {
-	if Sparkline(ramp(15), 90, 24, "#000") != Sparkline(ramp(15), 90, 24, "#000") {
+	a := Sparkline(ramp(15), 90, 24, "#000")
+	b := Sparkline(ramp(15), 90, 24, "#000")
+	if a != b {
 		t.Error("non deterministic")
 	}
 }

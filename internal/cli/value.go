@@ -162,7 +162,7 @@ func printValuation(cmd *cobra.Command, scope portfolio.Scope, date domain.Date,
 		}
 		fmt.Fprintf(w, "TOTAL\t%s\n", money(v.Gross, v.Currency))
 	}
-	w.Flush()
+	_ = w.Flush()
 	errw := cmd.ErrOrStderr()
 	for _, s := range v.Stale {
 		fmt.Fprintln(errw, "≈", s)

@@ -49,7 +49,7 @@ func (k *keychain) Put(key, password string, ttl time.Duration) {
 	// -U met à jour l'entrée si elle existe ; l'échec est bénin (on retapera).
 	// Le payload passe en argv (brève fenêtre de visibilité dans ps) : compromis
 	// assumé d'un design sans CGo — security(1) n'a pas de lecture stdin propre.
-	k.run("add-generic-password", "-U", "-s", service, "-a", key, "-w", payload)
+	_, _ = k.run("add-generic-password", "-U", "-s", service, "-a", key, "-w", payload)
 }
 
 // Purge deletes every finador entry; security removes one match per call.
