@@ -12,12 +12,13 @@ import (
 
 func accountCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "account", Short: "Manage accounts (PEA, CTO, PER, bank accounts…)"}
-	cmd.AddCommand(accountAdd(a), accountList(a), accountEdit(a))
+	cmd.AddCommand(accountAdd(a), accountList(a), accountEdit(a), accountRm(a))
 	return cmd
 }
 
 func accountAdd(a *app) *cobra.Command {
 	var tax, ccy string
+	var aliases []string
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Create an account — the name is free: \"PEA BforBank\", \"CTO IBKR\"…",
@@ -36,6 +37,7 @@ func accountAdd(a *app) *cobra.Command {
 				Name:     args[0],
 				Currency: parsedCcy,
 				Tax:      rule,
+				Aliases:  aliases,
 			}
 			return a.mutate(func(b *domain.Book) error {
 				if err := b.AddAccount(acc); err != nil {
@@ -48,7 +50,25 @@ func accountAdd(a *app) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&tax, "tax", "none", "tax rule: none, gains:17.2%, value:20%")
 	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "account currency")
+	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "additional alias (repeatable)")
 	return cmd
+}
+
+func accountRm(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "rm <account>",
+		Short: "Delete an account with no transactions",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.mutate(func(b *domain.Book) error {
+				if err := b.RemoveAccount(args[0]); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Account deleted\n")
+				return nil
+			})
+		},
+	}
 }
 
 func accountList(a *app) *cobra.Command {

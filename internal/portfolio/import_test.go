@@ -13,8 +13,22 @@ const sampleCSV = `date,kind,account,asset,quantity,price,amount,currency,group,
 2026-02-01,statement,Livret A,,,,12000,EUR,,
 `
 
+// addAccount is a test helper that pre-declares an account.
+func addAccount(t *testing.T, b *domain.Book, name string, ccy domain.Currency) *domain.Account {
+	t.Helper()
+	acc := &domain.Account{ID: domain.AccountID(domain.Slugify(name)), Name: name, Currency: ccy}
+	if err := b.AddAccount(acc); err != nil {
+		t.Fatalf("addAccount %q: %v", name, err)
+	}
+	return acc
+}
+
 func TestImportCSV(t *testing.T) {
 	b := domain.NewBook()
+	// Accounts must now be declared before import.
+	addAccount(t, b, "PEA BforBank", domain.EUR)
+	addAccount(t, b, "Livret A", domain.EUR)
+
 	added, skipped, err := ImportCSV(b, strings.NewReader(sampleCSV))
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +58,9 @@ func TestImportCSV(t *testing.T) {
 
 func TestImportCSVIdempotent(t *testing.T) {
 	b := domain.NewBook()
+	addAccount(t, b, "PEA BforBank", domain.EUR)
+	addAccount(t, b, "Livret A", domain.EUR)
+
 	if _, _, err := ImportCSV(b, strings.NewReader(sampleCSV)); err != nil {
 		t.Fatal(err)
 	}
@@ -55,33 +72,71 @@ func TestImportCSVIdempotent(t *testing.T) {
 
 func TestImportCSVBadLine(t *testing.T) {
 	b := domain.NewBook()
+	addAccount(t, b, "X", domain.EUR)
 	bad := "date,kind,account,amount,currency\n2026-13-45,buy,X,100,EUR\n"
 	if _, _, err := ImportCSV(b, strings.NewReader(bad)); err == nil || !strings.Contains(err.Error(), "line 2") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
-func TestEnsureAccountEnsureAsset(t *testing.T) {
+func TestImportCSVUnknownAccount(t *testing.T) {
 	b := domain.NewBook()
-	// EnsureAccount creates on ErrNotFound
-	acc, err := EnsureAccount(b, "My Bank", "EUR")
-	if err != nil {
-		t.Fatal(err)
+	// No accounts pre-declared: import must fail with actionable error.
+	csv := "date,kind,account,amount,currency\n2026-01-15,deposit,Mystery Bank,100,EUR\n"
+	_, _, err := ImportCSV(b, strings.NewReader(csv))
+	if err == nil {
+		t.Fatal("expected error for unknown account, got nil")
 	}
-	if acc.Name != "My Bank" || acc.Currency != domain.EUR {
-		t.Fatalf("account = %+v", acc)
+	if !strings.Contains(err.Error(), "unknown account") {
+		t.Fatalf("expected 'unknown account' error, got: %v", err)
 	}
-	// second call resolves the existing one
-	acc2, err := EnsureAccount(b, "My Bank", "")
-	if err != nil || acc2.ID != acc.ID {
-		t.Fatalf("second resolve = %v, %v", acc2, err)
+	if !strings.Contains(err.Error(), "finador account add") {
+		t.Fatalf("expected hint 'finador account add' in error, got: %v", err)
 	}
-	// empty ccy defaults to EUR
-	acc3, err := EnsureAccount(b, "Other", "")
-	if err != nil || acc3.Currency != domain.EUR {
-		t.Fatalf("default EUR = %v, %v", acc3, err)
+	// No account should have been created.
+	if len(b.Accounts) != 0 {
+		t.Errorf("account was created on the fly: %v", b.Accounts)
+	}
+}
+
+func TestResolveAccount(t *testing.T) {
+	b := domain.NewBook()
+	// ResolveAccount errors on unknown account.
+	_, err := ResolveAccount(b, "My Bank")
+	if err == nil || !strings.Contains(err.Error(), "unknown account") {
+		t.Fatalf("expected unknown account error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "finador account add") {
+		t.Fatalf("expected hint in error, got: %v", err)
 	}
 
+	// Pre-declare it; now it resolves.
+	acc := &domain.Account{ID: "mybank", Name: "My Bank", Currency: domain.EUR}
+	if err := b.AddAccount(acc); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := ResolveAccount(b, "My Bank")
+	if err != nil {
+		t.Fatalf("ResolveAccount after add: %v", err)
+	}
+	if resolved.ID != acc.ID {
+		t.Fatalf("resolved wrong account: %v", resolved)
+	}
+
+	// Second call also resolves.
+	resolved2, err := ResolveAccount(b, "My Bank")
+	if err != nil || resolved2.ID != acc.ID {
+		t.Fatalf("second resolve = %v, %v", resolved2, err)
+	}
+
+	// Empty ref always errors.
+	if _, err := ResolveAccount(b, ""); err == nil {
+		t.Fatal("expected error on empty ref")
+	}
+}
+
+func TestEnsureAsset(t *testing.T) {
+	b := domain.NewBook()
 	// EnsureAsset creates on ErrNotFound
 	asset, err := EnsureAsset(b, "NVDA", domain.USD, "tech")
 	if err != nil {
@@ -99,6 +154,8 @@ func TestEnsureAccountEnsureAsset(t *testing.T) {
 
 func TestImportPropagatesAmbiguity(t *testing.T) {
 	b := domain.NewBook()
+	// Pre-declare the account so the asset ambiguity is what we're testing.
+	addAccount(t, b, "PEA", domain.EUR)
 	// Injection directe des deux actifs pour simuler un livre legacy/corrompu
 	// avec des alias en collision — AddAsset les refuserait désormais.
 	b.Assets = append(b.Assets,

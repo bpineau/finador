@@ -67,7 +67,7 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 	if err != nil {
 		return zero, err
 	}
-	acc, err := EnsureAccount(b, get("account"), get("currency"))
+	acc, err := ResolveAccount(b, get("account"))
 	if err != nil {
 		return zero, err
 	}
@@ -124,24 +124,21 @@ func hashTx(t domain.Transaction) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// EnsureAccount resolves an account reference or creates it (EUR by default)
-// when truly unknown; ambiguity always propagates instead of creating.
-func EnsureAccount(b *domain.Book, ref, ccy string) (*domain.Account, error) {
+// ResolveAccount resolves an account reference; ambiguity propagates and
+// unknown accounts are rejected with an actionable error (accounts must be
+// declared explicitly with `finador account add`).
+func ResolveAccount(b *domain.Book, ref string) (*domain.Account, error) {
 	if ref == "" {
 		return nil, errors.New("empty account column")
 	}
-	if acc, err := b.Account(ref); err == nil {
+	acc, err := b.Account(ref)
+	if err == nil {
 		return acc, nil
-	} else if !errors.Is(err, domain.ErrNotFound) {
-		return nil, err // ambiguïté : ne pas masquer en création
 	}
-	parsedCcy, err := currencyOr(ccy, domain.EUR)
-	if err != nil {
-		return nil, err
+	if !errors.Is(err, domain.ErrNotFound) {
+		return nil, err // ambiguïté : ne pas masquer
 	}
-	acc := &domain.Account{ID: domain.AccountID(domain.Slugify(ref)), Name: ref,
-		Currency: parsedCcy}
-	return acc, b.AddAccount(acc)
+	return nil, fmt.Errorf("unknown account %q — declare it first with `finador account add %q`", ref, ref)
 }
 
 // EnsureAsset resolves an asset reference or creates a security with the
