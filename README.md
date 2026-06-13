@@ -555,6 +555,50 @@ decrypt, per (file, terminal) pair, for `keychain-ttl` (12 h default). `finador
 lock` forgets everything; `--no-keychain` never stores. On other platforms (or
 with no terminal), use `FINADOR_PASSWORD`.
 
+## Use a private GitHub repo (optional)
+
+By default your data is a local file (`~/.finador.fin`). Optionally, finador keeps it in a
+**private GitHub repository** and syncs transparently, so you use the same portfolio from
+several machines. The repo holds only the **encrypted** file, and the token is scoped to that
+one repo. Local mode stays the default and the fallback.
+
+**One-time setup**
+
+1. Create a **private** repo on GitHub, e.g. `you/finador-data` (empty is fine).
+2. Create a **fine-grained personal access token** (Settings → Developer settings →
+   Fine-grained tokens) scoped to **only that repository**, permission **Contents: Read and
+   write**. A free account is enough.
+3. Point finador at it and store the token (macOS Keychain):
+   ```sh
+   finador remote set you/finador-data --path portfolio.fin
+   finador remote login          # paste the token  (or: export GITHUB_TOKEN=…)
+   finador init                  # creates and pushes the encrypted file
+   ```
+   On another machine, repeat steps 1–3 with the same repo/token, then run any command — it
+   pulls the existing `portfolio.fin`.
+
+**How sync works**
+
+- **Reads** use a local working copy, refreshed from GitHub when it's older than an hour
+  (configurable via `readPullAfter`). `finador sync` forces a refresh now.
+- **Writes** pull the latest first, apply the change, then push immediately — **each save is a
+  commit**, so GitHub shows your history with the small per-change append-log diffs.
+- **Offline**, a write succeeds locally and is pushed on the next online command (or `sync`).
+- If another machine pushed meanwhile, finador **reconciles automatically** — the same
+  union / last-writer-wins / merge as [`finador merge`](#reconcile-two-machines); random ids +
+  timestamps make it lossless for independent changes, and a true same-instant conflict asks
+  you to choose.
+
+**Good to know**
+
+- The repo contains only the **AES-256-GCM-encrypted** ledger — a leaked repo reveals nothing.
+  The token lives in the Keychain (never in the config or logs); `finador lock` forgets it.
+- The **market cache stays local** (it's regenerable) — only the ledger travels, keeping the
+  repo small and the diffs clean.
+- `finador remote show` prints the mode and sync state; `finador remote off` returns to local;
+  `finador --db <path> <cmd>` forces local for a single command.
+- Config lives in `~/.config/finador/config.json` (plain JSON, editable by hand).
+
 ## Data model & security
 
 - The transaction ledger is the single source of truth; positions, tax bases and
