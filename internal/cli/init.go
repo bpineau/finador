@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -25,12 +26,38 @@ func initCmd(a *app) *cobra.Command {
 					return err
 				}
 			}
-			f, err := store.Create(a.dbPath, pw)
+
+			s, isRemote, err := a.dataSource()
 			if err != nil {
 				return err
 			}
-			a.cache().Put(keyring.Key(a.dbPath), pw, configTTL(f.Book)) // best-effort
-			fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", a.dbPath)
+			path := a.dbPath
+			if isRemote {
+				if err := s.EnsureDir(); err != nil {
+					return err
+				}
+				path = s.WorkingCopy()
+			}
+
+			f, err := store.Create(path, pw)
+			if err != nil {
+				return err
+			}
+			a.cache().Put(keyring.Key(path), pw, configTTL(f.Book)) // best-effort
+
+			if isRemote {
+				// First push creates (or, if the remote already has a file, merges
+				// into) the remote — the sync layer handles ErrRemoteMissing→create.
+				warnings, perr := s.AfterWrite(context.Background(), "finador init", a.remoteMerge(pw))
+				if perr != nil {
+					return remoteError(perr)
+				}
+				printWarnings(warnings)
+				fmt.Fprintf(cmd.OutOrStdout(), "Created %s (remote: %s)\n", path, s.Describe())
+				return nil
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", path)
 			return nil
 		},
 	}

@@ -10,8 +10,10 @@ import (
 
 func lockCmd(_ *app) *cobra.Command {
 	return &cobra.Command{
-		Use:     "lock",
-		Short:   "Forget passwords stored in the keychain",
+		Use:   "lock",
+		Short: "Forget the password and GitHub token stored in the keychain",
+		Long: "Purge every finador secret from the keychain: the file password and, in " +
+			"GitHub mode, the stored GitHub token. The next command will prompt again.",
 		Example: "  finador lock",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
