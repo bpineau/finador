@@ -157,6 +157,22 @@ correction appends a small record rather than rewriting the file — friendly to
 git-synced storage. `finador compact` rewrites a minimal journal dropping the
 superseded records; rarely needed.
 
+### Reconcile two machines
+
+If you record on two machines and they drift apart, fold one copy back into the
+other:
+
+```sh
+finador merge ../laptop2/portfolio.fin
+```
+
+It expects **copies of the same ledger** (same passphrase, same file id) and
+refuses to merge unrelated files. Random per-entry ids make this lossless:
+additions, deletions and edits of distinct entries union with no loss; when both
+copies edited the *same* entry, the **last edit wins by timestamp**; a true tie
+(same entry, same instant, different values) prompts you to choose. The merged
+ledger is re-sealed in place; the previous file is kept as `.bak`.
+
 ## Concepts
 
 **The file is the database.** Everything — accounts, assets, the transaction
