@@ -56,6 +56,107 @@ finador chart --net        # braille curve in the terminal
 finador serve              # full web app on http://127.0.0.1:8451
 ```
 
+## Recipes
+
+Copy-pasteable sequences for the situations that actually come up. Everything is
+noun-first (`account`, `asset`, `cash`, `tx`); run any command with `--help` to see
+its flags and an example.
+
+### Which command do I use?
+
+The whole model fits in one table. The crux: **`deposit`/`withdraw` move *external*
+cash in and out of an envelope (a contribution/withdrawal — neutral for
+performance); `set` records an *observed* value or balance, and the change since the
+previous `set` counts as performance.**
+
+| You want to… | Command | Effect on performance |
+|---|---|---|
+| Buy/sell a quoted security (quantity + price) | `asset buy` / `asset sell` | a trade, builds the cost basis |
+| A dividend received / a fee paid on a security | `asset dividend` / `asset fee` | income / cost |
+| Record the **observed value** of a property or unlisted holding | `asset set` | change vs the previous value = **performance** |
+| Move **external cash** in/out of an envelope | `cash deposit` / `cash withdraw` | a contribution / withdrawal — **neutral** |
+| Record the **observed balance** of an envelope | `cash set` | change vs the previous balance = **performance** |
+
+The first `asset set` / `cash set` on an account is treated as an *acquisition* (an
+external flow), not as performance — only later changes count.
+
+### Buy a real-estate property
+
+A property is valued by dated statements (the Statement model). The **first**
+valuation is the acquisition (an external contribution); **later** ones are
+performance.
+
+```sh
+finador account add "Patrimoine immo" --tax gains:36.2%
+finador asset add "Appart Lyon" --kind property --group realestate
+
+finador asset set "Appart Lyon" 250000 --account "Patrimoine immo" --at 2022-06-01  # acquisition
+finador asset set "Appart Lyon" 270000 --at 2024-01-01                              # revaluation = performance
+```
+
+Once the asset is attached to an account, later `asset set` calls don't need
+`--account` again.
+
+### Sell a property (cash decoupled — the real-life flow)
+
+In real life the sale and the money landing on your bank account happen weeks apart,
+often on a different account. finador models exactly that: close the position when
+it's sold, record the cash when it actually arrives.
+
+```sh
+finador asset set "Appart Lyon" 0 --at 2025-09-15        # position closed at the sale
+
+# weeks later, when the proceeds land on the real account:
+finador cash set "Compte Épargne" 295000 --at 2025-11-02   # or: cash deposit, if you track that account's flows
+```
+
+**Honest note:** between those two dates your net worth reflects the money *in
+transit* — the property already at 0, the cash not yet recorded. That gap is real,
+not a bug: it's the time your money spent at the notary. History is **not** deleted —
+the property's whole valuation trail stays in the ledger.
+
+### Cash
+
+```sh
+finador cash set "Livret A" 15000 --at 2026-06-01    # declare an observed balance
+finador tx rm <id-prefix>                            # remove an erroneous declaration (id from `tx list`)
+finador cash set "Livret A" 0                         # "no more cash" — declares an empty balance
+```
+
+Use `cash deposit "Livret A" 500` (not `set`) when you actually *added* €500 from
+outside — that's a contribution, neutral for performance, while a `set` 500 higher
+than the last balance would be counted as a gain.
+
+### Securities
+
+```sh
+finador asset buy CW8 20 @450 --account "PEA Zephyr"   # 20 shares at 450 each
+finador asset sell CW8 5 @520                            # sell 5 at 520
+finador asset dividend CW8 42.50                         # a dividend received
+finador asset fee CW8 9.90                               # a broker fee
+```
+
+`@450` is a unit price (total = qty × price); a bare number is the total. The date
+defaults to today; add it as a positional `2024-01-20` if needed. If `--account` is
+omitted, finador reuses the asset's last account (or the only account / the
+`default-account` config).
+
+### Correct the past
+
+Everything is replayed from the ledger, so any past line can be edited or deleted
+and every figure recomputes instantly.
+
+```sh
+finador tx list --account "PEA Zephyr"             # find the line; copy a unique id prefix
+finador tx edit <id-prefix> --qty 100 --total 4567.80  # only the flags you pass change
+finador tx rm <id-prefix>                            # delete a line entirely
+```
+
+Ids resolve by **unique prefix**, like short git SHAs (`tx edit 8x3k …`). A
+correction appends a small record rather than rewriting the file — friendly to
+git-synced storage. `finador compact` rewrites a minimal journal dropping the
+superseded records; rarely needed.
+
 ## Concepts
 
 **The file is the database.** Everything — accounts, assets, the transaction
