@@ -60,7 +60,8 @@ finador serve              # full web app on http://127.0.0.1:8451
 
 Copy-pasteable sequences for the situations that actually come up. Everything is
 noun-first (`account`, `asset`, `cash`, `tx`); run any command with `--help` to see
-its flags and an example.
+its flags and an example. For a full from-scratch setup of an existing portfolio, see
+[tutorial.md](tutorial.md).
 
 ### Which command do I use?
 
