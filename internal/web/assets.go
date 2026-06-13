@@ -114,6 +114,23 @@ func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, "assets.html", data)
 }
 
+// assetsCSV serves the same per-asset valuation as the assets page, as a CSV
+// download (ticker, name, ISIN, gross, net, currency).
+func (s *Server) assetsCSV(w http.ResponseWriter, _ *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	b := s.file.Book
+	rows, err := portfolio.AssetRows(b, domain.Today(), displayCurrency(b),
+		market.Converter{FX: b.Market.FX})
+	if err != nil {
+		s.renderError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="finador-assets.csv"`)
+	_ = portfolio.WriteAssetCSV(w, rows)
+}
+
 // lastN keeps the trailing n points of a daily series.
 func lastN(pts []perf.Point, n int) []perf.Point {
 	if len(pts) <= n {

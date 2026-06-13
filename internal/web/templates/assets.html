@@ -26,6 +26,9 @@
     {{end}}
     {{end}}
   </table>
-  <form method="post" action="/refresh" class="refresh-quiet"><button type="submit" class="quiet">refresh quotes</button></form>
+  <div class="assets-actions">
+    <a href="/assets.csv" class="quiet" download>export CSV ↓</a>
+    <form method="post" action="/refresh" class="refresh-quiet"><button type="submit" class="quiet">refresh quotes</button></form>
+  </div>
 </section>
 {{end}}
