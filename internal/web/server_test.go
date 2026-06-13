@@ -498,17 +498,20 @@ func TestChartRanges(t *testing.T) {
 
 func TestTxCreateOnTheFly(t *testing.T) {
 	srv, f := testServer(t)
-	code, _, loc := postForm(t, srv, "/tx", url.Values{
+
+	// Unknown account is now rejected (accounts require explicit declaration).
+	code, _, _ := postForm(t, srv, "/tx", url.Values{
 		"date": {"2026-06-03"}, "kind": {"deposit"}, "account": {"Brand New Bank"},
 		"amount": {"500"},
 	})
-	if code != http.StatusSeeOther || loc != "/tx" {
-		t.Fatalf("create-on-the-fly = %d → %q", code, loc)
+	if code != http.StatusBadRequest {
+		t.Fatalf("unknown account should be rejected: got %d", code)
 	}
-	if _, err := f.Book.Account("Brand New Bank"); err != nil {
-		t.Fatalf("account not created: %v", err)
+	if _, err := f.Book.Account("Brand New Bank"); err == nil {
+		t.Fatal("account was created on the fly — should not be")
 	}
-	// actif à la volée
+
+	// Assets still auto-create on the fly.
 	code, _, _ = postForm(t, srv, "/tx", url.Values{
 		"date": {"2026-06-03"}, "kind": {"buy"}, "account": {"pea"},
 		"asset": {"NVDA"}, "qty": {"2"}, "amount": {"300"},
@@ -519,6 +522,7 @@ func TestTxCreateOnTheFly(t *testing.T) {
 	if a, err := f.Book.Asset("NVDA"); err != nil || a.Kind != domain.Security {
 		t.Fatalf("asset not created: %v %v", a, err)
 	}
+
 	// le formulaire est en datalist, plus en select
 	_, body := get(t, srv, "/tx")
 	if !strings.Contains(body, "<datalist") || strings.Contains(body, `<select id="account"`) {
