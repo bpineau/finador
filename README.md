@@ -417,6 +417,30 @@ day) before computing; network failures degrade to warnings and the cache keeps
 working. `--offline` skips all of it. The quote cache lives **inside** the
 encrypted file — your ticker list is sensitive metadata.
 
+### Atypical assets (funds by ISIN)
+
+Yahoo Finance is the primary quote source (ticker-based). When Yahoo doesn't cover an asset, finador automatically falls back — **by ISIN** — to two additional providers on every `finador refresh`:
+
+1. **Financial Times** (`markets.ft.com`) — covers a wide range of European funds (SICAV/OPCVM).
+2. **Morningstar via Boursorama** — resolves the ISIN to a Morningstar `0P…` id through Boursorama's fund search, then fetches the daily NAV from `tools.morningstar.fr`.
+
+The chain is: **Yahoo → FT → Morningstar**. The first provider that returns data wins; a provider that can't find the asset signals `ErrNotCovered` and the chain falls through transparently.
+
+**Typical usage — a French/Luxembourg fund:**
+
+```sh
+finador asset add "Indépendance AM Europe Small" --isin LU1832174962
+finador refresh    # priced via FT or Morningstar automatically
+```
+
+**Honest limitation — French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an Eres Sélection fund) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain covers them. Value them manually:
+
+```sh
+finador asset set "Eres Sélection Équilibre" 4250.00 --account "PEE Entreprise"
+```
+
+All three providers are implemented with no extra dependency — stdlib HTTP and `regexp` only.
+
 ### Web: `serve`
 
 ```sh

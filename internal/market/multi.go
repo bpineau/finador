@@ -16,12 +16,12 @@ type Multi struct {
 }
 
 // Default is finador's standard market source: Yahoo for ticker symbols and
-// resolution, with the Financial Times as an ISIN fallback for funds Yahoo
-// lacks. (Morningstar may join the chain later.)
+// resolution, with Financial Times then Morningstar (via Boursorama) as ISIN
+// fallbacks for funds Yahoo lacks. Chain: Yahoo → FT → Morningstar.
 func Default() *Multi {
 	return &Multi{
 		resolver:  NewYahoo(),
-		providers: []Provider{NewYahoo(), NewFT()},
+		providers: []Provider{NewYahoo(), NewFT(), NewMorningstar()},
 	}
 }
 
