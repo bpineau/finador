@@ -1,37 +1,27 @@
-// Package store reads and writes the single encrypted portfolio file.
+// Package store reads and writes the encrypted portfolio file.
 //
-// Layout: magic ‖ version ‖ argon2 params ‖ salt ‖ nonce ‖ AES-256-GCM(gzip(JSON)).
-// The clear header is passed as GCM additional data, so it is authenticated:
-// any byte flipped anywhere in the file fails decryption.
+// Layout (UTF-8 text, one record per line):
+//
+//	line 1            clear JSON header: format, Argon2 params, salt, file id
+//	lines 2..N+1      base64( nonce ‖ AES-256-GCM(record, AAD) ), AAD chains records
+//	last line         base64( nonce ‖ AES-256-GCM(head, AAD) ): record count + final tag
+//
+// Writes are diff-on-save: unchanged record lines are re-emitted byte-for-byte,
+// so a small logical change is a small change on disk (git-friendly). The market
+// cache lives in a separate local sidecar (see cache.go), never in this file.
 package store
 
 import (
-	"bytes"
-	"compress/gzip"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/binary"
-	"encoding/json"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"runtime"
-
-	"golang.org/x/crypto/argon2"
 
 	"finador/internal/domain"
 )
 
-const (
-	magic      = "FINADOR1"
-	headerSize = len(magic) + 1 + 4 + 4 + 1 + 16
-	nonceSize  = 12
-)
-
-// ErrConcurrent signale qu'un autre processus a modifié le fichier depuis son
-// ouverture : on ne l'écrase pas, on demande de relancer.
+// ErrConcurrent signals another process wrote the file since it was opened.
 var ErrConcurrent = errors.New("file modified by another process since it was opened — retry the command")
 
 type diskStamp struct {
@@ -52,70 +42,14 @@ type File struct {
 	Path string
 	Book *domain.Book
 
-	key  [32]byte
-	hdr  header
-	disk diskStamp // (size, mtime) captured at Open; zero at Create
-}
-
-// header is the clear, authenticated prefix of the file.
-type header struct {
-	Version  uint8
-	Time     uint32 // passes Argon2id
-	MemoryKB uint32
-	Threads  uint8
-	Salt     [16]byte
-}
-
-func defaultHeader() header {
-	h := header{Version: 1, Time: 3, MemoryKB: 64 * 1024, Threads: uint8(min(4, runtime.NumCPU()))}
-	mustRand(h.Salt[:])
-	return h
-}
-
-func mustRand(b []byte) {
-	if _, err := rand.Read(b); err != nil {
-		panic(err) // plus de CSPRNG système : rien de sensé à faire
-	}
-}
-
-func (h header) deriveKey(password string) [32]byte {
-	return [32]byte(argon2.IDKey([]byte(password), h.Salt[:], h.Time, h.MemoryKB, h.Threads, 32))
-}
-
-func (h header) encode() []byte {
-	b := make([]byte, 0, headerSize)
-	b = append(b, magic...)
-	b = append(b, h.Version)
-	b = binary.BigEndian.AppendUint32(b, h.Time)
-	b = binary.BigEndian.AppendUint32(b, h.MemoryKB)
-	b = append(b, h.Threads)
-	b = append(b, h.Salt[:]...)
-	return b
-}
-
-func decodeHeader(path string, raw []byte) (header, error) {
-	if len(raw) < headerSize+nonceSize || string(raw[:len(magic)]) != magic {
-		return header{}, fmt.Errorf("%s is not a finador file", path)
-	}
-	rest := raw[len(magic):]
-	h := header{
-		Version:  rest[0],
-		Time:     binary.BigEndian.Uint32(rest[1:5]),
-		MemoryKB: binary.BigEndian.Uint32(rest[5:9]),
-		Threads:  rest[9],
-	}
-	copy(h.Salt[:], rest[10:26])
-	// Les paramètres sont lus avant toute authentification (la clé en dérive) :
-	// des bornes strictes évitent panique et bombe mémoire sur fichier forgé.
-	if h.Time < 1 || h.Time > 16 ||
-		h.MemoryKB < 8 || h.MemoryKB > 1<<20 || // ≤ 1 GiB
-		h.Threads < 1 || h.Threads > 16 {
-		return header{}, fmt.Errorf("%s: Argon2 parameters out of bounds", path)
-	}
-	if h.Version != 1 {
-		return header{}, fmt.Errorf("%s: unsupported version %d (finador too old?)", path, h.Version)
-	}
-	return h, nil
+	hdr      header
+	hdrLine  []byte // exact on-disk header bytes (so re-emission is byte-stable)
+	hdrHash  []byte // sha256(hdrLine), the AAD prefix
+	keyLog   [32]byte
+	keyCache [32]byte
+	entries  []entry
+	snap     snapshot
+	disk     diskStamp // (size, mtime) at Open; zero at Create
 }
 
 // Create makes a new encrypted file holding an empty Book. It refuses to overwrite.
@@ -123,13 +57,21 @@ func Create(path, password string) (*File, error) {
 	if _, err := os.Stat(path); err == nil {
 		return nil, fmt.Errorf("%s already exists", path)
 	}
-	f := &File{Path: path, Book: domain.NewBook(), hdr: defaultHeader()}
-	f.key = f.hdr.deriveKey(password)
+	h := defaultHeader()
+	hdrLine := h.encode()
+	hh := sha256.Sum256(hdrLine)
+	keyLog, keyCache := deriveKeys(password, h)
+	f := &File{
+		Path: path, Book: domain.NewBook(),
+		hdr: h, hdrLine: hdrLine, hdrHash: hh[:],
+		keyLog: keyLog, keyCache: keyCache,
+		snap: snapshotOf(domain.NewBook()),
+	}
 	return f, f.Save()
 }
 
-// Open reads and decrypts an existing file. A wrong password and a tampered
-// file are indistinguishable by construction: both yield domain.ErrBadPassword.
+// Open reads and decrypts a file. A wrong password and a tampered file are
+// indistinguishable by construction: both yield domain.ErrBadPassword.
 func Open(path, password string) (*File, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -138,45 +80,30 @@ func Open(path, password string) (*File, error) {
 		}
 		return nil, err
 	}
-	hdr, err := decodeHeader(path, raw)
+	h, hdrLine, entries, keyLog, keyCache, err := readLog(path, raw, password)
 	if err != nil {
 		return nil, err
 	}
-	f := &File{Path: path, hdr: hdr, key: hdr.deriveKey(password)}
-	nonce := raw[headerSize : headerSize+nonceSize]
-	plain, err := f.gcm().Open(nil, nonce, raw[headerSize+nonceSize:], raw[:headerSize])
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, domain.ErrBadPassword)
-	}
-	zr, err := gzip.NewReader(bytes.NewReader(plain))
+	book, err := replay(entries)
 	if err != nil {
 		return nil, fmt.Errorf("%s: unreadable content: %w", path, err)
 	}
-	defer zr.Close()
-	book := domain.NewBook()
-	if err := json.NewDecoder(zr).Decode(book); err != nil {
-		return nil, fmt.Errorf("%s: unreadable content: %w", path, err)
+	hh := sha256.Sum256(hdrLine)
+	f := &File{
+		Path: path, Book: book,
+		hdr: h, hdrLine: hdrLine, hdrHash: hh[:],
+		keyLog: keyLog, keyCache: keyCache,
+		entries: entries, snap: snapshotOf(book),
 	}
-	f.Book = book
+	f.loadCache()
 	f.disk, _ = stampOf(path)
 	return f, nil
 }
 
-func (f *File) gcm() cipher.AEAD {
-	block, err := aes.NewCipher(f.key[:])
-	if err != nil {
-		panic(err) // taille de clé fixe : ne peut pas échouer
-	}
-	g, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err)
-	}
-	return g
-}
-
-// Save writes atomically: tmp + fsync + rename; the previous version becomes .bak.
-// Before writing, it acquires a sidecar lock and checks that no other process has
-// written since this File was opened (optimistic concurrency — ErrConcurrent if stale).
+// Save appends the records needed to materialize the current Book, re-emitting
+// unchanged lines byte-for-byte, then writes atomically (tmp + fsync + rename;
+// the previous version becomes .bak). Optimistic concurrency: ErrConcurrent if
+// another process wrote since Open.
 func (f *File) Save() error {
 	unlock, err := lockSidecar(f.Path + ".lock")
 	if err != nil {
@@ -184,37 +111,43 @@ func (f *File) Save() error {
 	}
 	defer unlock()
 
-	// Stamp check: only when we have a baseline (Open sets it; Create leaves it zero).
 	if f.disk != (diskStamp{}) {
 		if cur, ok := stampOf(f.Path); ok && cur != f.disk {
 			return fmt.Errorf("%s: %w", f.Path, ErrConcurrent)
 		}
 	}
 
-	var plain bytes.Buffer
-	zw := gzip.NewWriter(&plain)
-	if err := json.NewEncoder(zw).Encode(f.Book); err != nil {
+	g := gcmOf(f.keyLog)
+	entries := append([]entry(nil), f.entries...) // local copy: commit only on success
+	prev := lastTagOrZero(entries)
+	seq := uint64(len(entries))
+	for _, r := range diff(f.snap, f.Book) {
+		seq++
+		line, tag := sealLine(g, f.hdrHash, seq, prev, r)
+		entries = append(entries, entry{line: line, tag: tag, rec: r})
+		prev = tag
+	}
+	head := sealHead(g, f.hdrHash, len(entries), lastTagOrZero(entries))
+	out := writeLog(f.hdrLine, entries, head)
+
+	if err := atomicWrite(f.Path, out, true); err != nil {
 		return err
 	}
-	if err := zw.Close(); err != nil {
-		return err
-	}
+	f.entries = entries
+	f.snap = snapshotOf(f.Book)
+	f.disk, _ = stampOf(f.Path)
+	return nil
+}
 
-	hdr := f.hdr.encode()
-	out := append([]byte(nil), hdr...)
-	// Nonce aléatoire de 96 bits par sauvegarde : sous la clé propre au fichier,
-	// le risque de collision reste négligeable jusqu'à ~2^32 écritures (NIST).
-	nonce := make([]byte, nonceSize)
-	mustRand(nonce)
-	out = append(out, nonce...)
-	out = f.gcm().Seal(out, nonce, plain.Bytes(), hdr)
-
-	tmp := f.Path + ".tmp"
+// atomicWrite writes data to path via tmp + fsync + rename. When backup is true,
+// an existing file is rotated to .bak first.
+func atomicWrite(path string, data []byte, backup bool) error {
+	tmp := path + ".tmp"
 	w, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
-	if _, err := w.Write(out); err != nil {
+	if _, err := w.Write(data); err != nil {
 		w.Close()
 		return err
 	}
@@ -225,14 +158,45 @@ func (f *File) Save() error {
 	if err := w.Close(); err != nil {
 		return err
 	}
-	if _, err := os.Stat(f.Path); err == nil {
-		if err := os.Rename(f.Path, f.Path+".bak"); err != nil {
-			return err
+	if backup {
+		if _, err := os.Stat(path); err == nil {
+			if err := os.Rename(path, path+".bak"); err != nil {
+				return err
+			}
 		}
 	}
-	if err := os.Rename(tmp, f.Path); err != nil {
+	return os.Rename(tmp, path)
+}
+
+// Compact rewrites a minimal log from the current Book — dropping superseded and
+// tombstoned records — with a fresh chain. One full-file rewrite; rare.
+func (f *File) Compact() error {
+	unlock, err := lockSidecar(f.Path + ".lock")
+	if err != nil {
 		return err
 	}
+	defer unlock()
+	if f.disk != (diskStamp{}) {
+		if cur, ok := stampOf(f.Path); ok && cur != f.disk {
+			return fmt.Errorf("%s: %w", f.Path, ErrConcurrent)
+		}
+	}
+
+	g := gcmOf(f.keyLog)
+	var entries []entry
+	prev := lastTagOrZero(entries)
+	for i, r := range diff(snapshot{}, f.Book) { // empty prev -> all creates
+		line, tag := sealLine(g, f.hdrHash, uint64(i+1), prev, r)
+		entries = append(entries, entry{line: line, tag: tag, rec: r})
+		prev = tag
+	}
+	head := sealHead(g, f.hdrHash, len(entries), lastTagOrZero(entries))
+	out := writeLog(f.hdrLine, entries, head)
+	if err := atomicWrite(f.Path, out, true); err != nil {
+		return err
+	}
+	f.entries = entries
+	f.snap = snapshotOf(f.Book)
 	f.disk, _ = stampOf(f.Path)
 	return nil
 }
