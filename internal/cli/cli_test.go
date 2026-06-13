@@ -644,3 +644,50 @@ func TestAccountAddAlias(t *testing.T) {
 		t.Fatal("duplicate alias should be rejected")
 	}
 }
+
+// TestMergeCommandUnion: two copies of the same ledger, each with a distinct new
+// transaction, union with no loss and no conflict via the CLI.
+func TestMergeCommandUnion(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr", "--alias", "pea")
+	run(t, db, "cash", "deposit", "pea", "1000", "2026-01-10")
+
+	// A byte copy shares the same header id: it is the same ledger.
+	other := filepath.Join(t.TempDir(), "other.fin")
+	raw, err := os.ReadFile(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(other, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Diverge: each copy gets a distinct deposit.
+	run(t, db, "cash", "deposit", "pea", "2000", "2026-02-10")
+	run(t, other, "cash", "deposit", "pea", "3000", "2026-03-10")
+
+	out := run(t, db, "merge", other)
+	if !strings.Contains(out, "conflicts resolved") {
+		t.Fatalf("merge summary missing: %q", out)
+	}
+	// All three deposits survive after merge.
+	list := run(t, db, "tx", "list")
+	for _, want := range []string{"1000 EUR", "2000 EUR", "3000 EUR"} {
+		if !strings.Contains(list, want) {
+			t.Errorf("tx %q lost after merge:\n%s", want, list)
+		}
+	}
+}
+
+// TestMergeCommandDifferentLedgers: merging two unrelated ledgers is refused.
+func TestMergeCommandDifferentLedgers(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA")
+
+	other := filepath.Join(t.TempDir(), "unrelated.fin")
+	run(t, other, "init") // independent header id
+
+	if _, err := tryRun(t, db, "merge", other); err == nil {
+		t.Fatal("merging unrelated ledgers should fail")
+	}
+}
