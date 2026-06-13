@@ -13,9 +13,10 @@ import (
 
 func initCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "init",
-		Short: "Create the encrypted data file",
-		Args:  cobra.NoArgs,
+		Use:     "init",
+		Short:   "Create the encrypted data file",
+		Example: "  finador init",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pw := os.Getenv("FINADOR_PASSWORD")
 			if pw == "" {

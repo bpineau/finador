@@ -13,7 +13,11 @@ import (
 )
 
 func txCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "tx", Short: "List and edit ledger transactions"}
+	cmd := &cobra.Command{
+		Use:     "tx",
+		Short:   "List and edit ledger transactions",
+		Example: "  finador tx list --account \"PEA Zephyr\"",
+	}
 	cmd.AddCommand(txList(a), txEdit(a), txRm(a))
 	return cmd
 }
@@ -21,9 +25,10 @@ func txCmd(a *app) *cobra.Command {
 func txList(a *app) *cobra.Command {
 	var account, asset, kind string
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List transactions",
-		Args:  cobra.NoArgs,
+		Use:     "list",
+		Short:   "List transactions",
+		Example: "  finador tx list --account \"PEA Zephyr\"",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f, err := a.open()
 			if err != nil {
@@ -85,9 +90,10 @@ func txList(a *app) *cobra.Command {
 func txEdit(a *app) *cobra.Command {
 	var date, account, asset, qty, total, note, kind string
 	cmd := &cobra.Command{
-		Use:   "edit <id>",
-		Short: "Edit the fields passed as flags, leave the others unchanged",
-		Args:  cobra.ExactArgs(1),
+		Use:     "edit <id>",
+		Short:   "Edit the fields passed as flags, leave the others unchanged",
+		Example: "  finador tx edit 8x3k --qty 100 --total 4567.80",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				tx, err := b.ResolveTx(args[0])
@@ -153,9 +159,10 @@ func txEdit(a *app) *cobra.Command {
 
 func txRm(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "rm <id>",
-		Short: "Delete a transaction",
-		Args:  cobra.ExactArgs(1),
+		Use:     "rm <id>",
+		Short:   "Delete a transaction",
+		Example: "  finador tx rm 8x3k",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				tx, err := b.ResolveTx(args[0])

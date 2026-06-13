@@ -18,9 +18,10 @@ func perfCmd(a *app) *cobra.Command {
 	var ccy, from, to string
 	var exclude []string
 	cmd := &cobra.Command{
-		Use:   "perf [scope]",
-		Short: "Returns (TWR, XIRR) by period and risk metrics",
-		Args:  cobra.MaximumNArgs(1),
+		Use:     "perf [scope]",
+		Short:   "Returns (TWR, XIRR) by period and risk metrics",
+		Example: "  finador perf",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
 			if err != nil {

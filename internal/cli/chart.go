@@ -19,9 +19,10 @@ func chartCmd(a *app) *cobra.Command {
 	var width, height int
 	var exclude []string
 	cmd := &cobra.Command{
-		Use:   "chart [scope]",
-		Short: "Value history chart, rendered in the terminal",
-		Args:  cobra.MaximumNArgs(1),
+		Use:     "chart [scope]",
+		Short:   "Value history chart, rendered in the terminal",
+		Example: "  finador chart",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
 			if err != nil {

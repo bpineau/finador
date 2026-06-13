@@ -21,7 +21,9 @@ func valueCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "value [scope]",
 		Short: "Portfolio value — all, a group, an account or an asset",
-		Args:  cobra.MaximumNArgs(1),
+		Example: "  finador value --net\n" +
+			"  finador value --at 2024-12-31",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
 			if err != nil {

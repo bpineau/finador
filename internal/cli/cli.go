@@ -38,8 +38,10 @@ func New(opts ...Option) *cobra.Command {
 		opt(a)
 	}
 	root := &cobra.Command{
-		Use:           "finador",
-		Short:         "Encrypted personal wealth tracker — CLI and web, single binary",
+		Use:   "finador",
+		Short: "Encrypted personal wealth tracker — CLI and web, single binary",
+		Long: "finador tracks your wealth in one encrypted file.\n" +
+			"Pick a noun — account, asset, cash, tx — and its subcommands guide you from there.",
 		SilenceUsage:  true,
 		SilenceErrors: true, // main les affiche, une seule fois
 	}
@@ -47,10 +49,62 @@ func New(opts ...Option) *cobra.Command {
 	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "do not store the password in the keychain")
 	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "never access the network (cache only)")
 	root.PersistentFlags().BoolVar(&a.noColor, "no-color", false, "disable colors")
-	root.AddCommand(initCmd(a), accountCmd(a), assetCmd(a), addCmd(a), sellCmd(a),
-		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a),
-		configCmd(a), lockCmd(a), valueCmd(a), refreshCmd(a), perfCmd(a), chartCmd(a),
-		compactCmd(a), serveCmd(a))
+
+	root.AddGroup(
+		&cobra.Group{ID: "setup", Title: "Setup:"},
+		&cobra.Group{ID: "ledger", Title: "Record & correct:"},
+		&cobra.Group{ID: "analyze", Title: "Analyze:"},
+		&cobra.Group{ID: "ops", Title: "Sync & maintenance:"},
+	)
+
+	init_ := initCmd(a)
+	init_.GroupID = "setup"
+
+	account := accountCmd(a)
+	account.GroupID = "setup"
+
+	asset := assetCmd(a)
+	asset.GroupID = "setup"
+
+	cfg := configCmd(a)
+	cfg.GroupID = "setup"
+
+	cash := cashCmd(a)
+	cash.GroupID = "ledger"
+
+	tx := txCmd(a)
+	tx.GroupID = "ledger"
+
+	value := valueCmd(a)
+	value.GroupID = "analyze"
+
+	perf := perfCmd(a)
+	perf.GroupID = "analyze"
+
+	chart := chartCmd(a)
+	chart.GroupID = "analyze"
+
+	imp := importCmd(a)
+	imp.GroupID = "ops"
+
+	refresh := refreshCmd(a)
+	refresh.GroupID = "ops"
+
+	compact := compactCmd(a)
+	compact.GroupID = "ops"
+
+	lock := lockCmd(a)
+	lock.GroupID = "ops"
+
+	serve := serveCmd(a)
+	serve.GroupID = "ops"
+
+	root.AddCommand(
+		init_, account, asset, cfg,
+		cash, tx,
+		value, perf, chart,
+		imp, refresh, compact, lock, serve,
+	)
 	return root
 }
 
