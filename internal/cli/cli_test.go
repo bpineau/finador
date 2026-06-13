@@ -818,3 +818,97 @@ func TestMergeCommandDifferentLedgers(t *testing.T) {
 		t.Fatal("merging unrelated ledgers should fail")
 	}
 }
+
+// TestBuyAutoCreatesAsset: asset buy on an unknown ticker creates it on the fly
+// (offline → no Yahoo enrichment; ticker = ref).
+func TestBuyAutoCreatesAsset(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+
+	// NEWT does not exist yet — buy should create it and record the transaction.
+	out := run(t, db, "asset", "buy", "NEWT", "50", "5000",
+		"--account", "PEA Zephyr", "--group", "equities/test")
+	if !strings.Contains(out, "created") {
+		t.Errorf("asset buy did not report creation: %q", out)
+	}
+	if !strings.Contains(out, "buy") {
+		t.Errorf("buy transaction line missing: %q", out)
+	}
+
+	list := run(t, db, "asset", "list")
+	if !strings.Contains(list, "NEWT") {
+		t.Errorf("NEWT missing from asset list after auto-creation:\n%s", list)
+	}
+	if !strings.Contains(list, "equities/test") {
+		t.Errorf("group missing from asset list:\n%s", list)
+	}
+}
+
+// TestSellDoesNotAutoCreate: asset sell on an unknown ticker must fail, not create.
+func TestSellDoesNotAutoCreate(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+
+	if _, err := tryRun(t, db, "asset", "sell", "GHOST", "10", "1000"); err == nil {
+		t.Fatal("sell on unknown asset should fail, not auto-create")
+	}
+}
+
+// TestBuyWithInlineLabels: --label flags tag the (account, asset) pair.
+func TestBuyWithInlineLabels(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+
+	run(t, db, "asset", "buy", "LBL", "10", "1000",
+		"--account", "PEA Zephyr",
+		"--label", "core", "--label", "retraite")
+
+	out := run(t, db, "label", "list")
+	if !strings.Contains(out, "core") {
+		t.Errorf("label 'core' missing: %q", out)
+	}
+	if !strings.Contains(out, "retraite") {
+		t.Errorf("label 'retraite' missing: %q", out)
+	}
+
+	// Repeated --label core must not error (ErrDuplicate is silently ignored).
+	run(t, db, "asset", "buy", "LBL", "5", "600",
+		"--account", "PEA Zephyr",
+		"--label", "core")
+}
+
+// TestDividendAutoCreatesAsset: asset dividend on an unknown ticker creates the security.
+func TestDividendAutoCreatesAsset(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+
+	out := run(t, db, "asset", "dividend", "DIVT", "42.50", "--account", "PEA Zephyr")
+	if !strings.Contains(out, "created") {
+		t.Errorf("dividend did not auto-create asset: %q", out)
+	}
+	if !strings.Contains(out, "dividend") {
+		t.Errorf("dividend transaction missing: %q", out)
+	}
+	list := run(t, db, "asset", "list")
+	if !strings.Contains(list, "DIVT") {
+		t.Errorf("DIVT missing from asset list:\n%s", list)
+	}
+}
+
+// TestAssetSetWithLabel: --label on asset set tags the pair (no auto-create).
+func TestAssetSetWithLabel(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "Patrimoine")
+	run(t, db, "asset", "add", "Maison Lyon", "--kind", "property")
+
+	run(t, db, "asset", "set", "Maison Lyon", "300000",
+		"--account", "Patrimoine", "--label", "immo")
+
+	out := run(t, db, "label", "list")
+	if !strings.Contains(out, "immo") {
+		t.Errorf("label 'immo' missing after asset set --label: %q", out)
+	}
+}

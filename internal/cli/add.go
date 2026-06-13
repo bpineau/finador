@@ -11,10 +11,11 @@ import (
 	"finador/internal/domain"
 )
 
-func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Command {
-	var account, note, ccy string
+func tradeCmd(a *app, use string, kind domain.TxKind, short string, create bool) *cobra.Command {
+	var account, note, ccy, group string
+	var labels []string
 	examples := map[string]string{
-		"buy":  "  finador asset buy CW8 20 @450 2024-01-20 --account \"PEA Zephyr\"",
+		"buy":  "  finador asset buy CW8.PA 100 90000 --account \"PEA Zephyr\" --group equities/world --label core",
 		"sell": "  finador asset sell CW8 5 @520",
 	}
 	cmd := &cobra.Command{
@@ -24,7 +25,13 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comma
 		Args:    cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
-				asset, err := b.Asset(args[0])
+				var asset *domain.Asset
+				var err error
+				if create {
+					asset, err = resolveOrCreateSecurity(cmd, a, b, args[0], group, ccy)
+				} else {
+					asset, err = b.Asset(args[0])
+				}
 				if err != nil {
 					return err
 				}
@@ -56,6 +63,9 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comma
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s %s × %s = %s (%s)\n",
 					tx.ID, tx.Kind, asset.Name, tx.Quantity, tx.Amount, acc.Name)
+				if err := applyLabels(b, acc.ID, asset.ID, labels); err != nil {
+					return err
+				}
 				return nil
 			})
 		},
@@ -63,6 +73,10 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comma
 	cmd.Flags().StringVar(&account, "account", "", "account (name or id)")
 	cmd.Flags().StringVar(&note, "note", "", "free note")
 	cmd.Flags().StringVar(&ccy, "ccy", "", "amount currency (default: asset currency)")
+	if create {
+		cmd.Flags().StringVar(&group, "group", "", "group, set when the asset is created on the fly (e.g. equities/world)")
+	}
+	cmd.Flags().StringArrayVar(&labels, "label", nil, "tag the (account, asset) pair with this label (repeatable)")
 	return cmd
 }
 
