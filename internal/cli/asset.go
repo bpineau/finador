@@ -115,7 +115,7 @@ func assetIncomeCmd(a *app, use string, kind domain.TxKind, short, example strin
 		Args:    cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
-				asset, err := resolveOrCreateSecurity(cmd, a, b, args[0], "", ccy)
+				asset, err := resolveOrCreateSecurity(cmd, a, b, args[0], "", ccy, nil)
 				if err != nil {
 					return err
 				}
@@ -314,7 +314,7 @@ func assetRm(a *app) *cobra.Command {
 // resolveOrCreateSecurity resolves ref in the book, or — when it is unknown —
 // creates a security (ticker = ref), enriching from Yahoo when online, like
 // `asset add`. Ambiguous refs propagate (never auto-create over an ambiguity).
-func resolveOrCreateSecurity(cmd *cobra.Command, a *app, b *domain.Book, ref, group, ccy string) (*domain.Asset, error) {
+func resolveOrCreateSecurity(cmd *cobra.Command, a *app, b *domain.Book, ref, group, ccy string, aliases []string) (*domain.Asset, error) {
 	if as, err := b.Asset(ref); err == nil {
 		return as, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {
@@ -331,6 +331,7 @@ func resolveOrCreateSecurity(cmd *cobra.Command, a *app, b *domain.Book, ref, gr
 		Ticker:   ref,
 		Currency: ccyParsed,
 		Group:    group,
+		Aliases:  aliases,
 	}
 	if !a.offline {
 		enrichFromMarket(cmd, a, asset, ref, false, ccy != "")
