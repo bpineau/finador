@@ -84,11 +84,10 @@ type cfgKV struct {
 	Value string `json:"value"`
 }
 
-// replay folds the log into a materialized Book. LastTxID is the max tx id ever
-// seen (including superseded/tombstoned), so new ids never collide after delete.
+// replay folds the log into a materialized Book: create/upsert/delete per id,
+// in append order. Ids are random and self-assigned, so nothing is derived.
 func replay(entries []entry) (*domain.Book, error) {
 	b := domain.NewBook()
-	var lastTx domain.TxID
 	for _, e := range entries {
 		switch e.rec.K {
 		case kAcct:
@@ -127,23 +126,16 @@ func replay(entries []entry) (*domain.Book, error) {
 				return nil, err
 			}
 			b.Transactions = upsertTx(b.Transactions, &t)
-			if t.ID > lastTx {
-				lastTx = t.ID
-			}
 		case kTxDel:
 			var ref txRef
 			if err := json.Unmarshal(e.rec.D, &ref); err != nil {
 				return nil, err
 			}
 			b.Transactions = rejectTx(b.Transactions, ref.ID)
-			if ref.ID > lastTx {
-				lastTx = ref.ID
-			}
 		default:
 			return nil, fmt.Errorf("unknown record kind %q", e.rec.K)
 		}
 	}
-	b.LastTxID = lastTx
 	return b, nil
 }
 

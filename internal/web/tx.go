@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/shopspring/decimal"
 
@@ -155,12 +154,7 @@ type txEditData struct {
 }
 
 func (s *Server) findTx(w http.ResponseWriter, r *http.Request) (*domain.Transaction, bool) {
-	id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
-	if err != nil {
-		s.renderError(w, http.StatusBadRequest, "invalid id")
-		return nil, false
-	}
-	tx, err := s.file.Book.Tx(domain.TxID(id))
+	tx, err := s.file.Book.ResolveTx(r.PathValue("id"))
 	if err != nil {
 		s.renderError(w, http.StatusNotFound, "transaction not found")
 		return nil, false
@@ -226,12 +220,12 @@ func (s *Server) txEditSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) txDelete(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+	tx, err := s.file.Book.ResolveTx(r.PathValue("id"))
 	if err != nil {
-		s.renderError(w, http.StatusBadRequest, "invalid id")
+		s.renderError(w, http.StatusNotFound, "transaction not found")
 		return
 	}
-	if err := s.file.Book.RemoveTx(domain.TxID(id)); err != nil {
+	if err := s.file.Book.RemoveTx(tx.ID); err != nil {
 		s.renderError(w, http.StatusNotFound, "transaction not found")
 		return
 	}

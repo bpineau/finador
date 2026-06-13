@@ -19,7 +19,7 @@ func assetCmd(a *app) *cobra.Command {
 }
 
 func assetAdd(a *app) *cobra.Command {
-	var kind, name, isin, ccy, group, id string
+	var kind, name, isin, ccy, group string
 	var aliases []string
 	cmd := &cobra.Command{
 		Use:   "add <ticker|name>",
@@ -49,7 +49,7 @@ func assetAdd(a *app) *cobra.Command {
 						cmd.Flags().Changed("name"), cmd.Flags().Changed("ccy"))
 				}
 			}
-			asset.ID = domain.AssetID(cmp.Or(id, domain.Slugify(asset.Name)))
+			asset.ID = domain.AssetID(domain.NewID())
 			return a.mutate(func(b *domain.Book) error {
 				if err := b.AddAsset(asset); err != nil {
 					return err
@@ -65,7 +65,6 @@ func assetAdd(a *app) *cobra.Command {
 	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "additional alias (repeatable)")
 	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "quote currency")
 	cmd.Flags().StringVar(&group, "group", "", "hierarchical group, e.g. equities/us/tech")
-	cmd.Flags().StringVar(&id, "id", "", "identifier (default: slug of the name)")
 	return cmd
 }
 
@@ -101,7 +100,7 @@ func assetSet(a *app) *cobra.Command {
 					Date: date, Account: acc.ID, Asset: asset.ID, Kind: domain.Statement,
 					Amount: domain.Money{Amount: value, Currency: effectiveCcy},
 				})
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s = %s on %s\n", tx.ID, asset.Name, tx.Amount, tx.Date)
+				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s = %s on %s\n", tx.ID, asset.Name, tx.Amount, tx.Date)
 				return nil
 			})
 		},

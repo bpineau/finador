@@ -15,7 +15,7 @@ func TestSealOpenLineRoundTrip(t *testing.T) {
 	hh := sha256.Sum256(h.encode())
 	prev := make([]byte, tagSize)
 
-	rec := record{K: kTx, D: mustJSON(domain.Transaction{ID: 7, Kind: domain.Buy})}
+	rec := record{K: kTx, D: mustJSON(domain.Transaction{ID: "tx7", Kind: domain.Buy})}
 	line, tag := sealLine(g, hh[:], 1, prev, rec)
 
 	got, gotTag, err := openLine(g, hh[:], 1, prev, line)

@@ -58,7 +58,7 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comma
 					Amount:   domain.Money{Amount: total, Currency: effectiveCcy},
 					Note:     note,
 				})
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s %s × %s = %s (%s)\n",
+				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s %s × %s = %s (%s)\n",
 					tx.ID, tx.Kind, asset.Name, tx.Quantity, tx.Amount, acc.Name)
 				return nil
 			})

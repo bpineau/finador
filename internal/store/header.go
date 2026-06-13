@@ -14,7 +14,7 @@ import (
 
 const (
 	fmtLedger     = "finador-ledger"
-	formatVersion = 2
+	formatVersion = 3
 	nonceSize     = 12
 	tagSize       = 16
 	saltSize      = 16

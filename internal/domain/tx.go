@@ -54,7 +54,7 @@ func (k *TxKind) UnmarshalText(b []byte) error {
 	return nil
 }
 
-type TxID uint64
+type TxID string
 
 // Transaction is one immutable-by-default ledger line; everything derived
 // (positions, bases fiscales, séries) is recomputed from the ledger.

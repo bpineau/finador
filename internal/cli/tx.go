@@ -1,10 +1,9 @@
 package cli
 
 import (
-	"cmp"
 	"fmt"
 	"slices"
-	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/shopspring/decimal"
@@ -17,14 +16,6 @@ func txCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "tx", Short: "List and edit ledger transactions"}
 	cmd.AddCommand(txList(a), txEdit(a), txRm(a))
 	return cmd
-}
-
-func parseTxID(s string) (domain.TxID, error) {
-	id, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid transaction id %q", s)
-	}
-	return domain.TxID(id), nil
 }
 
 func txList(a *app) *cobra.Command {
@@ -68,7 +59,7 @@ func txList(a *app) *cobra.Command {
 				if c := x.Date.Time().Compare(y.Date.Time()); c != 0 {
 					return c
 				}
-				return cmp.Compare(x.ID, y.ID)
+				return strings.Compare(string(x.ID), string(y.ID))
 			})
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tDATE\tTYPE\tACCOUNT\tASSET\tQTY\tAMOUNT\tNOTE")
@@ -78,8 +69,9 @@ func txList(a *app) *cobra.Command {
 					k != 0 && t.Kind != k {
 					continue
 				}
-				fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-					t.ID, t.Date, t.Kind, t.Account, t.Asset, t.Quantity, t.Amount, t.Note)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					t.ID, t.Date, t.Kind, txAccountName(b, t.Account), txAssetName(b, t.Asset),
+					t.Quantity, t.Amount, t.Note)
 			}
 			return w.Flush()
 		},
@@ -97,12 +89,8 @@ func txEdit(a *app) *cobra.Command {
 		Short: "Edit the fields passed as flags, leave the others unchanged",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := parseTxID(args[0])
-			if err != nil {
-				return err
-			}
 			return a.mutate(func(b *domain.Book) error {
-				tx, err := b.Tx(id)
+				tx, err := b.ResolveTx(args[0])
 				if err != nil {
 					return err
 				}
@@ -147,7 +135,7 @@ func txEdit(a *app) *cobra.Command {
 				if cmd.Flags().Changed("note") {
 					tx.Note = note
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s %s qty=%s %s\n",
+				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s %s qty=%s %s\n",
 					tx.ID, tx.Date, tx.Kind, tx.Quantity, tx.Amount)
 				return nil
 			})
@@ -169,17 +157,38 @@ func txRm(a *app) *cobra.Command {
 		Short: "Delete a transaction",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := parseTxID(args[0])
-			if err != nil {
-				return err
-			}
 			return a.mutate(func(b *domain.Book) error {
-				if err := b.RemoveTx(id); err != nil {
+				tx, err := b.ResolveTx(args[0])
+				if err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Transaction %d deleted\n", id)
+				if err := b.RemoveTx(tx.ID); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Transaction %s deleted\n", tx.ID)
 				return nil
 			})
 		},
 	}
+}
+
+// txAccountName resolves an account id to its display name, falling back to the
+// raw id when the account is unknown (a stored reference can outlive a removal).
+func txAccountName(b *domain.Book, id domain.AccountID) string {
+	if acc, err := b.Account(string(id)); err == nil {
+		return acc.Name
+	}
+	return string(id)
+}
+
+// txAssetName resolves an asset id to its display name (empty for cash lines),
+// falling back to the raw id when the asset is unknown.
+func txAssetName(b *domain.Book, id domain.AssetID) string {
+	if id == "" {
+		return ""
+	}
+	if asset, err := b.Asset(string(id)); err == nil {
+		return asset.Name
+	}
+	return string(id)
 }
