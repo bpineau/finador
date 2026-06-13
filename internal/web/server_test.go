@@ -26,9 +26,9 @@ func (fakeSource) Resolve(context.Context, string) (market.SymbolInfo, error) {
 	return market.SymbolInfo{}, domain.ErrNotFound
 }
 
-func (fakeSource) Daily(_ context.Context, sym string, _ domain.Date) (market.DailyData, error) {
+func (fakeSource) Daily(_ context.Context, ref market.Ref, _ domain.Date) (market.DailyData, error) {
 	day := func(s string) domain.Date { d, _ := domain.ParseDate(s); return d }
-	if sym == "CW8.PA" {
+	if ref.Symbol == "CW8.PA" {
 		return market.DailyData{Currency: domain.EUR, Closes: []domain.PricePoint{
 			{Date: day("2026-06-01"), Close: 550}, {Date: day("2026-06-05"), Close: 560},
 		}}, nil

@@ -31,7 +31,7 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		if !force && !series.FetchedAt.Before(today) {
 			continue
 		}
-		data, err := src.Daily(ctx, asset.Ticker, priceFetchFrom(b, asset.ID, series))
+		data, err := src.Daily(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN}, priceFetchFrom(b, asset.ID, series))
 		if err != nil {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", asset.Ticker, err))
 			continue
@@ -53,7 +53,7 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		}
 		from := fxFetchFrom(b, series)
 		symbol := string(ccy) + "USD=X"
-		data, err := src.Daily(ctx, symbol, from)
+		data, err := src.Daily(ctx, Ref{Symbol: symbol}, from)
 		if err != nil {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", symbol, err))
 			continue

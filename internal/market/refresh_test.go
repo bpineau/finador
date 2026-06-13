@@ -22,12 +22,12 @@ func (f *fakeSource) Resolve(_ context.Context, q string) (SymbolInfo, error) {
 	return SymbolInfo{Symbol: strings.ToUpper(q)}, nil
 }
 
-func (f *fakeSource) Daily(_ context.Context, sym string, from domain.Date) (DailyData, error) {
-	f.calls = append(f.calls, "DAILY "+sym+" "+from.String())
-	if f.fail[sym] {
+func (f *fakeSource) Daily(_ context.Context, ref Ref, from domain.Date) (DailyData, error) {
+	f.calls = append(f.calls, "DAILY "+ref.Symbol+" "+from.String())
+	if f.fail[ref.Symbol] {
 		return DailyData{}, domain.ErrNotFound
 	}
-	return f.daily[sym], nil
+	return f.daily[ref.Symbol], nil
 }
 
 func bookWithTrade(t *testing.T) *domain.Book {

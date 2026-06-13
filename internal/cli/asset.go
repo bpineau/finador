@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"finador/internal/domain"
+	"finador/internal/market"
 )
 
 func assetCmd(a *app) *cobra.Command {
@@ -373,7 +374,7 @@ func enrichFromMarket(cmd *cobra.Command, a *app, asset *domain.Asset, query str
 	if !nameSet && info.Name != "" {
 		asset.Name = info.Name
 	}
-	if data, err := src.Daily(cmd.Context(), asset.Ticker, domain.Today().AddDays(-7)); err == nil {
+	if data, err := src.Daily(cmd.Context(), market.Ref{Symbol: asset.Ticker}, domain.Today().AddDays(-7)); err == nil {
 		if !ccySet && data.Currency != "" {
 			asset.Currency = data.Currency
 		}
