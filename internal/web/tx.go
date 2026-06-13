@@ -71,20 +71,15 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 		return zero, err
 	}
 
-	// Résoudre les références SANS rien créer : un échec de validation plus
-	// bas ne doit laisser aucune entité orpheline dans le Book vivant.
 	accRef := r.FormValue("account")
 	if accRef == "" {
 		return zero, fmt.Errorf("account required")
 	}
-	acc, err := b.Account(accRef)
-	if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		return zero, err // ambiguïté : jamais de création
+	acc, err := portfolio.ResolveAccount(b, accRef)
+	if err != nil {
+		return zero, err
 	}
-	accCcy := domain.EUR // devise d'un compte encore à créer
-	if acc != nil {
-		accCcy = acc.Currency
-	}
+	accCcy := acc.Currency
 
 	assetRef := r.FormValue("asset")
 	ccy := accCcy
@@ -123,12 +118,7 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 		}
 	}
 
-	// Tout est valide : créer maintenant ce qui manque.
-	if acc == nil {
-		if acc, err = portfolio.EnsureAccount(b, accRef, ""); err != nil {
-			return zero, err
-		}
-	}
+	// Assets are created on the fly; accounts must already be declared.
 	if assetRef != "" && asset == nil {
 		if asset, err = portfolio.EnsureAsset(b, assetRef, accCcy, ""); err != nil {
 			return zero, err
