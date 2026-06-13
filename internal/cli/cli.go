@@ -50,7 +50,7 @@ func New(opts ...Option) *cobra.Command {
 	root.AddCommand(initCmd(a), accountCmd(a), assetCmd(a), addCmd(a), sellCmd(a),
 		cashCmd(a), depositCmd(a), withdrawCmd(a), txCmd(a), importCmd(a),
 		configCmd(a), lockCmd(a), valueCmd(a), refreshCmd(a), perfCmd(a), chartCmd(a),
-		serveCmd(a))
+		compactCmd(a), serveCmd(a))
 	return root
 }
 
