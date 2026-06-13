@@ -160,3 +160,24 @@ d'utilisateurs réels). **Alternatives si refusé :** store event-native (plus p
 invasif) ; cache laissé dans le fichier en section figée (portable hors-ligne mais
 ~1,3–3 Mo de croissance git par refresh commité) ; garder FINADOR1 en parallèle.
 **Noté pour plus tard :** fallback Stooq quand Yahoo 429/down (cf. `../portfodor/`).
+
+## D16 — Format v3 : ids random + timestamps, comptes déclaratifs, CLI noun-first, format ouvert, merge
+
+**Contexte :** itération de design (2026-06-13) sur le format v2. Spec :
+`specs/2026-06-13-format-v3-identity-cli-merge-design.md`. Pré-release, zéro utilisateur → pas de
+migration, bump version fichier 2→3, `demo.fin` régénéré.
+**Choix :** (1) **id random trié-par-temps** (`base32(ms‖rand)`, ~22 car.) pour comptes/actifs/
+transactions — remplace slug ET `TxID uint64` ; raison clé : merge-safe **et** pas d'algorithme
+`Slugify` à réimplémenter pour un portage alternatif (Android) ; noms/alias/tickers = poignées de
+résolution, résolution par préfixe. (2) **`ts` par enregistrement** (RFC3339 ns) pour l'ordre et le
+futur merge. (3) Enveloppe uniforme `{k,ts,d}`, `LastTxID` supprimé. (4) **Comptes en déclaration
+obligatoire** (EnsureAccount strict, rejet web/import), `account rm`, `--alias` au create ; actifs
+gardent la création à la volée (Q1). (5) **CLI noun-first** (`account|asset|cash` groupent leurs
+verbes ; `add`→`asset buy`, `deposit`→`cash deposit`, etc.) avec **bloc `Example` sur chaque
+commande** (usage espacé). (6) **`docs/FORMAT.md`** anglais + vecteurs de test + politique
+d'extensibilité (refuser `v` inconnu ; ignorer champ inconnu d'un `k` connu ; rejeter `k` inconnu).
+(7) **`finador merge`** : union + LWW par `ts` + prompt de conflit même-instant/même-champ.
+**Crypto/framing inchangés vs v2.** **Alternatives écartées :** garder les slugs (couple les
+implémentations à Slugify) ; `add` à valeur signée pour vendre (implicite, illisible dans un an) ;
+verbes top-level plats (ambigus). **Vente d'un bien :** cash découplé (clôture `asset set 0` à la
+vente ; `cash set` sur le compte réel plus tard).
