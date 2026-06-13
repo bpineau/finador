@@ -72,7 +72,7 @@ func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
 	}
 	if len(sum.Fetched) > 0 {
-		if err := f.Save(); err != nil {
+		if err := f.SaveCache(); err != nil {
 			fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)
 		}
 	}
