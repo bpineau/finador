@@ -448,6 +448,55 @@ finador lock                # purge cached passwords from the Keychain
 | `keychain-ttl` | how long a typed password is cached, per terminal | `8h` |
 | `default-account` | account used when `--account` is omitted | `pea-zephyr` |
 
+### Remote sync: `remote` and `sync`
+
+Keep the encrypted ledger in a private GitHub repo (full walkthrough in
+[*Use a private GitHub repo*](#use-a-private-github-repo-optional)). Local file mode stays the
+default; these commands are only for GitHub mode.
+
+```sh
+finador remote set <owner>/<repo> [--path portfolio.fin] [--branch main]   # switch to GitHub mode
+finador remote login                                                       # store the token (Keychain)
+finador remote show                                                        # mode, repo, sync state (never the token)
+finador remote off                                                         # back to local file mode
+finador sync                                                               # force pull, push pending changes
+```
+
+| Command | What it does |
+|---|---|
+| `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `portfolio.fin`) is the file's path inside the repo; `--branch` (default `main`). |
+| `remote login` | Prompts for the fine-grained PAT and stores it in the macOS Keychain (re-run to rotate). `GITHUB_TOKEN` overrides it. |
+| `remote show` | Prints the active mode, the repo/path/branch and the sync state (last pull, unpushed changes). Never prints the token. |
+| `remote off` | Sets `source: local` — commands use `~/.finador.fin` again. |
+| `sync` | Forces a pull now (don't wait the hourly refresh) and pushes pending offline changes, reconciling via `merge` if the remote moved. |
+
+**Config file** `~/.config/finador/config.json` (plain JSON, hand-editable):
+```json
+{
+  "source": "github",
+  "github": { "owner": "you", "repo": "finador-data", "path": "portfolio.fin", "branch": "main" },
+  "readPullAfter": "1h"
+}
+```
+`source: "local"` (or a missing file) uses the local default. `readPullAfter` is how stale the
+local copy may be before a read pulls (default `1h`). `finador --db <path>` or `FINADOR_DB` forces
+local mode for a single invocation, whatever the config says.
+
+**Behaviour & errors**
+- **Reads** use the local working copy, pulling from GitHub only when it's older than
+  `readPullAfter`. **Writes** always pull first, then push — **one commit per save**.
+- **Offline:** reads use the local copy; a write succeeds locally, is marked pending, and is
+  pushed on the next online command or `sync` — never lost.
+- **Concurrent change** (another machine pushed): the push is reconciled automatically (union +
+  last-writer-wins by timestamp); a genuine same-field/same-instant clash prompts you to choose.
+- **Bad/missing token** → `github authentication failed` (run `finador remote login`) — reported
+  distinctly from being offline.
+- The GitHub Contents API caps a file at ~1 MB; the ledger (market cache excluded) stays well
+  under it. `finador lock` forgets both cached passwords and the GitHub token.
+- **Already have a local file?** Remote mode starts fresh (`init`) or pulls an existing remote;
+  it does not auto-import a pre-existing `~/.finador.fin`. (A one-command migration may be added
+  later — ask if you need it.)
+
 ## CSV import
 
 ```sh
