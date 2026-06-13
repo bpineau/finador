@@ -366,7 +366,7 @@ func TestTxEditWeb(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[1].ID // the cw8 buy
 
-	code, body := get(t, srv, fmt.Sprintf("/tx/%d/edit", id))
+	code, body := get(t, srv, fmt.Sprintf("/tx/%s/edit", id))
 	if code != http.StatusOK {
 		t.Fatalf("GET edit = %d", code)
 	}
@@ -377,7 +377,7 @@ func TestTxEditWeb(t *testing.T) {
 	}
 
 	// update quantity + amount
-	code, body, loc := postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
+	code, body, loc := postForm(t, srv, fmt.Sprintf("/tx/%s/edit", id), url.Values{
 		"date": {"2026-06-01"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
 		"qty": {"12"}, "amount": {"6600"}, "note": {"edited via web"},
 	})
@@ -390,7 +390,7 @@ func TestTxEditWeb(t *testing.T) {
 	}
 
 	// validation failure → 400, nothing changed
-	code, _, _ = postForm(t, srv, fmt.Sprintf("/tx/%d/edit", id), url.Values{
+	code, _, _ = postForm(t, srv, fmt.Sprintf("/tx/%s/edit", id), url.Values{
 		"date": {"not-a-date"}, "kind": {"buy"}, "account": {"pea"}, "asset": {"cw8"},
 		"qty": {"12"}, "amount": {"6600"},
 	})
@@ -402,7 +402,7 @@ func TestTxEditWeb(t *testing.T) {
 		t.Errorf("GET edit unknown = %d", code)
 	}
 	// /tx list has the edit link
-	if _, body := get(t, srv, "/tx"); !strings.Contains(body, fmt.Sprintf("/tx/%d/edit", id)) {
+	if _, body := get(t, srv, "/tx"); !strings.Contains(body, fmt.Sprintf("/tx/%s/edit", id)) {
 		t.Errorf("edit link missing from /tx")
 	}
 }
@@ -539,7 +539,7 @@ func TestDashboardPie(t *testing.T) {
 func TestTxDelete(t *testing.T) {
 	srv, f := testServer(t)
 	id := f.Book.Transactions[0].ID
-	code, _, loc := postForm(t, srv, fmt.Sprintf("/tx/%d/delete", id), url.Values{})
+	code, _, loc := postForm(t, srv, fmt.Sprintf("/tx/%s/delete", id), url.Values{})
 	if code != http.StatusSeeOther || loc != "/tx" {
 		t.Fatalf("delete = %d → %q", code, loc)
 	}

@@ -48,7 +48,7 @@ func TestParseAssetKind(t *testing.T) {
 func TestTransactionJSONRoundTrip(t *testing.T) {
 	d, _ := ParseDate("2026-06-01")
 	tx := Transaction{
-		ID: 7, Date: d, Account: "pea-zephyr", Asset: "cw8", Kind: Buy,
+		ID: "tx7", Date: d, Account: "pea-zephyr", Asset: "cw8", Kind: Buy,
 		Quantity: decimal.RequireFromString("10"),
 		Amount:   Money{Amount: decimal.RequireFromString("5500.50"), Currency: EUR},
 		Note:     "premier achat",
@@ -57,7 +57,7 @@ func TestTransactionJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"id":7,"date":"2026-06-01","account":"pea-zephyr","asset":"cw8","kind":"buy","qty":"10","amount":{"amount":"5500.5","ccy":"EUR"},"note":"premier achat"}`
+	want := `{"id":"tx7","date":"2026-06-01","account":"pea-zephyr","asset":"cw8","kind":"buy","qty":"10","amount":{"amount":"5500.5","ccy":"EUR"},"note":"premier achat"}`
 	if string(raw) != want {
 		t.Fatalf("format de fil dérivé:\n  got  %s\n  want %s", raw, want)
 	}
