@@ -145,7 +145,7 @@ func New(opts ...Option) *cobra.Command {
 
 func (a *app) marketSource() market.Source {
 	if a.source == nil {
-		a.source = market.NewYahoo()
+		a.source = market.Default()
 	}
 	return a.source
 }

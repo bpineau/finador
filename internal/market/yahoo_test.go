@@ -38,7 +38,7 @@ func TestYahooDaily(t *testing.T) {
 		}
 		w.Write([]byte(chartCW8))
 	})
-	got, err := y.Daily(context.Background(), "CW8.PA", mustDate("2026-06-01"))
+	got, err := y.Daily(context.Background(), Ref{Symbol: "CW8.PA"}, mustDate("2026-06-01"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestYahooDailyNotFound(t *testing.T) {
 	y := testYahoo(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(chartNotFound))
 	})
-	if _, err := y.Daily(context.Background(), "NOPE", mustDate("2026-06-01")); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := y.Daily(context.Background(), Ref{Symbol: "NOPE"}, mustDate("2026-06-01")); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("err = %v, attendu ErrNotFound", err)
 	}
 }
@@ -105,7 +105,7 @@ func TestYahooRetriesOn429(t *testing.T) {
 		w.Write([]byte(chartCW8))
 	})
 	y.RetryWait = 0 // pas d'attente en test
-	if _, err := y.Daily(context.Background(), "CW8.PA", mustDate("2026-06-01")); err != nil {
+	if _, err := y.Daily(context.Background(), Ref{Symbol: "CW8.PA"}, mustDate("2026-06-01")); err != nil {
 		t.Fatal(err)
 	}
 	if calls.Load() != 2 {
@@ -125,7 +125,7 @@ func TestYahooDailyEmptyQuote(t *testing.T) {
 	y := testYahoo(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"chart":{"result":[{"meta":{"currency":"EUR"},"timestamp":[1780297200],"indicators":{"quote":[]}}],"error":null}}`))
 	})
-	got, err := y.Daily(context.Background(), "X", mustDate("2026-06-01"))
+	got, err := y.Daily(context.Background(), Ref{Symbol: "X"}, mustDate("2026-06-01"))
 	if err != nil || len(got.Closes) != 0 {
 		t.Fatalf("got %+v err %v", got, err)
 	}

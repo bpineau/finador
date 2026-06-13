@@ -62,6 +62,9 @@ func (y *Yahoo) get(ctx context.Context, path string, query url.Values, into any
 	}
 }
 
+// Name identifies the provider in the Multi chain.
+func (y *Yahoo) Name() string { return "yahoo" }
+
 func (y *Yahoo) Resolve(ctx context.Context, query string) (SymbolInfo, error) {
 	var resp struct {
 		Quotes []struct {
@@ -87,7 +90,11 @@ func (y *Yahoo) Resolve(ctx context.Context, query string) (SymbolInfo, error) {
 	return SymbolInfo{}, fmt.Errorf("symbol for %q: %w", query, domain.ErrNotFound)
 }
 
-func (y *Yahoo) Daily(ctx context.Context, symbol string, from domain.Date) (DailyData, error) {
+func (y *Yahoo) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {
+	symbol := ref.Symbol
+	if symbol == "" {
+		return DailyData{}, ErrNotCovered // a ticker provider needs a symbol
+	}
 	var resp struct {
 		Chart struct {
 			Result []struct {
