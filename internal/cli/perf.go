@@ -15,13 +15,17 @@ import (
 )
 
 func perfCmd(a *app) *cobra.Command {
-	var ccy, from, to string
+	var ccy, from, to, label string
 	var exclude []string
 	cmd := &cobra.Command{
-		Use:     "perf [scope]",
-		Short:   "Returns (TWR, XIRR) by period and risk metrics",
-		Example: "  finador perf",
-		Args:    cobra.MaximumNArgs(1),
+		Use:   "perf [scope]",
+		Short: "Returns (TWR, XIRR) by period and risk metrics",
+		Example: "  finador perf\n" +
+			"  finador perf \"PEA Zephyr\"\n" +
+			"  finador perf equities/world\n" +
+			"  finador perf --label retraite\n" +
+			"  finador perf --exclude CW8,AAPL",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
 			if err != nil {
@@ -33,9 +37,22 @@ func perfCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := portfolio.ParseScope(b, ref)
-			if err != nil {
-				return err
+			if ref != "" && label != "" {
+				return fmt.Errorf("use either a [scope] argument or --label, not both")
+			}
+			var scope portfolio.Scope
+			if label != "" {
+				s, err := portfolio.LabelScope(b, label)
+				if err != nil {
+					return err
+				}
+				scope = s
+			} else {
+				s, err := portfolio.ParseScope(b, ref)
+				if err != nil {
+					return err
+				}
+				scope = s
 			}
 			excluded, err := parseExclusions(b, exclude)
 			if err != nil {
@@ -138,6 +155,7 @@ func perfCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&from, "from", "", "start of a custom window YYYY-MM-DD")
 	cmd.Flags().StringVar(&to, "to", "", "valuation date YYYY-MM-DD (default: today)")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
+	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	return cmd
 }
 

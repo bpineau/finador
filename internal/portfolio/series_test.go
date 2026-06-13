@@ -1,6 +1,7 @@
 package portfolio
 
 import (
+	"fmt"
 	"testing"
 
 	"finador/internal/domain"
@@ -217,6 +218,40 @@ func TestSeriesWarnsOnConversionFailure(t *testing.T) {
 	}
 	if len(res.Warnings) == 0 {
 		t.Fatal("aucun avertissement de conversion")
+	}
+}
+
+func TestSeriesExternalFlowsLabelScope(t *testing.T) {
+	b := valuationBook(t)
+	// Tag pea/cw8 with label "retraite"; cto/cw8 has no label.
+	_ = b.AddLabel(&domain.Label{ID: "lbl1", Account: "pea", Asset: "cw8", Name: "retraite"})
+
+	scope, err := LabelScope(b, "retraite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Series(b, scope, mustDate("2026-01-01"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// pea/cw8: buy 5000 on 01-15, buy 2750 on 02-15, sell -1800 on 03-15
+	// cto/cw8 is NOT in the label set → its buy on 01-20 must NOT appear.
+	wantFlows := []struct {
+		date string
+		amt  float64
+	}{
+		{"2026-01-15", 5000},
+		{"2026-02-15", 2750},
+		{"2026-03-15", -1800},
+	}
+	if len(res.Flows) != len(wantFlows) {
+		t.Fatalf("flows = %+v, want %d flows", res.Flows, len(wantFlows))
+	}
+	for i, w := range wantFlows {
+		if res.Flows[i].Date != mustDate(w.date) {
+			t.Errorf("flow[%d].Date = %s, want %s", i, res.Flows[i].Date, w.date)
+		}
+		approx(t, fmt.Sprintf("flow[%d]", i), res.Flows[i].Amount, w.amt)
 	}
 }
 
