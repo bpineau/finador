@@ -30,9 +30,11 @@ The password is then cached in the macOS Keychain for ~12 h per terminal
 
 ### 1. Investment accounts — each with its tax rule
 
+Those are off course fictional accounts and assets, should be replaced by your own.
+
 ```sh
 # Flat tax / PFU = 30 % on gains; PEA & PEE social levies = 17.2 %.
-finador account add "CTO Degiro"            --tax gains:30%    --alias degiro
+finador account add "CTO Saxo"            --tax gains:30%    --alias saxo
 finador account add "PEA Fortuneo"          --tax gains:17.2%  --alias pea --alias fortuneo
 finador account add "PEA-PME Bourse Direct" --tax gains:17.2%  --alias pea-pme --alias pme
 finador account add "Assurance Vie Linxea"  --tax gains:30%    --alias av --alias linxea
@@ -49,7 +51,7 @@ as you like.
 finador account add "Livret A"   --alias livreta
 finador account add "LDDS"       --alias ldds
 finador account add "Checking"   --alias checking
-finador account add "Revolut USD" --ccy USD --alias revusd     # this one holds dollars
+finador account add "Wise USD" --ccy USD --alias wiseusd # this one holds dollars
 ```
 
 ### 3. A real-estate envelope (to hold the property)
@@ -62,12 +64,13 @@ finador account add "Real Estate" --tax gains:36.2% --alias immo   # 19 % + 17.2
 
 ```sh
 # ETFs/shares by ticker (Yahoo); funds by ISIN (Financial Times). --group powers allocation & per-group perf.
-finador asset add CW8.PA --alias world --group equities/world                  # an MSCI World ETF
-finador asset add AAPL   --alias apple --group equities/us/tech                 # a US share (quoted in USD)
+finador asset add CW8.PA --alias world --group equities/world        # an MSCI World ETF
+finador asset add AAPL   --alias apple --group equities/us/tech      # a US share (quoted in USD)
 finador asset add "Euro Small-Cap Fund" --isin LU0131510165 --alias smallcap --group equities/europe-small
 #   ^ an actively-managed fund with no Yahoo ticker → finador prices it by ISIN via Financial Times
 finador asset add "Employer Stock Fund" --isin 990000000000 --alias empfund --group equities/us
 #   ^ an employee fund with no public quote → you'll value it by hand (step 7)
+
 finador asset add "Studio Nantes" --kind property --alias studio --group realestate
 ```
 
@@ -79,13 +82,16 @@ or to set the alias/group up front.
 
 ```sh
 # PEA Fortuneo — its taxable basis becomes 40×380 + 5×900 = 19 700 € (≈ your contributions)
-finador asset buy world 40 @380   --account pea
+# means: "I bought 40 'world' at 380 € (currency for the account) each in my account 'pea'"
+finador asset buy world 40 @380   --account pea 
 finador asset buy smallcap 5 @900 --account pea
-# CTO Degiro
-finador asset buy apple 30 @170 --account degiro
-# Free RSUs — acquired at ~no cost; the value:30% rule taxes the whole value, so the buy price is a placeholder
+
+# CTO  Saxo 
+finador asset buy apple 30 @170 --account saxo
+# Free RSUs,  acquired at ~no cost; the value:30% rule taxes the whole value
+# (that's an approximation to simplify), so the buy price is a placeholder.
 finador asset buy apple 50 @0.01 --account rsu
-# PEE employee fund — bought 100 units; value comes from step 7 (no public quote)
+# PEE employee fund — bought 100 units at 50 $currency; value comes from step 7 (no public quote)
 finador asset buy empfund 100 @50 --account pee
 ```
 
@@ -98,7 +104,7 @@ its own envelope's rule.
 finador cash set livreta 8000
 finador cash set ldds 5000
 finador cash set checking 3200
-finador cash set revusd 12000        # USD account → 12 000 $
+finador cash set wiseusd 12000        # USD account → 12 000 $
 ```
 
 ### 7. Value what has no public quote, and the property
@@ -116,7 +122,7 @@ the current value. The same goes for any holding valued by statement.
 
 ```sh
 finador refresh             # ETF/shares via Yahoo, the Euro Small-Cap fund via Financial Times (by ISIN)
-finador value --net         # gross / estimated tax / net
+finador value               # gross, estimated tax and net (the default)
 finador value --by group    # allocation
 finador perf                # TWR, XIRR, CAGR, vol, Sharpe… (scope it: `finador perf pea`, `finador perf --label core`)
 ```

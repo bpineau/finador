@@ -6,7 +6,7 @@ balance lives in **one encrypted file** on your machine, usable from the **comma
 line and the web** alike.
 
 ```
-$ finador value --net
+$ finador value
 portfolio — 2026-06-10
 LINE      GROSS           TAX          NET
 equities  18050.00 EUR    361.20 EUR   17688.80 EUR
@@ -50,7 +50,7 @@ finador cash set Savings 11250                                 # observed balanc
 finador asset add "Country house" --kind property --group property
 finador asset set "Country house" 450000 --account Savings
 
-finador value --net        # gross / estimated tax / net
+finador value              # gross, estimated tax and net (the default)
 finador perf equities      # TWR, XIRR, CAGR, vol, Sharpe, Sortino, maxDD
 finador chart --net        # braille curve in the terminal
 finador serve              # full web app on http://127.0.0.1:8451
@@ -131,7 +131,7 @@ finador asset add "Indépendance et Expansion" --isin FR0010417192
 finador refresh    # live prices → current value = shares × price
 ```
 
-`finador value --net` then values your positions at the live price (~170,000 €) with
+`finador value` then values your positions at the live price (~170,000 €) with
 the envelope's taxable basis at what you invested (90k + 60k = **150,000 €**), so only
 the ~20,000 € gain is taxed — and future growth is taxed on the new excess
 automatically. You also get the real **composition**: per-fund allocation, live price
@@ -256,7 +256,7 @@ replaying the ledger, so transactions can always be edited or deleted safely.
 `max(0, value − contribution basis)`; the basis is what you put in
 (`cash deposit` − `cash withdraw`) when the account's cash is tracked, or
 `asset buy − asset sell` when it is not. `--tax value:20%` taxes the whole value.
-`--tax none` (default) taxes nothing. Estimated tax shows up in `value --net`, on
+`--tax none` (default) taxes nothing. Estimated tax shows up in `value`, on
 net curves and on the web.
 
 **Tracked vs untracked cash.** An account's cash is *tracked* as soon as it has at
@@ -364,12 +364,12 @@ and performance recompute instantly.
 ### Valuation: `value`
 
 ```sh
-finador value [scope] [--at YYYY-MM-DD] [--ccy USD] [--net]
+finador value [scope] [--at YYYY-MM-DD] [--ccy USD] [--gross]
               [--by group|account] [--exclude refs]... [--what-if asset=price]...
 ```
 
+- By default `value` shows gross, estimated tax and net; `--gross` shows the gross value only.
 - `--at` values the portfolio at any past date (quotes are forward-filled).
-- `--net` adds estimated-tax and net columns.
 - `--by account` breaks lines down by envelope (cash included) instead of group.
 - `--what-if cw8=600 --what-if country=520000` revalues with throwaway price
   hypotheses (in the asset's quote currency; a property override replaces its

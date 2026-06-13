@@ -16,16 +16,16 @@ import (
 
 func valueCmd(a *app) *cobra.Command {
 	var ccy, at, by, label string
-	var net bool
+	var gross bool
 	var exclude, whatIf []string
 	cmd := &cobra.Command{
 		Use:   "value [scope]",
-		Short: "Portfolio value — all, a group, an account or an asset",
-		Example: "  finador value --net\n" +
-			"  finador value --at 2024-12-31\n" +
-			"  finador value equities/world\n" +
+		Short: "Portfolio value (gross, estimated tax, net) — all, a group, an account or an asset",
+		Example: "  finador value                 # gross, estimated tax and net (default)\n" +
+			"  finador value --gross         # gross value only\n" +
+			"  finador value equities/world  # scope to a group\n" +
 			"  finador value --label retraite\n" +
-			"  finador value --exclude CW8",
+			"  finador value --at 2024-12-31",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
@@ -91,7 +91,7 @@ func valueCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printValuation(cmd, scope, date, val, net)
+			printValuation(cmd, scope, date, val, !gross)
 			if len(overrides) > 0 {
 				base, err := portfolio.Value(b, scope, date, display, market.Converter{FX: b.Market.FX})
 				if err == nil {
@@ -103,7 +103,9 @@ func valueCmd(a *app) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&ccy, "ccy", "", "display currency (default: config currency, otherwise EUR)")
 	cmd.Flags().StringVar(&at, "at", "", "valuation date YYYY-MM-DD (default: today)")
-	cmd.Flags().BoolVar(&net, "net", false, "show gross, estimated tax and net")
+	cmd.Flags().BoolVar(&gross, "gross", false, "show the gross value only (no estimated tax / net)")
+	cmd.Flags().Bool("net", false, "") // net is now the default; kept (hidden) for back-compat
+	_ = cmd.Flags().MarkHidden("net")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
 	cmd.Flags().StringVar(&by, "by", "group", "line breakdown: group or account")
 	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "disposable hypothesis asset=price (repeatable), e.g. ddog=280")
