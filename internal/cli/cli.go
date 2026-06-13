@@ -90,6 +90,9 @@ func New(opts ...Option) *cobra.Command {
 	refresh := refreshCmd(a)
 	refresh.GroupID = "ops"
 
+	merge := mergeCmd(a)
+	merge.GroupID = "ops"
+
 	compact := compactCmd(a)
 	compact.GroupID = "ops"
 
@@ -103,7 +106,7 @@ func New(opts ...Option) *cobra.Command {
 		init_, account, asset, cfg,
 		cash, tx,
 		value, perf, chart,
-		imp, refresh, compact, lock, serve,
+		imp, refresh, merge, compact, lock, serve,
 	)
 	return root
 }
