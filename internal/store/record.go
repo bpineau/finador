@@ -83,6 +83,9 @@ func openLine(g cipher.AEAD, hdrHash []byte, seq uint64, prevTag []byte, line st
 	}
 	var rec record
 	if err := json.Unmarshal(pt, &rec); err != nil {
+		// Reachable only AFTER a valid GCM tag (correct key, untampered bytes):
+		// a malformed payload here means an internal encoding bug, never an
+		// attacker-distinguishable path — so it stays distinct from ErrBadPassword.
 		return record{}, nil, fmt.Errorf("unreadable record: %w", err)
 	}
 	return rec, ct[len(ct)-tagSize:], nil
