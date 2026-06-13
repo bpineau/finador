@@ -262,7 +262,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 		// Determine if this is an external flow
 		switch {
-		case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset:
+		case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset || w.scope.Kind == ByLabel:
 			if w.scope.hasAsset(acc.acc, p.asset) {
 				w.addFlow(t.Date, sign*disp, collect)
 			}
@@ -298,7 +298,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			acc.cash += cashAmt
 		}
 		switch {
-		case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset:
+		case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset || w.scope.Kind == ByLabel:
 			if p != nil && w.scope.hasAsset(acc.acc, p.asset) {
 				w.addFlow(t.Date, -disp, collect) // dividend leaves the pocket
 			}
@@ -400,7 +400,7 @@ func (w *walker) applyDividends(d domain.Date, collect bool) {
 				acc.cash += cashAmt
 			}
 			switch {
-			case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset:
+			case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset || w.scope.Kind == ByLabel:
 				if w.scope.hasAsset(p.acc, p.asset) {
 					w.addFlow(d, -disp, collect)
 				}
