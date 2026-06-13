@@ -16,6 +16,7 @@ const (
 	ByAccount
 	ByAsset
 	ByAccountGroup // intersection enveloppe ∩ groupe (niveaux croisés des arbres web)
+	ByLabel        // positions carrying a specific label name
 )
 
 // Scope is what a command evaluates: everything, a group subtree, one
@@ -27,6 +28,7 @@ type Scope struct {
 	Account  *domain.Account
 	Asset    *domain.Asset
 	Label    string
+	Pairs    map[pairKey]bool        // populated for ByLabel
 	Excluded map[domain.AssetID]bool // actifs retirés de la portée (jetable, CLI --exclude)
 }
 
@@ -51,6 +53,27 @@ func ParseScope(b *domain.Book, ref string) (Scope, error) {
 		return Scope{}, err
 	}
 	return Scope{}, fmt.Errorf("unknown scope %q (not a group, account or asset): %w", ref, domain.ErrNotFound)
+}
+
+// LabelScope builds a scope limited to the (account, asset) pairs that carry
+// the given label name (case-insensitive). Returns an error if no such pair exists.
+func LabelScope(b *domain.Book, name string) (Scope, error) {
+	pairs := map[pairKey]bool{}
+	low := strings.ToLower(name)
+	for _, l := range b.Labels {
+		if strings.ToLower(l.Name) == low {
+			pairs[pairKey{acc: l.Account, asset: l.Asset}] = true
+		}
+	}
+	if len(pairs) == 0 {
+		return Scope{}, fmt.Errorf("no positions carry label %q", name)
+	}
+	return Scope{
+		Kind:     ByLabel,
+		Label:    name,
+		Pairs:    pairs,
+		Excluded: map[domain.AssetID]bool{},
+	}, nil
 }
 
 // IntersectScope is the crossed level of the web trees: the assets of one
@@ -88,6 +111,8 @@ func (s Scope) hasAsset(acc *domain.Account, asset *domain.Asset) bool {
 		return asset.ID == s.Asset.ID
 	case ByAccountGroup:
 		return acc.ID == s.Account.ID && inGroup(asset.Group, s.Group)
+	case ByLabel:
+		return s.Pairs[pairKey{acc: acc.ID, asset: asset.ID}]
 	}
 	return false
 }
@@ -128,6 +153,8 @@ func (s Scope) lineLabel(acc *domain.Account, asset *domain.Asset) string {
 	case ByAsset:
 		return acc.Name
 	case ByAccountGroup:
+		return asset.Name
+	case ByLabel:
 		return asset.Name
 	}
 	return asset.Name

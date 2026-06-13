@@ -15,14 +15,17 @@ import (
 )
 
 func valueCmd(a *app) *cobra.Command {
-	var ccy, at, by string
+	var ccy, at, by, label string
 	var net bool
 	var exclude, whatIf []string
 	cmd := &cobra.Command{
 		Use:   "value [scope]",
 		Short: "Portfolio value — all, a group, an account or an asset",
 		Example: "  finador value --net\n" +
-			"  finador value --at 2024-12-31",
+			"  finador value --at 2024-12-31\n" +
+			"  finador value equities/world\n" +
+			"  finador value --label retraite\n" +
+			"  finador value --exclude CW8",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
@@ -35,9 +38,22 @@ func valueCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := portfolio.ParseScope(b, ref)
-			if err != nil {
-				return err
+			if ref != "" && label != "" {
+				return fmt.Errorf("use either a [scope] argument or --label, not both")
+			}
+			var scope portfolio.Scope
+			if label != "" {
+				s, err := portfolio.LabelScope(b, label)
+				if err != nil {
+					return err
+				}
+				scope = s
+			} else {
+				s, err := portfolio.ParseScope(b, ref)
+				if err != nil {
+					return err
+				}
+				scope = s
 			}
 			excluded, err := parseExclusions(b, exclude)
 			if err != nil {
@@ -91,6 +107,7 @@ func valueCmd(a *app) *cobra.Command {
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
 	cmd.Flags().StringVar(&by, "by", "group", "line breakdown: group or account")
 	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "disposable hypothesis asset=price (repeatable), e.g. ddog=280")
+	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	return cmd
 }
 

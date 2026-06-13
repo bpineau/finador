@@ -736,6 +736,76 @@ func firstLineContaining(t *testing.T, out, sub string) string {
 	return ""
 }
 
+func labelDB(t *testing.T) string {
+	t.Helper()
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
+	run(t, db, "label", "add", "retraite", "--asset", "cw8", "--account", "PEA BforBank")
+	return db
+}
+
+func TestPerfByLabel(t *testing.T) {
+	db := labelDB(t)
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
+
+	out := runNet(t, db, "perf", "--label", "retraite", "--to", "2026-06-05")
+	if !strings.Contains(out, "retraite") {
+		t.Errorf("label name missing in output:\n%s", out)
+	}
+	if !strings.Contains(out, "inception") {
+		t.Errorf("perf --label missing inception row:\n%s", out)
+	}
+}
+
+func TestValueByLabel(t *testing.T) {
+	db := labelDB(t)
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
+
+	out := runNet(t, db, "value", "--label", "retraite", "--at", "2026-06-05")
+	// 10 × 560 = 5600, no cash (ByLabel has no cash)
+	if !strings.Contains(out, "5600.00 EUR") {
+		t.Errorf("value --label: expected 5600.00 EUR:\n%s", out)
+	}
+	if !strings.Contains(out, "retraite") {
+		t.Errorf("label name missing in output:\n%s", out)
+	}
+}
+
+func TestLabelAndScopeArgMutuallyExclusive(t *testing.T) {
+	db := labelDB(t)
+	if _, err := tryRun(t, db, "perf", "actions/monde", "--label", "retraite"); err == nil {
+		t.Fatal("perf with both scope arg and --label should fail")
+	}
+	if _, err := tryRun(t, db, "value", "actions/monde", "--label", "retraite"); err == nil {
+		t.Fatal("value with both scope arg and --label should fail")
+	}
+}
+
+func TestLabelUnknownErrors(t *testing.T) {
+	db := newDB(t)
+	if _, err := tryRun(t, db, "perf", "--label", "nonexistent"); err == nil {
+		t.Fatal("perf --label with unknown label should fail")
+	}
+	if _, err := tryRun(t, db, "value", "--label", "nonexistent"); err == nil {
+		t.Fatal("value --label with unknown label should fail")
+	}
+}
+
+func TestLabelWithExclude(t *testing.T) {
+	db := labelDB(t)
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
+
+	// --label retraite --exclude cw8 → cw8 is excluded, so the labeled position vanishes
+	out := runNet(t, db, "value", "--label", "retraite", "--exclude", "cw8", "--at", "2026-06-05")
+	if strings.Contains(out, "5600") {
+		t.Errorf("cw8 should be excluded:\n%s", out)
+	}
+}
+
 // TestMergeCommandDifferentLedgers: merging two unrelated ledgers is refused.
 func TestMergeCommandDifferentLedgers(t *testing.T) {
 	db := newDB(t)
