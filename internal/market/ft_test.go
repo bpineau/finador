@@ -91,10 +91,59 @@ func TestFTDaily(t *testing.T) {
 	}
 }
 
-func TestFTDailyNoISIN(t *testing.T) {
+func TestFTDailyNoRefs(t *testing.T) {
 	f := NewFT()
-	if _, err := f.Daily(context.Background(), Ref{Symbol: "CW8.PA"}, mustDate("2026-06-01")); !errors.Is(err, ErrNotCovered) {
-		t.Fatalf("err = %v, want ErrNotCovered", err)
+	if _, err := f.Daily(context.Background(), Ref{}, mustDate("2026-06-01")); !errors.Is(err, ErrNotCovered) {
+		t.Fatalf("err = %v, want ErrNotCovered (no isin, no symbol)", err)
+	}
+}
+
+// FT search resolving a US mutual fund by its ticker (no colon in the symbol).
+const ftSearchUSD = `{"data":{"security":[
+  {"name":"Invesco S&P 500 Index Fund Class C","symbol":"SPICX","xid":"300376","isPrimary":true}
+]}}`
+
+const ftChartUSD = `{"Dates":["2026-06-10T00:00:00","2026-06-11T00:00:00"],
+"Elements":[{"Currency":"USD","ComponentSeries":[{"Type":"Close","Values":[73.66,74.02]}]}]}`
+
+// FT resolves by ticker too (a US mutual fund like SPICX, or any symbol Yahoo throttles).
+func TestFTDailyBySymbol(t *testing.T) {
+	f := ftServer(t, ftSearchUSD, ftChartUSD, nil)
+	got, err := f.Daily(context.Background(), Ref{Symbol: "SPICX"}, mustDate("2026-06-09"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Currency != domain.USD || len(got.Closes) != 2 || got.Closes[1].Close != 74.02 {
+		t.Fatalf("got %+v ccy=%s", got.Closes, got.Currency)
+	}
+}
+
+// A stale/unknown ISIN with a good ticker (e.g. after converting an FCPE): FT
+// tries the ISIN, gets nothing, then resolves by the ticker.
+func TestFTDailyISINFallsBackToSymbol(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/data/searchapi/searchsecurities":
+			if r.URL.Query().Get("query") == "SPICX" {
+				w.Write([]byte(ftSearchUSD))
+			} else {
+				w.Write([]byte(ftSearchNoXid)) // the ISIN resolves to nothing
+			}
+		case "/data/chartapi/series":
+			w.Write([]byte(ftChartUSD))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	f := NewFT()
+	f.BaseURL = srv.URL
+	got, err := f.Daily(context.Background(), Ref{ISIN: "990000118919", Symbol: "SPICX"}, mustDate("2026-06-09"))
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(got.Closes) != 2 || got.Closes[1].Close != 74.02 {
+		t.Fatalf("got %+v", got.Closes)
 	}
 }
 
