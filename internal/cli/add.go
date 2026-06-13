@@ -13,7 +13,7 @@ import (
 
 func tradeCmd(a *app, use string, kind domain.TxKind, short string, create bool) *cobra.Command {
 	var account, note, ccy, group string
-	var labels []string
+	var labels, aliases []string
 	examples := map[string]string{
 		"buy":  "  finador asset buy CW8.PA 100 90000 --account \"PEA BforBank\" --group equities/world --label core",
 		"sell": "  finador asset sell CW8 5 @520",
@@ -28,7 +28,7 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string, create bool)
 				var asset *domain.Asset
 				var err error
 				if create {
-					asset, err = resolveOrCreateSecurity(cmd, a, b, args[0], group, ccy)
+					asset, err = resolveOrCreateSecurity(cmd, a, b, args[0], group, ccy, aliases)
 				} else {
 					asset, err = b.Asset(args[0])
 				}
@@ -75,6 +75,7 @@ func tradeCmd(a *app, use string, kind domain.TxKind, short string, create bool)
 	cmd.Flags().StringVar(&ccy, "ccy", "", "amount currency (default: asset currency)")
 	if create {
 		cmd.Flags().StringVar(&group, "group", "", "group, set when the asset is created on the fly (e.g. equities/world)")
+		cmd.Flags().StringArrayVar(&aliases, "alias", nil, "alias for the asset, set when it is created on the fly (repeatable)")
 	}
 	cmd.Flags().StringArrayVar(&labels, "label", nil, "tag the (account, asset) pair with this label (repeatable)")
 	return cmd

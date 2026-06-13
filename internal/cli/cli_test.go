@@ -845,6 +845,29 @@ func TestBuyAutoCreatesAsset(t *testing.T) {
 	}
 }
 
+// TestBuyWithAlias: --alias on an on-the-fly buy makes the asset resolvable by it.
+func TestBuyWithAlias(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank")
+
+	run(t, db, "asset", "buy", "CW8.PA", "10", "5500",
+		"--account", "PEA BforBank", "--alias", "cw8", "--group", "equities/world")
+
+	// The alias resolves: a second buy by "cw8" must hit the same asset, not create another.
+	out := run(t, db, "asset", "buy", "cw8", "5", "2800", "--account", "PEA BforBank")
+	if strings.Contains(out, "created") {
+		t.Errorf("alias cw8 did not resolve — a duplicate asset was created:\n%s", out)
+	}
+	list := run(t, db, "asset", "list")
+	if strings.Count(list, "security") != 1 {
+		t.Errorf("expected exactly one asset after the alias-resolved buy:\n%s", list)
+	}
+	if !strings.Contains(list, "cw8") {
+		t.Errorf("alias cw8 missing from asset list:\n%s", list)
+	}
+}
+
 // TestSellDoesNotAutoCreate: asset sell on an unknown ticker must fail, not create.
 func TestSellDoesNotAutoCreate(t *testing.T) {
 	db := newDB(t)

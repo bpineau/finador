@@ -80,10 +80,31 @@ previous `set` counts as performance.**
 The first `asset set` / `cash set` on an account is treated as an *acquisition* (an
 external flow), not as performance — only later changes count.
 
-`asset buy`, `asset dividend`, and `asset fee` create the security on the fly when the
-ticker is unknown — no separate `asset add` needed for Yahoo-quoted securities. Use
-`asset add` for ISIN-only funds, properties, or to set extra metadata. Tag a position
-inline with `--label` on `buy`, `sell`, `dividend`, and `set`.
+### Declaring a holding — two equivalent ways
+
+There are **two interchangeable ways** to declare an asset and record activity on it.
+They reach the **same end state** — pick whichever fits the moment.
+
+**A. Declare, then record** — set the asset up once (alias, group, ISIN…), then trade it:
+
+```sh
+finador asset add CW8.PA --alias cw8 --group equities/world
+finador asset buy cw8 100 90000 --account "PEA BforBank" --label core
+```
+
+**B. One shot** — `buy` creates the security on the fly (Yahoo-resolved), accepting the
+**same** `--alias`/`--group` at creation and `--label` for the position:
+
+```sh
+finador asset buy CW8.PA 100 90000 --account "PEA BforBank" --group equities/world --alias cw8 --label core
+```
+
+Both leave you with the asset declared (alias `cw8`, group `equities/world`), the buy
+recorded, and the position tagged `core` — they are equivalent. `asset dividend` and
+`asset fee` auto-create the same way. Reach for **A** when setting several assets up
+first, or for **ISIN-only funds** (no Yahoo ticker) and **properties**
+(`--kind property`) — which only `asset add` can create; reach for **B** for quick entry
+of a quoted security.
 
 ### Onboard a seasoned account (existing holdings, no history to backfill)
 
@@ -99,7 +120,7 @@ finador account add "PEA BforBank" --tax gains:17.2%
 # asset buy <asset> <shares held> <amount you invested> — straight off your statement.
 # For ticker-quoted securities you don't need a separate `asset add`: buy creates them
 # on the fly, resolving the name and currency from Yahoo. Tag a position inline with --label.
-finador asset buy CW8.PA 100 90000 --account "PEA BforBank" --group equities/world --label core
+finador asset buy CW8.PA 100 90000 --account "PEA BforBank" --group equities/world --alias cw8 --label core
 finador asset buy "Indépendance et Expansion" 50 60000 --account "PEA BforBank"
 
 # Use `asset add` explicitly for ISIN-only funds (no Yahoo ticker), properties, or to
