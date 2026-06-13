@@ -221,3 +221,21 @@ local**, seul le grand-livre chiffré voyage ; `store` **inchangé** (copie de t
 **Alternatives écartées :** `git` shellé / go-git (lourd pour un seul petit fichier — Contents API
 suffit) ; YAML pour la conf (dépendance, surdimensionné pour 3 clés) ; hors-ligne strict (refus —
 moins souple, et `merge` couvre la divergence).
+
+## D19 — Données de marché multi-sources (fallback type portfodor)
+
+**Contexte :** finador ne cote que via Yahoo ; les fonds atypiques par ISIN (LU0131510165,
+LU1832174962…) y sont absents. Spec : `specs/2026-06-13-multi-source-market-data-design.md`. Run
+autonome. Étude de `../portfodor/pkg/marketdata` + test de faisabilité live.
+**Choix :** (1) le fetch passe une **`Ref{Symbol, ISIN}`** ; interface `Provider` (Daily +
+`ErrNotCovered`) ; un `Multi` (impl. `Source`) chaîne **Yahoo → FT → Morningstar** et renvoie le
+1er succès. (2) **Financial Times = provider clé** des fonds FR/LU (search `searchsecurities`→xid,
+puis POST `chartapi/series`→NAV quotidien EUR) — **vérifié live** sur les 2 fonds cibles. (3)
+**Morningstar via Boursorama** = fallback défensif (Boursorama `recherche/ajax`→id `0P…`, puis
+`tools.morningstar.fr/.../timeseries_price`) ; non vérifiable d'ici (endpoint NAV renvoie `[]`) mais
+porté best-effort. (4) **Yahoo reste primaire** pour les tickers ; `Resolve` (asset add) inchangé.
+(5) **Zéro dépendance** : portfodor est 100 % stdlib (regex pour le HTML) — finador aussi. (6) Cache
+sidecar **inchangé** (les séries y vivent déjà) ; pas de cache de résolution (re-search à chaque
+refresh, acceptable). `Refresh` « never fails hard » préservé (fallback périmé naturel).
+**Hors scope (documenté) :** l'**Eres `990000118919`** (code AMF FCPE/PEE) n'est coté par aucun
+provider (portfodor non plus) → `asset set` manuel ; Stooq (ticker-only) ; pin de catalogue xid.
