@@ -33,6 +33,8 @@ func classOf(k recKind) string {
 		return "asset"
 	case kTx, kTxEdit, kTxDel:
 		return "tx"
+	case kLabel, kLabelDel:
+		return "label"
 	case kConfig:
 		return "config"
 	default:
@@ -41,7 +43,7 @@ func classOf(k recKind) string {
 }
 
 func isTombstone(k recKind) bool {
-	return k == kAcctDel || k == kAssetDel || k == kTxDel
+	return k == kAcctDel || k == kAssetDel || k == kTxDel || k == kLabelDel
 }
 
 // entityID returns the identity of the entity a record refers to: d.id for

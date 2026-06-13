@@ -228,7 +228,7 @@ Every decrypted record plaintext is a JSON object:
 The entity's own `id` lives **inside `d`**, not in the envelope.
 
 `k` is one of: **`acct`**, **`acct-del`**, **`asset`**, **`asset-del`**,
-**`config`**, **`tx`**, **`tx-edit`**, **`tx-del`**.
+**`config`**, **`tx`**, **`tx-edit`**, **`tx-del`**, **`label`**, **`label-del`**.
 
 ### 4.2 Identifiers (`id`)
 
@@ -361,6 +361,35 @@ is a property/holding valuation; without an `asset` it is an account cash balanc
 {"id":"<tx-id>"}
 ```
 
+#### `label` — tag a position (upsert by `id`)
+
+A label tags a **position** — a specific (account, asset) couple — with a
+free-form name. Each assignment is its **own random-id entity**, so a pair can
+carry any number of labels, and two machines tagging the same pair union with no
+conflict (each adds a distinct id).
+
+```json
+{"id":"<id>","account":"<account-id>","asset":"<asset-id>","name":"retraite"}
+```
+
+| Key | Type | Notes |
+|---|---|---|
+| `id` | string | label id (its own `domain.NewID`) |
+| `account` | string | account **id**; currently required |
+| `asset` | string | asset **id**; currently required |
+| `name` | string | free-form label name |
+
+`account` and `asset` are **both required** today. An empty value is **reserved
+for a future "wildcard"** (empty `account` = all accounts, empty `asset` = all
+assets); adding that meaning later is additive and needs no new kind. The fold
+treats `label` as an upsert by `id`.
+
+#### `label-del` — remove a label
+
+```json
+{"id":"<label-id>"}
+```
+
 ### 4.4 Decimal & money encoding
 
 Monetary amounts and quantities are exact decimals serialized as **JSON strings**
@@ -386,6 +415,8 @@ id-keyed collections (accounts, assets, transactions) plus a config map:
 | `tx` | upsert transaction by `id` |
 | `tx-edit` | upsert transaction by `id` (same as `tx`) |
 | `tx-del` | remove transaction with that `id` |
+| `label` | upsert label by `id` |
+| `label-del` | remove label with that `id` |
 
 There is **no derived numbering**: ids are self-assigned at creation, so nothing
 else is reconstructed during the fold. All higher-level state (positions, cost
@@ -499,6 +530,9 @@ importance for financial safety:
 3. **A new `k` (or a changed meaning of an existing `k`) REQUIRES a version bump.**
    A reader MUST treat an unknown `k` as a hard error. A financial ledger must never
    silently skip a record it does not understand — doing so could hide money.
+   (Exception while v3 is **pre-release and unfrozen**: kinds may still be *added*
+   to v3 without a bump. The `label` / `label-del` kinds were added this way. Once
+   v3 is frozen, rule 3 applies strictly.)
 
 The primitives are deliberately universal (AES-256-GCM, Argon2id, HKDF-SHA256,
 base64, gzip, UTF-8 JSON), so a conforming reader/writer can be built on Android,

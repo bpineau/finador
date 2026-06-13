@@ -111,6 +111,11 @@ main a:visited { color: var(--encre); }
 .arbre .feuille { display: flex; align-items: baseline; gap: .6rem; padding-left: .95rem; }
 .arbre .leader { flex: 1; border-bottom: 2px dotted var(--filet); transform: translateY(-4px); }
 .arbre .montant { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.chip {
+  font-size: .68rem; line-height: 1; padding: .12rem .4rem; border-radius: .7rem;
+  background: var(--papier-2); color: var(--encre-2); border: 1px solid var(--filet);
+  white-space: nowrap;
+}
 .onglets { display: flex; gap: .8rem; font-size: .8rem; margin-bottom: .5rem; }
 .onglets .actif-onglet { font-weight: 600; border-bottom: 2px solid var(--encre); }
 @media (prefers-reduced-motion: reduce) { .arbre details > summary::before { transition: none; } }

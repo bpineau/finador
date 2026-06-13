@@ -24,7 +24,7 @@ func sampleLines(t *testing.T) []portfolio.PositionLine {
 }
 
 func TestBuildTreeByAccount(t *testing.T) {
-	tree := buildTree(sampleLines(t), "account")
+	tree := buildTree(sampleLines(t), "account", nil)
 	if len(tree) != 2 || tree[0].Label != "PEA" { // sorted descending: PEA first
 		t.Fatalf("roots = %+v", tree)
 	}
@@ -49,7 +49,7 @@ func TestBuildTreeByAccount(t *testing.T) {
 }
 
 func TestBuildTreeByGroup(t *testing.T) {
-	tree := buildTree(sampleLines(t), "group")
+	tree := buildTree(sampleLines(t), "group", nil)
 	// roots: immo (450000), actions (9840), cash (4050)
 	if len(tree) != 3 || tree[1].Label != "actions" {
 		t.Fatalf("roots = %+v", tree)

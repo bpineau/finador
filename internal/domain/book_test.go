@@ -3,6 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -308,5 +309,64 @@ func TestResolveUniquePrefix(t *testing.T) {
 	// introuvable reste introuvable
 	if _, err := b.Asset("zz"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Asset(zz) = %v", err)
+	}
+}
+
+func TestLabels(t *testing.T) {
+	b := sampleBook(t)
+	const acc = AccountID("pea-zephyr")
+	const asset = AssetID("cw8")
+
+	l1 := &Label{ID: LabelID(NewID()), Account: acc, Asset: asset, Name: "retraite"}
+	if err := b.AddLabel(l1); err != nil {
+		t.Fatal(err)
+	}
+	l2 := &Label{ID: LabelID(NewID()), Account: acc, Asset: asset, Name: "core"}
+	if err := b.AddLabel(l2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Exact duplicate (case-insensitive on name, same pair) is rejected.
+	dup := &Label{ID: LabelID(NewID()), Account: acc, Asset: asset, Name: "RETRAITE"}
+	if err := b.AddLabel(dup); !errors.Is(err, ErrDuplicate) {
+		t.Errorf("AddLabel(duplicate) = %v, want ErrDuplicate", err)
+	}
+	// Same name on a different pair is fine.
+	if err := b.AddAccount(&Account{ID: "cto", Name: "CTO", Currency: EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddLabel(&Label{ID: LabelID(NewID()), Account: "cto", Asset: asset, Name: "retraite"}); err != nil {
+		t.Errorf("same name on a different pair should be allowed: %v", err)
+	}
+
+	// LabelsFor returns the names of a pair, sorted.
+	got := b.LabelsFor(acc, asset)
+	if want := []string{"core", "retraite"}; !slices.Equal(got, want) {
+		t.Errorf("LabelsFor = %v, want %v", got, want)
+	}
+
+	// ResolveLabel: exact id and unique prefix.
+	if l, err := b.ResolveLabel(string(l1.ID)); err != nil || l.ID != l1.ID {
+		t.Errorf("ResolveLabel(exact) = %v, %v", l, err)
+	}
+	if l, err := b.ResolveLabel(string(l1.ID)[:len(l1.ID)-1]); err != nil || l.ID != l1.ID {
+		t.Errorf("ResolveLabel(prefix) = %v, %v", l, err)
+	}
+	if _, err := b.ResolveLabel("zzzzzzzzzzzz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("ResolveLabel(absent) = %v, want ErrNotFound", err)
+	}
+	if _, err := b.ResolveLabel(""); !errors.Is(err, ErrNotFound) {
+		t.Errorf("ResolveLabel(empty) = %v, want ErrNotFound", err)
+	}
+
+	// RemoveLabel: removes by id, ErrNotFound when absent.
+	if err := b.RemoveLabel(l1.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.LabelsFor(acc, asset); !slices.Equal(got, []string{"core"}) {
+		t.Errorf("after RemoveLabel, LabelsFor = %v, want [core]", got)
+	}
+	if err := b.RemoveLabel(l1.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("RemoveLabel(absent) = %v, want ErrNotFound", err)
 	}
 }
