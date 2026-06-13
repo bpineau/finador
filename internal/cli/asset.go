@@ -2,6 +2,7 @@ package cli
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"strings"
 	"text/tabwriter"
@@ -28,8 +29,8 @@ Which subcommand to use:
 	}
 	cmd.AddCommand(
 		assetAdd(a),
-		tradeCmd(a, "buy", domain.Buy, "Record a buy of a quoted security (quantity + price)"),
-		tradeCmd(a, "sell", domain.Sell, "Record a sell of a quoted security (quantity + price)"),
+		tradeCmd(a, "buy", domain.Buy, "Record a buy of a quoted security (quantity + price)", true),
+		tradeCmd(a, "sell", domain.Sell, "Record a sell of a quoted security (quantity + price)", false),
 		assetDividend(a),
 		assetFee(a),
 		assetSet(a),
@@ -106,6 +107,7 @@ func assetFee(a *app) *cobra.Command {
 
 func assetIncomeCmd(a *app, use string, kind domain.TxKind, short, example string) *cobra.Command {
 	var account, note, ccy string
+	var labels []string
 	cmd := &cobra.Command{
 		Use:     use + " <asset> <amount> [date]",
 		Short:   short,
@@ -113,7 +115,7 @@ func assetIncomeCmd(a *app, use string, kind domain.TxKind, short, example strin
 		Args:    cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
-				asset, err := b.Asset(args[0])
+				asset, err := resolveOrCreateSecurity(cmd, a, b, args[0], "", ccy)
 				if err != nil {
 					return err
 				}
@@ -145,6 +147,9 @@ func assetIncomeCmd(a *app, use string, kind domain.TxKind, short, example strin
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s %s: %s on %s (%s)\n",
 					tx.ID, tx.Kind, asset.Name, tx.Amount, tx.Date, acc.Name)
+				if err := applyLabels(b, acc.ID, asset.ID, labels); err != nil {
+					return err
+				}
 				return nil
 			})
 		},
@@ -152,11 +157,13 @@ func assetIncomeCmd(a *app, use string, kind domain.TxKind, short, example strin
 	cmd.Flags().StringVar(&account, "account", "", "account (name or id)")
 	cmd.Flags().StringVar(&note, "note", "", "free note")
 	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: asset currency)")
+	cmd.Flags().StringArrayVar(&labels, "label", nil, "tag the (account, asset) pair with this label (repeatable)")
 	return cmd
 }
 
 func assetSet(a *app) *cobra.Command {
 	var at, account, ccy string
+	var labels []string
 	cmd := &cobra.Command{
 		Use:     "set <asset> <value>",
 		Short:   "Set a dated valuation (properties, unlisted holdings)",
@@ -189,6 +196,9 @@ func assetSet(a *app) *cobra.Command {
 					Amount: domain.Money{Amount: value, Currency: effectiveCcy},
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s = %s on %s\n", tx.ID, asset.Name, tx.Amount, tx.Date)
+				if err := applyLabels(b, acc.ID, asset.ID, labels); err != nil {
+					return err
+				}
 				return nil
 			})
 		},
@@ -196,6 +206,7 @@ func assetSet(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&at, "at", "", "date YYYY-MM-DD (default: today)")
 	cmd.Flags().StringVar(&account, "account", "", "account (name or id)")
 	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: asset currency)")
+	cmd.Flags().StringArrayVar(&labels, "label", nil, "tag the (account, asset) pair with this label (repeatable)")
 	return cmd
 }
 
@@ -298,6 +309,54 @@ func assetRm(a *app) *cobra.Command {
 			})
 		},
 	}
+}
+
+// resolveOrCreateSecurity resolves ref in the book, or — when it is unknown —
+// creates a security (ticker = ref), enriching from Yahoo when online, like
+// `asset add`. Ambiguous refs propagate (never auto-create over an ambiguity).
+func resolveOrCreateSecurity(cmd *cobra.Command, a *app, b *domain.Book, ref, group, ccy string) (*domain.Asset, error) {
+	if as, err := b.Asset(ref); err == nil {
+		return as, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return nil, err // ambiguity — never mask it
+	}
+	ccyParsed, err := currencyOr(ccy, domain.EUR)
+	if err != nil {
+		return nil, err
+	}
+	asset := &domain.Asset{
+		ID:       domain.AssetID(domain.NewID()),
+		Kind:     domain.Security,
+		Name:     ref,
+		Ticker:   ref,
+		Currency: ccyParsed,
+		Group:    group,
+	}
+	if !a.offline {
+		enrichFromMarket(cmd, a, asset, ref, false, ccy != "")
+	}
+	if err := b.AddAsset(asset); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Asset %s (%s) created\n", asset.Name, asset.ID)
+	return asset, nil
+}
+
+// applyLabels tags the (account, asset) pair with each label name; it silently
+// ignores ErrDuplicate (the tag is already there) but surfaces any other error.
+func applyLabels(b *domain.Book, acc domain.AccountID, asset domain.AssetID, names []string) error {
+	for _, name := range names {
+		err := b.AddLabel(&domain.Label{
+			ID:      domain.LabelID(domain.NewID()),
+			Account: acc,
+			Asset:   asset,
+			Name:    name,
+		})
+		if err != nil && !errors.Is(err, domain.ErrDuplicate) {
+			return err
+		}
+	}
+	return nil
 }
 
 // enrichFromMarket completes ticker/name/currency from Yahoo; explicit flags
