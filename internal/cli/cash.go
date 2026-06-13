@@ -10,12 +10,39 @@ import (
 )
 
 func cashCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "cash", Short: "Account cash balances"}
+	cmd := &cobra.Command{
+		Use:   "cash",
+		Short: "Record external cash flows and observed balances",
+		Long: `Record cash activity on an account envelope.
+
+Which subcommand to use:
+  deposit/withdraw  — external cash entering or leaving an envelope (an apport
+                      or retrait). These are neutral for performance: they feed
+                      the tax basis and XIRR but do not count as gains or losses.
+  set               — the observed balance of the account at a point in time.
+                      The gap between two statements counts as performance
+                      (e.g. interest earned on a savings account).`,
+		Example: "  finador cash deposit \"PEA BforBank\" 10000 2024-01-15",
+	}
+	cmd.AddCommand(
+		flowCmd(a, "deposit", domain.Deposit,
+			"External contribution to an account (tax basis, XIRR)",
+			"  finador cash deposit \"PEA BforBank\" 10000 2024-01-15"),
+		flowCmd(a, "withdraw", domain.Withdraw,
+			"External withdrawal from an account",
+			"  finador cash withdraw \"Livret A\" 2000"),
+		cashSet(a),
+	)
+	return cmd
+}
+
+func cashSet(a *app) *cobra.Command {
 	var at, ccy string
-	set := &cobra.Command{
-		Use:   "set <account> <balance>",
-		Short: "Set the observed balance of an account (gaps between statements count as performance — use deposit for external contributions)",
-		Args:  cobra.ExactArgs(2),
+	cmd := &cobra.Command{
+		Use:     "set <account> <balance>",
+		Short:   "Set the observed balance of an account (gaps between statements count as performance — use deposit for external contributions)",
+		Example: "  finador cash set \"Livret A\" 15000 --at 2026-06-01",
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				acc, err := b.Account(args[0])
@@ -43,8 +70,7 @@ func cashCmd(a *app) *cobra.Command {
 			})
 		},
 	}
-	set.Flags().StringVar(&at, "at", "", "date YYYY-MM-DD (default: today)")
-	set.Flags().StringVar(&ccy, "ccy", "", "currency (default: account currency)")
-	cmd.AddCommand(set)
+	cmd.Flags().StringVar(&at, "at", "", "date YYYY-MM-DD (default: today)")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: account currency)")
 	return cmd
 }

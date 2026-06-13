@@ -108,7 +108,7 @@ func TestTxListEditRm(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 	run(t, db, "cash", "set", "PEA BforBank", "12500", "--at", "2026-06-02")
 
 	out := run(t, db, "tx", "list")
@@ -251,8 +251,8 @@ func TestValueEndToEnd(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
-	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	out := runNet(t, db, "value", "--net", "--at", "2026-06-05")
 	// 10 × 560 = 5600 ; cash suivi = 5000 − 5500 = −500 → brut 5100
@@ -308,8 +308,8 @@ func TestValueDisplayFXMissing(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
-	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	// D'abord on remplit le cache EUR (nécessaire pour avoir des prix)
 	runNet(t, db, "value", "--at", "2026-06-05")
@@ -327,8 +327,8 @@ func TestPerfEndToEnd(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
-	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
 	// série : 5000 plat jusqu'au 1er juin (l'achat est neutre), puis
@@ -353,8 +353,8 @@ func TestChartEndToEnd(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
-	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	out := runNet(t, db, "chart", "--to", "2026-06-05")
 	hasBraille := false
@@ -383,22 +383,22 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
 
-	out := run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	out := run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 	for _, want := range []string{"buy", "5500 EUR", "PEA BforBank"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("achat: %q manquant dans %q", want, out)
 		}
 	}
-	out = run(t, db, "sell", "cw8", "4", "2310", "2026-06-05") // vente, montant total
+	out = run(t, db, "asset", "sell", "cw8", "4", "2310", "2026-06-05") // vente, montant total
 	if !strings.Contains(out, "sell") || !strings.Contains(out, "2310 EUR") {
 		t.Errorf("vente: %q", out)
 	}
-	// quantité négative possible via add, derrière -- (sinon pflag lit -4 comme un flag)
-	out = run(t, db, "add", "--", "cw8", "-2", "@577", "2026-06-06")
+	// quantité négative possible via asset buy, derrière -- (sinon pflag lit -2 comme un flag)
+	out = run(t, db, "asset", "buy", "--", "cw8", "-2", "@577", "2026-06-06")
 	if !strings.Contains(out, "sell") || !strings.Contains(out, "1154 EUR") {
 		t.Errorf("vente via qté négative: %q", out)
 	}
-	if _, err := tryRun(t, db, "add", "cw8", "5"); err == nil {
+	if _, err := tryRun(t, db, "asset", "buy", "cw8", "5"); err == nil {
 		t.Fatal("prix manquant accepté")
 	}
 
@@ -406,11 +406,11 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 	if !strings.Contains(out, "12500 EUR") {
 		t.Errorf("cash set: %q", out)
 	}
-	out = run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
+	out = run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
 	if !strings.Contains(out, "deposit") || !strings.Contains(out, "5000 EUR") {
 		t.Errorf("deposit: %q", out)
 	}
-	out = run(t, db, "withdraw", "PEA BforBank", "1000")
+	out = run(t, db, "cash", "withdraw", "PEA BforBank", "1000")
 	if !strings.Contains(out, "withdraw") {
 		t.Errorf("withdraw: %q", out)
 	}
@@ -420,8 +420,8 @@ func TestPerfAndValueExclude(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
-	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	// valeur sans cw8 : il ne reste que le cash (5000 − 5500 = −500)
 	out := runNet(t, db, "value", "--exclude", "cw8", "--at", "2026-06-05")
@@ -443,8 +443,8 @@ func TestValueWhatIfAndByAccount(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
-	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	// hypothèse : cw8 à 600 → 10×600 − 500 = 5500 brut, et un delta vs réel (5100)
 	out := runNet(t, db, "value", "--what-if", "cw8=600", "--at", "2026-06-05")
@@ -491,7 +491,7 @@ func TestAssetEditAndRm(t *testing.T) {
 		t.Fatal("collision d'alias acceptée")
 	}
 	// rm : refus si référencé, ok sinon
-	run(t, db, "add", "cw8", "1", "@550", "2026-06-01")
+	run(t, db, "asset", "buy", "cw8", "1", "@550", "2026-06-01")
 	if _, err := tryRun(t, db, "asset", "rm", "cw8"); err == nil {
 		t.Fatal("rm d'un actif référencé accepté")
 	}
@@ -512,7 +512,7 @@ func TestAccountEdit(t *testing.T) {
 	}
 	// l'alias résout pour la saisie
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
-	run(t, db, "deposit", "p", "1000", "2026-01-10")
+	run(t, db, "cash", "deposit", "p", "1000", "2026-01-10")
 	if out := run(t, db, "tx", "list", "--account", "p"); !strings.Contains(out, "deposit") {
 		t.Errorf("alias should resolve in tx list:\n%s", out)
 	}
@@ -530,8 +530,8 @@ func TestPerfColors(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
-	run(t, db, "deposit", "PEA BforBank", "5000", "2026-01-10")
-	run(t, db, "add", "cw8", "10", "@550", "2026-06-01")
+	run(t, db, "cash", "deposit", "PEA BforBank", "5000", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	// pas un terminal → pas de couleur par défaut
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
@@ -566,7 +566,7 @@ func TestAccountRm(t *testing.T) {
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
 
 	// rm on an account with a transaction is rejected
-	run(t, db, "add", "cw8", "1", "@550", "2026-06-01", "--account", "PEA BforBank")
+	run(t, db, "asset", "buy", "cw8", "1", "@550", "2026-06-01", "--account", "PEA BforBank")
 	if _, err := tryRun(t, db, "account", "rm", "PEA BforBank"); err == nil {
 		t.Fatal("rm of referenced account should be rejected")
 	}
@@ -589,6 +589,38 @@ func TestAccountRm(t *testing.T) {
 	}
 }
 
+func TestAssetDividendAndFee(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
+
+	out := run(t, db, "asset", "dividend", "cw8", "42.50", "--account", "PEA BforBank")
+	for _, want := range []string{"dividend", "42.5 EUR", "PEA BforBank"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("dividend: %q manquant dans %q", want, out)
+		}
+	}
+
+	out = run(t, db, "asset", "fee", "cw8", "9.90", "--note", "courtage")
+	for _, want := range []string{"fee", "9.9 EUR"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("fee: %q manquant dans %q", want, out)
+		}
+	}
+
+	// both should appear in tx list
+	out = run(t, db, "tx", "list")
+	if !strings.Contains(out, "dividend") || !strings.Contains(out, "fee") {
+		t.Errorf("dividend/fee missing from tx list:\n%s", out)
+	}
+
+	// amounts are always positive, date arg works
+	out = run(t, db, "asset", "fee", "cw8", "5.00", "2026-01-15")
+	if !strings.Contains(out, "5 EUR") || !strings.Contains(out, "2026-01-15") {
+		t.Errorf("fee with date: %q", out)
+	}
+}
+
 func TestAccountAddAlias(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--alias", "pea", "--alias", "bforbank")
@@ -600,7 +632,7 @@ func TestAccountAddAlias(t *testing.T) {
 	}
 
 	// aliases resolve in commands
-	run(t, db, "deposit", "pea", "5000", "2026-01-10")
+	run(t, db, "cash", "deposit", "pea", "5000", "2026-01-10")
 	out = run(t, db, "tx", "list", "--account", "bforbank")
 	if !strings.Contains(out, "deposit") {
 		t.Errorf("alias 'bforbank' did not resolve:\n%s", out)

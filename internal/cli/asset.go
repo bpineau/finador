@@ -13,8 +13,30 @@ import (
 )
 
 func assetCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{Use: "asset", Short: "Manage assets: listed securities and properties"}
-	cmd.AddCommand(assetAdd(a), assetSet(a), assetList(a), assetEdit(a), assetRm(a))
+	cmd := &cobra.Command{
+		Use:   "asset",
+		Short: "Declare and record activity on securities and properties",
+		Long: `Manage assets (securities and properties) and record all activity on them.
+
+Which subcommand to use:
+  buy/sell      — quoted security you trade: requires a quantity and a price.
+  dividend/fee  — income or cost on a security (no quantity, just an amount).
+  set           — observed value of a property or unlisted holding; the gap
+                  since the previous statement counts as performance.
+  add/edit/rm   — declare, update or remove an asset definition.`,
+		Example: "  finador asset buy CW8 20 @450 2024-01-20",
+	}
+	cmd.AddCommand(
+		assetAdd(a),
+		tradeCmd(a, "buy", domain.Buy, "Record a buy of a quoted security (quantity + price)"),
+		tradeCmd(a, "sell", domain.Sell, "Record a sell of a quoted security (quantity + price)"),
+		assetDividend(a),
+		assetFee(a),
+		assetSet(a),
+		assetList(a),
+		assetEdit(a),
+		assetRm(a),
+	)
 	return cmd
 }
 
@@ -24,7 +46,9 @@ func assetAdd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <ticker|name>",
 		Short: "Declare an asset: Yahoo ticker for a security, name for a property",
-		Args:  cobra.ExactArgs(1),
+		Example: "  finador asset add CW8.PA --group equities/world\n" +
+			"  finador asset add \"Appart Lyon\" --kind property --group realestate",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k, err := domain.ParseAssetKind(kind)
 			if err != nil {
@@ -68,12 +92,76 @@ func assetAdd(a *app) *cobra.Command {
 	return cmd
 }
 
+func assetDividend(a *app) *cobra.Command {
+	return assetIncomeCmd(a, "dividend", domain.Dividend,
+		"Record a dividend received on a security",
+		"  finador asset dividend CW8 42.50 --account \"PEA BforBank\"")
+}
+
+func assetFee(a *app) *cobra.Command {
+	return assetIncomeCmd(a, "fee", domain.Fee,
+		"Record a broker fee or cost on a security",
+		"  finador asset fee CW8 9.90 --note courtage")
+}
+
+func assetIncomeCmd(a *app, use string, kind domain.TxKind, short, example string) *cobra.Command {
+	var account, note, ccy string
+	cmd := &cobra.Command{
+		Use:     use + " <asset> <amount> [date]",
+		Short:   short,
+		Example: example,
+		Args:    cobra.RangeArgs(2, 3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.mutate(func(b *domain.Book) error {
+				asset, err := b.Asset(args[0])
+				if err != nil {
+					return err
+				}
+				amount, err := decimal.NewFromString(args[1])
+				if err != nil {
+					return fmt.Errorf("invalid amount %q: %w", args[1], err)
+				}
+				date := domain.Today()
+				if len(args) == 3 {
+					if date, err = domain.ParseDate(args[2]); err != nil {
+						return err
+					}
+				}
+				acc, err := accountFor(b, account, asset)
+				if err != nil {
+					return err
+				}
+				effectiveCcy, err := currencyOr(ccy, asset.Currency)
+				if err != nil {
+					return err
+				}
+				tx := b.Add(domain.Transaction{
+					Date:    date,
+					Account: acc.ID,
+					Asset:   asset.ID,
+					Kind:    kind,
+					Amount:  domain.Money{Amount: amount.Abs(), Currency: effectiveCcy},
+					Note:    note,
+				})
+				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s %s: %s on %s (%s)\n",
+					tx.ID, tx.Kind, asset.Name, tx.Amount, tx.Date, acc.Name)
+				return nil
+			})
+		},
+	}
+	cmd.Flags().StringVar(&account, "account", "", "account (name or id)")
+	cmd.Flags().StringVar(&note, "note", "", "free note")
+	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: asset currency)")
+	return cmd
+}
+
 func assetSet(a *app) *cobra.Command {
 	var at, account, ccy string
 	cmd := &cobra.Command{
-		Use:   "set <asset> <value>",
-		Short: "Set a dated valuation (properties, unlisted holdings)",
-		Args:  cobra.ExactArgs(2),
+		Use:     "set <asset> <value>",
+		Short:   "Set a dated valuation (properties, unlisted holdings)",
+		Example: "  finador asset set \"Appart Lyon\" 270000 --account \"Patrimoine immo\" --at 2024-01-01",
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				asset, err := b.Asset(args[0])
@@ -113,9 +201,10 @@ func assetSet(a *app) *cobra.Command {
 
 func assetList(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List assets",
-		Args:  cobra.NoArgs,
+		Use:     "list",
+		Short:   "List assets",
+		Example: "  finador asset list",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f, err := a.open()
 			if err != nil {
@@ -141,9 +230,10 @@ func assetEdit(a *app) *cobra.Command {
 	var name, ticker, isin, group, ccy, withholding string
 	var addAlias, rmAlias []string
 	cmd := &cobra.Command{
-		Use:   "edit <asset>",
-		Short: "Edit fields passed as flags (aliases, ISIN, withholding tax…)",
-		Args:  cobra.ExactArgs(1),
+		Use:     "edit <asset>",
+		Short:   "Edit fields passed as flags (aliases, ISIN, withholding tax…)",
+		Example: "  finador asset edit cw8 --group equities/world --withholding 15%",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				asset, err := b.Asset(args[0])
@@ -194,9 +284,10 @@ func assetEdit(a *app) *cobra.Command {
 
 func assetRm(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "rm <asset>",
-		Short: "Delete an asset with no transactions (and purge its quote cache)",
-		Args:  cobra.ExactArgs(1),
+		Use:     "rm <asset>",
+		Short:   "Delete an asset with no transactions (and purge its quote cache)",
+		Example: "  finador asset rm \"Appart Lyon\"",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				if err := b.RemoveAsset(args[0]); err != nil {

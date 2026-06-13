@@ -11,21 +11,17 @@ import (
 	"finador/internal/domain"
 )
 
-func addCmd(a *app) *cobra.Command {
-	return tradeCmd(a, "add", domain.Buy,
-		"Record a buy (or a sell: use sell, or a negative quantity after --)")
-}
-
-func sellCmd(a *app) *cobra.Command {
-	return tradeCmd(a, "sell", domain.Sell, "Record a sell")
-}
-
 func tradeCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Command {
 	var account, note, ccy string
+	examples := map[string]string{
+		"buy":  "  finador asset buy CW8 20 @450 2024-01-20 --account \"PEA BforBank\"",
+		"sell": "  finador asset sell CW8 5 @520",
+	}
 	cmd := &cobra.Command{
-		Use:   use + " <asset> <quantity> [@unit-price|total] [date]",
-		Short: short,
-		Args:  cobra.RangeArgs(2, 4),
+		Use:     use + " <asset> <quantity> [@unit-price|total] [date]",
+		Short:   short,
+		Example: examples[use],
+		Args:    cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				asset, err := b.Asset(args[0])

@@ -9,20 +9,13 @@ import (
 	"finador/internal/domain"
 )
 
-func depositCmd(a *app) *cobra.Command {
-	return flowCmd(a, "deposit", domain.Deposit, "External contribution to an account (tax basis, XIRR)")
-}
-
-func withdrawCmd(a *app) *cobra.Command {
-	return flowCmd(a, "withdraw", domain.Withdraw, "External withdrawal from an account")
-}
-
-func flowCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Command {
+func flowCmd(a *app, use string, kind domain.TxKind, short, example string) *cobra.Command {
 	var ccy, note string
 	cmd := &cobra.Command{
-		Use:   use + " <account> <amount> [date]",
-		Short: short,
-		Args:  cobra.RangeArgs(2, 3),
+		Use:     use + " <account> <amount> [date]",
+		Short:   short,
+		Example: example,
+		Args:    cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.mutate(func(b *domain.Book) error {
 				acc, err := b.Account(args[0])

@@ -11,7 +11,8 @@ func compactCmd(a *app) *cobra.Command {
 		Long: "Rewrite the ledger file into a minimal form. Past edits and deletions " +
 			"are stored as extra journal records (so syncing stays append-friendly); " +
 			"compact discards those dead records. Rarely needed.",
-		Args: cobra.NoArgs,
+		Example: "  finador compact",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f, err := a.open()
 			if err != nil {
