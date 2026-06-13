@@ -1,11 +1,15 @@
 BIN := bin/finador
 
-.PHONY: all build fmt fmt-check vet lint test race check hooks clean help
+.PHONY: all build install fmt fmt-check vet lint test race check hooks clean help
 
 all: build
 
 build: ## Compile the binary into bin/finador
 	go build -trimpath -o $(BIN) ./cmd/finador
+
+install: ## Install finador on your PATH (go install — honors GOBIN, else GOPATH/bin)
+	go install -trimpath ./cmd/finador
+	@dir=$$(go env GOBIN); [ -n "$$dir" ] || dir=$$(go env GOPATH)/bin; echo "installed: $$dir/finador"
 
 fmt: ## Rewrite sources with gofmt
 	gofmt -w .
