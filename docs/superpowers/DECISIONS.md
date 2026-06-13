@@ -202,3 +202,22 @@ account » via `Book.LabelsFor(account, asset)` (lecture seule).
 **Alternative écartée :** un **set de noms par couple** (`map[(account,asset)][]string`) — clé
 composite, et surtout merge plus délicat (fusion de listes intra-entité au lieu d'une union d'ids
 triviale) ; rejeté.
+
+## D18 — Données dans un dépôt privé GitHub (modèle remote optionnel)
+
+**Contexte :** l'usage réel visé (data `.fin` dans un repo privé GitHub, multi-machines). Spec :
+`specs/2026-06-13-github-remote-data-design.md`. Design approuvé en brainstorming.
+**Choix :** (1) deux modes — `local` (défaut/fallback) et `github` (opt-in) ; précédence
+`--db`/`FINADOR_DB` > conf. (2) Localisation en **conf externe** `~/.config/finador/config.json`
+(**JSON stdlib, pas de dépendance YAML**) — externe car nécessaire avant de déchiffrer le fichier.
+(3) Auth = **fine-grained PAT** scopé au seul repo (*Contents R/W*), au **Keychain** (`keyring`
+étendu `GetSecret/PutSecret` longue durée), override `GITHUB_TOKEN`. (4) Transport = **API Contents
+GitHub** HTTPS pur (pas de `git`/clone), `GET`(contenu+`sha`)/`PUT`(contenu+msg+`sha`) → chaque push
+= un commit (historique + petits deltas append-log) ; interface `Backend` comme seam. (5) Sync :
+**lecture** pull si copie > 1h (configurable), **écriture** pull-avant + push-après, `finador sync`
+force. (6) **Conflit** distant → re-fetch + **`merge`** (le paiement des ids random + `ts`) → re-push.
+(7) **Hors-ligne souple** : écriture locale + `dirty` + push différé. (8) Cache marché **reste
+local**, seul le grand-livre chiffré voyage ; `store` **inchangé** (copie de travail locale).
+**Alternatives écartées :** `git` shellé / go-git (lourd pour un seul petit fichier — Contents API
+suffit) ; YAML pour la conf (dépendance, surdimensionné pour 3 clés) ; hors-ligne strict (refus —
+moins souple, et `merge` couvre la divergence).
