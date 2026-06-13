@@ -83,6 +83,30 @@ func NewSyncer(b Backend, gh GitHub, readPullAfter time.Duration) (*Syncer, erro
 // WorkingCopy returns the path commands open, mutate and save.
 func (s *Syncer) WorkingCopy() string { return s.copyPath }
 
+// Describe returns the backend's human-readable remote identifier.
+func (s *Syncer) Describe() string { return s.backend.Describe() }
+
+// EnsureDir creates the checkout directory (0700) so store.Create/Open can write
+// the working copy and its lock sidecar. Pulls go through atomicWrite, which
+// already does this, but a first `init` creates the file directly.
+func (s *Syncer) EnsureDir() error {
+	if err := os.MkdirAll(s.checkoutDir(), 0o700); err != nil {
+		return fmt.Errorf("mkdir checkout dir: %w", err)
+	}
+	return nil
+}
+
+// Status returns the current sync state for `finador remote show`: the
+// last-known remote blob sha, when the working copy was last pulled, and whether
+// it holds unpushed local changes. A missing state sidecar yields the zero value.
+func (s *Syncer) Status() (sha string, lastPull time.Time, dirty bool) {
+	st, err := s.loadState()
+	if err != nil {
+		return "", time.Time{}, false
+	}
+	return string(st.SHA), st.LastPull, st.Dirty
+}
+
 // now returns the current time via the (overridable) clock.
 func (s *Syncer) now() time.Time {
 	if s.clock != nil {
