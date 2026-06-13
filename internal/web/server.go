@@ -28,6 +28,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.dashboard)
 	mux.HandleFunc("GET /assets", s.assetsPage)
+	mux.HandleFunc("GET /assets.csv", s.assetsCSV)
 	mux.HandleFunc("GET /style.css", s.stylesheet)
 	mux.HandleFunc("GET /favicon.ico", s.favicon)
 	mux.HandleFunc("GET /group/{ref...}", s.scopePage)
