@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -12,6 +13,7 @@ type Book struct {
 	Accounts     []*Account        `json:"accounts"`
 	Assets       []*Asset          `json:"assets"`
 	Transactions []*Transaction    `json:"transactions"`
+	Labels       []*Label          `json:"labels,omitempty"`
 	Config       map[string]string `json:"config,omitempty"`
 	Market       MarketData        `json:"market"`
 }
@@ -254,4 +256,66 @@ func (b *Book) RemoveTx(id TxID) error {
 
 func (b *Book) HasImportHash(h string) bool {
 	return h != "" && lo.SomeBy(b.Transactions, func(t *Transaction) bool { return t.ImportHash == h })
+}
+
+// AddLabel appends a label assignment, rejecting an exact duplicate — same
+// Account and Asset, and same Name case-insensitively — with ErrDuplicate.
+// The caller assigns a fresh NewID().
+func (b *Book) AddLabel(l *Label) error {
+	if l.ID == "" {
+		return fmt.Errorf("label %q: empty identifier", l.Name)
+	}
+	for _, x := range b.Labels {
+		if x.Account == l.Account && x.Asset == l.Asset && strings.EqualFold(x.Name, l.Name) {
+			return fmt.Errorf("label %q already on this (account, asset) pair: %w", l.Name, ErrDuplicate)
+		}
+	}
+	b.Labels = append(b.Labels, l)
+	return nil
+}
+
+// RemoveLabel deletes a label by id; ErrNotFound if absent.
+func (b *Book) RemoveLabel(id LabelID) error {
+	if !lo.SomeBy(b.Labels, func(l *Label) bool { return l.ID == id }) {
+		return fmt.Errorf("label %s: %w", id, ErrNotFound)
+	}
+	b.Labels = lo.Reject(b.Labels, func(l *Label, _ int) bool { return l.ID == id })
+	return nil
+}
+
+// ResolveLabel returns the label whose id equals ref exactly, or — failing that
+// — the single label whose id has ref as a prefix (like ResolveTx). No match is
+// ErrNotFound; several prefix matches is ErrAmbiguous.
+func (b *Book) ResolveLabel(ref string) (*Label, error) {
+	if ref == "" {
+		return nil, fmt.Errorf("label (empty reference): %w", ErrNotFound)
+	}
+	if l, ok := lo.Find(b.Labels, func(l *Label) bool { return string(l.ID) == ref }); ok {
+		return l, nil
+	}
+	hits := lo.Filter(b.Labels, func(l *Label, _ int) bool {
+		return strings.HasPrefix(string(l.ID), ref)
+	})
+	switch len(hits) {
+	case 1:
+		return hits[0], nil
+	case 0:
+		return nil, fmt.Errorf("label %q: %w", ref, ErrNotFound)
+	default:
+		ids := lo.Map(hits, func(l *Label, _ int) string { return string(l.ID) })
+		return nil, fmt.Errorf("label %q (candidates: %s): %w", ref, strings.Join(ids, ", "), ErrAmbiguous)
+	}
+}
+
+// LabelsFor returns the label names on a (account, asset) pair, sorted for
+// display.
+func (b *Book) LabelsFor(account AccountID, asset AssetID) []string {
+	var names []string
+	for _, l := range b.Labels {
+		if l.Account == account && l.Asset == asset {
+			names = append(names, l.Name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }

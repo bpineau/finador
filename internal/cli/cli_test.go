@@ -679,6 +679,63 @@ func TestMergeCommandUnion(t *testing.T) {
 	}
 }
 
+func TestLabelAddListRm(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA BforBank", "--alias", "pea")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
+
+	out := run(t, db, "label", "add", "retraite", "--asset", "cw8", "--account", "pea")
+	if !strings.Contains(out, "retraite") || !strings.Contains(out, "PEA BforBank") {
+		t.Fatalf("label add: %q", out)
+	}
+	run(t, db, "label", "add", "core", "--asset", "cw8", "--account", "pea")
+
+	// list shows both, with account and asset names
+	out = run(t, db, "label", "list")
+	for _, want := range []string{"retraite", "core", "PEA BforBank", "CW8.PA", "ACCOUNT", "ASSET", "LABEL"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("label list: %q missing in:\n%s", want, out)
+		}
+	}
+
+	// --name filter (case-insensitive substring)
+	if out = run(t, db, "label", "list", "--name", "RETRAI"); !strings.Contains(out, "retraite") || strings.Contains(out, "core") {
+		t.Errorf("label list --name filter:\n%s", out)
+	}
+
+	// duplicate (same pair + name, case-insensitive) is rejected
+	if _, err := tryRun(t, db, "label", "add", "RETRAITE", "--asset", "cw8", "--account", "pea"); err == nil {
+		t.Fatal("duplicate label should be rejected")
+	}
+
+	// unknown account errors
+	if _, err := tryRun(t, db, "label", "add", "x", "--asset", "cw8", "--account", "nope"); err == nil {
+		t.Fatal("label add with unknown account should fail")
+	}
+
+	// rm by id prefix removes it
+	id := strings.Fields(firstLineContaining(t, run(t, db, "label", "list", "--name", "retraite"), "retraite"))[0]
+	run(t, db, "label", "rm", id)
+	if out = run(t, db, "label", "list"); strings.Contains(out, "retraite") {
+		t.Errorf("label rm did not remove retraite:\n%s", out)
+	}
+	if _, err := tryRun(t, db, "label", "rm", "zzzzzzzz"); err == nil {
+		t.Fatal("rm of unknown label should fail")
+	}
+}
+
+// firstLineContaining returns the first line of out that contains sub.
+func firstLineContaining(t *testing.T, out, sub string) string {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, sub) {
+			return line
+		}
+	}
+	t.Fatalf("no line containing %q in:\n%s", sub, out)
+	return ""
+}
+
 // TestMergeCommandDifferentLedgers: merging two unrelated ledgers is refused.
 func TestMergeCommandDifferentLedgers(t *testing.T) {
 	db := newDB(t)

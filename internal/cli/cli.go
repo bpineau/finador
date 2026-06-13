@@ -66,6 +66,9 @@ func New(opts ...Option) *cobra.Command {
 	asset := assetCmd(a)
 	asset.GroupID = "setup"
 
+	label := labelCmd(a)
+	label.GroupID = "setup"
+
 	cfg := configCmd(a)
 	cfg.GroupID = "setup"
 
@@ -103,7 +106,7 @@ func New(opts ...Option) *cobra.Command {
 	serve.GroupID = "ops"
 
 	root.AddCommand(
-		init_, account, asset, cfg,
+		init_, account, asset, label, cfg,
 		cash, tx,
 		value, perf, chart,
 		imp, refresh, merge, compact, lock, serve,
