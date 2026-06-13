@@ -200,7 +200,7 @@ func ensureDisplayFX(cmd *cobra.Command, a *app, f *store.File, display domain.C
 	if _, ok := f.Book.Market.FXSeries(display).Last(); ok {
 		return
 	}
-	data, err := a.marketSource().Daily(cmd.Context(), string(display)+"USD=X", domain.Today().AddDays(-30))
+	data, err := a.marketSource().Daily(cmd.Context(), market.Ref{Symbol: string(display) + "USD=X"}, domain.Today().AddDays(-30))
 	if err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning:", err)
 		return
