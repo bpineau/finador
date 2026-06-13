@@ -39,6 +39,12 @@ The reference default path is `~/.finador.fin`, but the format is independent of
 filename. (finador's own tooling gitignores `*.fin`; the committed sample in this
 spec is named `sample.ledger` for that reason.)
 
+**Storage location is out of scope.** finador can keep this exact file in a local path
+or in a private GitHub repository (synced via the Contents API, one commit per save).
+Either way the bytes and the format are identical — the remote is only a transport. A
+reimplementation needs only to read/write these bytes; how they are stored or synced is
+not part of this format.
+
 ---
 
 ## 2. Cryptography
