@@ -38,7 +38,7 @@ func cashCmd(a *app) *cobra.Command {
 					Date: date, Account: acc.ID, Kind: domain.Statement,
 					Amount: domain.Money{Amount: amount, Currency: effectiveCcy},
 				})
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s: %s on %s\n", tx.ID, acc.Name, tx.Amount, tx.Date)
+				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s: %s on %s\n", tx.ID, acc.Name, tx.Amount, tx.Date)
 				return nil
 			})
 		},

@@ -107,21 +107,44 @@ func TestLedger(t *testing.T) {
 	tx := b.Add(Transaction{Date: d, Account: "pea-bforbank", Asset: "cw8", Kind: Buy,
 		Quantity: decimal.NewFromInt(10),
 		Amount:   Money{Amount: decimal.NewFromInt(5500), Currency: EUR}})
-	if tx.ID != 1 {
-		t.Fatalf("premier ID = %d", tx.ID)
+	if tx.ID == "" {
+		t.Fatal("Add did not assign an ID")
 	}
-	if tx2 := b.Add(Transaction{Date: d, Account: "pea-bforbank", Kind: Deposit,
-		Amount: Money{Amount: decimal.NewFromInt(1000), Currency: EUR}}); tx2.ID != 2 {
-		t.Fatalf("second ID = %d", tx2.ID)
+	tx2 := b.Add(Transaction{Date: d, Account: "pea-bforbank", Kind: Deposit,
+		Amount: Money{Amount: decimal.NewFromInt(1000), Currency: EUR}})
+	if tx2.ID == "" || tx2.ID == tx.ID {
+		t.Fatalf("second ID empty or collides with first: %q vs %q", tx2.ID, tx.ID)
 	}
-	if err := b.RemoveTx(1); err != nil {
+	if err := b.RemoveTx(tx.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.Tx(1); !errors.Is(err, ErrNotFound) {
-		t.Errorf("Tx(1) après suppression: %v", err)
+	if _, err := b.Tx(tx.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Tx after delete: %v", err)
 	}
-	if _, err := b.Tx(2); err != nil {
-		t.Errorf("Tx(2): %v", err)
+	if _, err := b.Tx(tx2.ID); err != nil {
+		t.Errorf("Tx(tx2): %v", err)
+	}
+}
+
+func TestResolveTx(t *testing.T) {
+	b := sampleBook(t)
+	d, _ := ParseDate("2026-06-01")
+	tx := b.Add(Transaction{Date: d, Account: "pea-bforbank", Kind: Deposit,
+		Amount: Money{Amount: decimal.NewFromInt(1000), Currency: EUR}})
+
+	got, err := b.ResolveTx(string(tx.ID))
+	if err != nil || got.ID != tx.ID {
+		t.Fatalf("exact match: got %v, %v", got, err)
+	}
+	got, err = b.ResolveTx(string(tx.ID)[:6]) // unique prefix
+	if err != nil || got.ID != tx.ID {
+		t.Fatalf("prefix match: got %v, %v", got, err)
+	}
+	if _, err := b.ResolveTx("zzzzzzzzzzzz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("no match: %v", err)
+	}
+	if _, err := b.ResolveTx(""); !errors.Is(err, ErrNotFound) {
+		t.Errorf("empty ref: %v", err)
 	}
 }
 
@@ -145,9 +168,6 @@ func TestBookJSONRoundTrip(t *testing.T) {
 	got := back.Transactions[0]
 	if !got.Amount.Amount.Equal(decimal.RequireFromString("5500.50")) || got.Kind != Buy {
 		t.Fatalf("transaction altérée: %+v", got)
-	}
-	if back.LastTxID != 1 {
-		t.Fatalf("LastTxID = %d", back.LastTxID)
 	}
 }
 

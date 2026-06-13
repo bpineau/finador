@@ -14,7 +14,6 @@ type Book struct {
 	Transactions []*Transaction    `json:"transactions"`
 	Config       map[string]string `json:"config,omitempty"`
 	Market       MarketData        `json:"market"`
-	LastTxID     TxID              `json:"lastTxId"`
 }
 
 func NewBook() *Book { return &Book{Config: map[string]string{}} }
@@ -176,7 +175,7 @@ func (b *Book) RemoveAsset(ref string) error {
 	}
 	for _, t := range b.Transactions {
 		if t.Asset == asset.ID {
-			return fmt.Errorf("asset %s is referenced by transaction %d — delete its transactions first (finador tx list --asset %s)",
+			return fmt.Errorf("asset %s is referenced by transaction %s — delete its transactions first (finador tx list --asset %s)",
 				asset.ID, t.ID, asset.ID)
 		}
 	}
@@ -186,10 +185,10 @@ func (b *Book) RemoveAsset(ref string) error {
 	return nil
 }
 
-// Add appends t to the ledger with a fresh ID and returns the stored transaction.
+// Add appends t to the ledger with a fresh random ID and returns the stored
+// transaction.
 func (b *Book) Add(t Transaction) *Transaction {
-	b.LastTxID++
-	t.ID = b.LastTxID
+	t.ID = TxID(NewID())
 	stored := &t
 	b.Transactions = append(b.Transactions, stored)
 	return stored
@@ -198,9 +197,36 @@ func (b *Book) Add(t Transaction) *Transaction {
 func (b *Book) Tx(id TxID) (*Transaction, error) {
 	tx, ok := lo.Find(b.Transactions, func(t *Transaction) bool { return t.ID == id })
 	if !ok {
-		return nil, fmt.Errorf("transaction %d: %w", id, ErrNotFound)
+		return nil, fmt.Errorf("transaction %s: %w", id, ErrNotFound)
 	}
 	return tx, nil
+}
+
+// ResolveTx returns the transaction whose id equals ref exactly, or — failing
+// that — the single transaction whose id has ref as a prefix (like git's short
+// SHAs). No match is ErrNotFound; several prefix matches is ErrAmbiguous.
+func (b *Book) ResolveTx(ref string) (*Transaction, error) {
+	if ref == "" {
+		return nil, fmt.Errorf("transaction (empty reference): %w", ErrNotFound)
+	}
+	if tx, err := b.Tx(TxID(ref)); err == nil {
+		return tx, nil
+	}
+	var hits []*Transaction
+	for _, t := range b.Transactions {
+		if strings.HasPrefix(string(t.ID), ref) {
+			hits = append(hits, t)
+		}
+	}
+	switch len(hits) {
+	case 1:
+		return hits[0], nil
+	case 0:
+		return nil, fmt.Errorf("transaction %q: %w", ref, ErrNotFound)
+	default:
+		ids := lo.Map(hits, func(t *Transaction, _ int) string { return string(t.ID) })
+		return nil, fmt.Errorf("transaction %q (candidates: %s): %w", ref, strings.Join(ids, ", "), ErrAmbiguous)
+	}
 }
 
 func (b *Book) RemoveTx(id TxID) error {
