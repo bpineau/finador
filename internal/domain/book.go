@@ -167,6 +167,21 @@ func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*
 	}
 }
 
+// RemoveAccount deletes an account that has no transactions referencing it.
+func (b *Book) RemoveAccount(ref string) error {
+	acc, err := b.Account(ref)
+	if err != nil {
+		return err
+	}
+	for _, t := range b.Transactions {
+		if t.Account == acc.ID {
+			return fmt.Errorf("account %s is referenced by transaction %s — delete its transactions first", acc.ID, t.ID)
+		}
+	}
+	b.Accounts = lo.Reject(b.Accounts, func(a *Account, _ int) bool { return a.ID == acc.ID })
+	return nil
+}
+
 // RemoveAsset deletes an unreferenced asset and purges its market cache.
 func (b *Book) RemoveAsset(ref string) error {
 	asset, err := b.Asset(ref)

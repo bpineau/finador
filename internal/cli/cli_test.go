@@ -137,6 +137,8 @@ func TestTxListEditRm(t *testing.T) {
 
 func TestImportCommand(t *testing.T) {
 	db := newDB(t)
+	// Accounts must be declared before import.
+	run(t, db, "account", "add", "PEA")
 	csvPath := filepath.Join(t.TempDir(), "txs.csv")
 	content := "date,kind,account,asset,quantity,price,amount,currency,group,note\n" +
 		"2026-01-15,buy,PEA,CW8.PA,10,550,,EUR,actions/monde,\n"
@@ -148,6 +150,16 @@ func TestImportCommand(t *testing.T) {
 	}
 	if out := run(t, db, "import", csvPath); !strings.Contains(out, "0 imported, 1 skipped") {
 		t.Fatalf("re-import: %q", out)
+	}
+	// Unknown account fails with actionable error.
+	badPath := filepath.Join(t.TempDir(), "bad.csv")
+	badContent := "date,kind,account,amount,currency\n2026-01-20,deposit,UndeclaredBank,100,EUR\n"
+	if err := os.WriteFile(badPath, []byte(badContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := tryRun(t, db, "import", badPath)
+	if err == nil || !strings.Contains(out+err.Error(), "unknown account") {
+		t.Fatalf("import with undeclared account should fail: err=%v out=%q", err, out)
 	}
 }
 
@@ -544,5 +556,59 @@ func TestServeRefusesOfflineBindWarning(t *testing.T) {
 	// pas de listen réel : on vérifie seulement la validation des flags
 	if _, err := tryRun(t, db, "serve", "--addr", "pas-une-adresse"); err == nil {
 		t.Fatal("adresse invalide acceptée")
+	}
+}
+
+func TestAccountRm(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
+	run(t, db, "account", "add", "Savings")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
+
+	// rm on an account with a transaction is rejected
+	run(t, db, "add", "cw8", "1", "@550", "2026-06-01", "--account", "PEA Zephyr")
+	if _, err := tryRun(t, db, "account", "rm", "PEA Zephyr"); err == nil {
+		t.Fatal("rm of referenced account should be rejected")
+	}
+	// the account must still be there
+	out := run(t, db, "account", "list")
+	if !strings.Contains(out, "PEA Zephyr") {
+		t.Errorf("referenced account disappeared:\n%s", out)
+	}
+
+	// rm on an unreferenced account succeeds
+	run(t, db, "account", "rm", "Savings")
+	out = run(t, db, "account", "list")
+	if strings.Contains(out, "Savings") {
+		t.Errorf("Savings should have been removed:\n%s", out)
+	}
+
+	// rm on unknown account returns an error
+	if _, err := tryRun(t, db, "account", "rm", "DoesNotExist"); err == nil {
+		t.Fatal("rm of unknown account should fail")
+	}
+}
+
+func TestAccountAddAlias(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr", "--alias", "pea", "--alias", "zephyr")
+
+	// aliases listed
+	out := run(t, db, "account", "list")
+	if !strings.Contains(out, "pea") || !strings.Contains(out, "zephyr") {
+		t.Errorf("aliases missing from list:\n%s", out)
+	}
+
+	// aliases resolve in commands
+	run(t, db, "deposit", "pea", "5000", "2026-01-10")
+	out = run(t, db, "tx", "list", "--account", "zephyr")
+	if !strings.Contains(out, "deposit") {
+		t.Errorf("alias 'zephyr' did not resolve:\n%s", out)
+	}
+
+	// duplicate alias rejected
+	run(t, db, "account", "add", "Savings")
+	if _, err := tryRun(t, db, "account", "add", "NewBank", "--alias", "pea"); err == nil {
+		t.Fatal("duplicate alias should be rejected")
 	}
 }
