@@ -213,6 +213,8 @@ accepts a group prefix as scope and aggregates the subtree.
 scope argument: nothing (whole portfolio), a group or group prefix
 (`equities/us`), an account (`"PEA Zephyr"` or `pea`), or an asset (`cw8`).
 Resolution order on a free reference: group first, then account, then asset.
+`perf` and `value` also accept `--label <name>` to restrict the scope to
+positions carrying that label (cannot be combined with a positional scope argument).
 
 ## Command reference
 
@@ -429,13 +431,23 @@ already net.
 
 ```sh
 finador perf "PEA Zephyr"                  # one envelope
-finador perf equities --exclude aapl,msft    # a group, without two of its lines
+finador perf equities/world                  # a group subtree
+finador perf --label retraite                # all positions tagged with a label
+finador perf --exclude CW8,AAPL             # whole portfolio minus two lines
+finador value equities/world                 # group value
+finador value --label retraite               # value of a label subset
+finador value --exclude CW8                  # without one asset
 finador value --by account --net             # net worth, one line per envelope
 finador chart equities --from 2025-01-01     # one pocket, custom window
 ```
 
-Exclusions accept any asset reference, remove the assets *and their flows* from
-TWR/XIRR, and label the output `(excluding …)`.
+Compute performance or value of a subset by **envelope** (`"PEA Zephyr"`), by
+**group** (`equities/world`), or by **label** (`--label retraite` — all positions
+tagged with that label, regardless of envelope). Combine with `--exclude` to drop
+specific assets: `finador perf --label retraite --exclude CW8` works. Labels are
+attached to (account, asset) pairs via `finador label add`. Exclusions accept any
+asset reference (ticker, ISIN, name) and remove the assets *and their flows* from
+TWR/XIRR, labelling the output `(excluding …)`.
 
 **What-if analysis.**
 
