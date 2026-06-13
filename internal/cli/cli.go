@@ -109,6 +109,9 @@ func New(opts ...Option) *cobra.Command {
 	chart := chartCmd(a)
 	chart.GroupID = "analyze"
 
+	export := exportCmd(a)
+	export.GroupID = "analyze"
+
 	imp := importCmd(a)
 	imp.GroupID = "ops"
 
@@ -136,7 +139,7 @@ func New(opts ...Option) *cobra.Command {
 	root.AddCommand(
 		init_, account, asset, label, cfg,
 		cash, tx,
-		value, perf, chart,
+		value, perf, chart, export,
 		imp, refresh, merge, compact, lock, serve,
 		remoteC, syncC,
 	)

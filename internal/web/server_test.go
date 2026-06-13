@@ -475,6 +475,35 @@ func TestAssetsPage(t *testing.T) {
 	}
 }
 
+func TestAssetsCSV(t *testing.T) {
+	srv, _ := testServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/assets.csv", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /assets.csv = %d\n%s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+		t.Errorf("Content-Type = %q, want text/csv", ct)
+	}
+	if cd := rec.Header().Get("Content-Disposition"); !strings.Contains(cd, "attachment") ||
+		!strings.Contains(cd, "finador-assets.csv") {
+		t.Errorf("Content-Disposition = %q", cd)
+	}
+	body := rec.Body.String()
+	if !strings.HasPrefix(body, "ticker,name,isin,gross,net,currency\n") {
+		t.Errorf("missing CSV header:\n%s", body)
+	}
+	// cw8: 10 × 560 = 5600 gross ; base 5500 → gain 100 → tax 17.20 → net 5582.80.
+	if !strings.Contains(body, "CW8.PA,Amundi MSCI World,,5600.00,5582.80,EUR") {
+		t.Errorf("asset row missing/incorrect:\n%s", body)
+	}
+	// the assets page offers the download.
+	if _, page := get(t, srv, "/assets"); !strings.Contains(page, `href="/assets.csv"`) {
+		t.Error("assets page should link to /assets.csv")
+	}
+}
+
 func TestChartRanges(t *testing.T) {
 	srv, _ := testServer(t)
 	_, full := get(t, srv, "/")

@@ -407,6 +407,17 @@ finador chart [scope] [--net] [--from d] [--to d] [--ccy c]
 Renders the daily value curve as braille in the terminal, `--net` for the
 after-tax curve.
 
+### Export: `export`
+
+```sh
+finador export [--at YYYY-MM-DD] [--ccy USD] > assets.csv
+```
+
+Writes a CSV to stdout, one row per held asset — `ticker,name,isin,gross,net,currency` —
+each position valued (gross and after estimated latent tax) like `value`, in the display
+currency. The web app serves the same file from the **export CSV** link at the bottom of
+the assets tab (`GET /assets.csv`).
+
 ### Quotes: `refresh` and `--offline`
 
 ```sh
@@ -452,9 +463,10 @@ Unlocks the file in the terminal, then serves the whole app — dashboard with
 allocation trees (by group / by account), an allocation donut at the bottom of
 the overview showing top-level group weights and cash with a muted palette and
 an HTML legend, an **assets tab** showing every holding on one dense row with
-1W/1M/1Y sparklines and gross/net amounts, drill-down scope pages with curves
-and performance (charts default to full history, with quiet 1m/3m/1y range
-links), transaction entry/edit/delete, CSV import, quote refresh.
+1W/1M/1Y sparklines and gross/net amounts (with an **export CSV** download),
+drill-down scope pages with curves and performance (charts default to full
+history, with quiet 1m/3m/1y range links), transaction entry/edit/delete,
+CSV import, quote refresh.
 No web authentication: keep it on 127.0.0.1 (a loud warning is printed
 otherwise).
 
