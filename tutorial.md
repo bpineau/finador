@@ -125,6 +125,7 @@ finador refresh             # ETF/shares via Yahoo, the Euro Small-Cap fund via 
 finador value               # gross, estimated tax and net (the default)
 finador value --by group    # allocation
 finador perf                # TWR, XIRR, CAGR, vol, Sharpe… (scope it: `finador perf pea`, `finador perf --label core`)
+finador export > assets.csv # one row per holding: ticker, name, ISIN, gross, net (also a button on the web Assets tab)
 ```
 
 After `refresh`, any holding still showing **“counted as 0”** is one no source could quote
