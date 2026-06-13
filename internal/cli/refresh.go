@@ -26,7 +26,7 @@ func refreshCmd(a *app) *cobra.Command {
 			for _, w := range sum.Warnings {
 				fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
 			}
-			if err := f.Save(); err != nil {
+			if err := f.SaveCache(); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%d series refreshed\n", len(sum.Fetched))

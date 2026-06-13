@@ -65,7 +65,7 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sum := market.Refresh(r.Context(), s.file.Book, s.source, true)
-	if err := s.file.Save(); err != nil {
+	if err := s.file.SaveCache(); err != nil {
 		http.Redirect(w, r, "/assets?error="+url.QueryEscape("could not save: "+err.Error()), http.StatusSeeOther)
 		return
 	}
