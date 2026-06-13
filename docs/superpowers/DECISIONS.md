@@ -143,3 +143,20 @@ clôtures QUOTIDIENNES (interval=1d) : une sparkline « day » n'aurait qu'un po
 **Choix :** fenêtres 1W (8 points), 1M (31), 1Y (série complète), couleur selon la
 dérive de la fenêtre. **Alternative si refusé :** récupérer de l'intraday Yahoo
 (interval=15m, non caché, casse --offline) ou élargir le modèle de cache.
+
+## D15 — Format v2 : journal append-only, diff-on-save, cache en sidecar
+
+**Contexte :** stocker le `.fin` dans un dépôt git synchronisé multi-machines (usage
+séquentiel). Spec : `specs/2026-06-13-format-append-log-design.md`.
+**Choix :** (1) grand-livre = journal append-only chiffré, **texte base64, 1 record/ligne**
+(un versement = +297 o, 1 ligne ; historique git ~20× plus petit qu'un blob réécrit) ;
+(2) **diff-on-save** plutôt qu'un store event-native — l'API de mutation existante reste
+intacte, le store calcule le diff vs l'état persisté et n'ajoute que les records utiles,
+ré-émettant les lignes inchangées byte-identiques (churn de code minimal) ;
+(3) intégrité par **chaînage AAD + ligne de tête authentifiée** (anti-réordre/suppression/
+troncature) ; (4) cache marché sorti vers un **sidecar local chiffré** (`os.UserCacheDir()`),
+régénérable, hors git ; (5) **abandon total de FINADOR1, aucune migration** (validé : pas
+d'utilisateurs réels). **Alternatives si refusé :** store event-native (plus pur, plus
+invasif) ; cache laissé dans le fichier en section figée (portable hors-ligne mais
+~1,3–3 Mo de croissance git par refresh commité) ; garder FINADOR1 en parallèle.
+**Noté pour plus tard :** fallback Stooq quand Yahoo 429/down (cf. `../portfodor/`).
