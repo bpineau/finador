@@ -80,6 +80,31 @@ previous `set` counts as performance.**
 The first `asset set` / `cash set` on an account is treated as an *acquisition* (an
 external flow), not as performance — only later changes count.
 
+### Onboard a seasoned account (known basis, current value — no history to backfill)
+
+You're starting with an account that already has years of history you won't
+retrace: a **full PEA** where you contributed **150,000 €**, now worth **170,000 €**.
+You want only the **20,000 € excess** (and any future gain) taxed — not the whole
+value. Declare the two facts separately:
+
+```sh
+finador account add "PEA BforBank" --tax gains:20%
+finador cash deposit "PEA BforBank" 150000 2020-01-01   # your contributions = the tax basis
+finador cash set    "PEA BforBank" 170000               # what it's worth today
+```
+
+`finador value --net` then shows gross 170,000 €, latent tax 4,000 € (20 % of the
+20,000 € gain), net 166,000 €. When it grows, just restate the value —
+`finador cash set "PEA BforBank" 200000` — and the tax tracks the new excess
+(50,000 € → 10,000 €). The **basis stays at your contributions**: a `deposit` funds
+it, a `cash set` only re-anchors the value; the difference is what's taxable.
+
+**Honest note:** because you didn't backfill the trades, that first `cash set` is
+treated as *adoption* (you bring in an already-grown position), so the historical
+20,000 € gain is **not** attributed as performance — only moves **after** this
+declaration show up in `perf`. The tax is exact regardless. The date on the
+`deposit` is approximate; for a euro account it doesn't change the basis.
+
 ### Buy a real-estate property
 
 A property is valued by dated statements (the Statement model). The **first**
