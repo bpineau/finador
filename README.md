@@ -80,6 +80,11 @@ previous `set` counts as performance.**
 The first `asset set` / `cash set` on an account is treated as an *acquisition* (an
 external flow), not as performance — only later changes count.
 
+`asset buy`, `asset dividend`, and `asset fee` create the security on the fly when the
+ticker is unknown — no separate `asset add` needed for Yahoo-quoted securities. Use
+`asset add` for ISIN-only funds, properties, or to set extra metadata. Tag a position
+inline with `--label` on `buy`, `sell`, `dividend`, and `set`.
+
 ### Onboard a seasoned account (existing holdings, no history to backfill)
 
 You're starting with a **full PEA**: ~150,000 € contributed over the years, now
@@ -91,12 +96,15 @@ trade. The cash didn't stay as cash — you bought shares — so declare today's
 ```sh
 finador account add "PEA BforBank" --tax gains:17.2%
 
-finador asset add CW8.PA --group equities/world                  # Amundi MSCI World (live quote)
-finador asset add "Indépendance et Expansion" --isin FR0010417192
-
-# asset buy <asset> <shares held> <amount you invested> — straight off your statement:
-finador asset buy CW8.PA 100 90000 --account "PEA BforBank"
+# asset buy <asset> <shares held> <amount you invested> — straight off your statement.
+# For ticker-quoted securities you don't need a separate `asset add`: buy creates them
+# on the fly, resolving the name and currency from Yahoo. Tag a position inline with --label.
+finador asset buy CW8.PA 100 90000 --account "PEA BforBank" --group equities/world --label core
 finador asset buy "Indépendance et Expansion" 50 60000 --account "PEA BforBank"
+
+# Use `asset add` explicitly for ISIN-only funds (no Yahoo ticker), properties, or to
+# set extra metadata (ISIN, withholding tax, aliases) before the first buy.
+finador asset add "Indépendance et Expansion" --isin FR0010417192
 
 finador refresh    # live prices → current value = shares × price
 ```
