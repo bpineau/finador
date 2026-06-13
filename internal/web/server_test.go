@@ -109,6 +109,22 @@ func TestDashboard(t *testing.T) {
 	}
 }
 
+// Labels on a (account, asset) position show as chips in the "by account" tree.
+func TestDashboardShowsPositionLabels(t *testing.T) {
+	srv, f := testServer(t)
+	if err := f.Book.AddLabel(&domain.Label{ID: domain.LabelID(domain.NewID()),
+		Account: "pea", Asset: "cw8", Name: "retraite"}); err != nil {
+		t.Fatal(err)
+	}
+	code, body := get(t, srv, "/?by=account")
+	if code != http.StatusOK {
+		t.Fatalf("GET /?by=account = %d", code)
+	}
+	if !strings.Contains(body, `class="chip"`) || !strings.Contains(body, "retraite") {
+		t.Errorf("label chip missing from by-account tree:\n%s", excerpt(body))
+	}
+}
+
 func TestStyleSheet(t *testing.T) {
 	srv, _ := testServer(t)
 	code, body := get(t, srv, "/style.css")

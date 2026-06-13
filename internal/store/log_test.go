@@ -109,3 +109,54 @@ func TestDiffDetectsChanges(t *testing.T) {
 		t.Fatalf("expected one kTxDel, got %v", recKinds(d))
 	}
 }
+
+func TestDiffEmitsLabelRecords(t *testing.T) {
+	b := domain.NewBook()
+	_ = b.AddAccount(&domain.Account{ID: "pea", Name: "PEA", Currency: domain.EUR})
+	_ = b.AddAsset(&domain.Asset{ID: "cw8", Kind: domain.Security, Name: "CW8", Currency: domain.EUR})
+	snap := snapshotOf(b)
+
+	// Add a label -> one kLabel record.
+	lbl := &domain.Label{ID: domain.LabelID(domain.NewID()), Account: "pea", Asset: "cw8", Name: "retraite"}
+	if err := b.AddLabel(lbl); err != nil {
+		t.Fatal(err)
+	}
+	if d := diff(snap, b); len(d) != 1 || d[0].K != kLabel {
+		t.Fatalf("expected one kLabel, got %v", recKinds(d))
+	}
+
+	// Remove it -> one kLabelDel record.
+	snap = snapshotOf(b)
+	if err := b.RemoveLabel(lbl.ID); err != nil {
+		t.Fatal(err)
+	}
+	if d := diff(snap, b); len(d) != 1 || d[0].K != kLabelDel {
+		t.Fatalf("expected one kLabelDel, got %v", recKinds(d))
+	}
+}
+
+// TestLabelRoundTrip: a label survives a Save -> Open round-trip on a real file.
+func TestLabelRoundTrip(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	path := t.TempDir() + "/rt.fin"
+	f, err := Create(path, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Book.AddAccount(&domain.Account{ID: "pea", Name: "PEA", Currency: domain.EUR})
+	_ = f.Book.AddAsset(&domain.Asset{ID: "cw8", Kind: domain.Security, Name: "CW8", Currency: domain.EUR})
+	if err := f.Book.AddLabel(&domain.Label{ID: domain.LabelID(domain.NewID()), Account: "pea", Asset: "cw8", Name: "retraite"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := Open(path, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := back.Book.LabelsFor("pea", "cw8"); len(got) != 1 || got[0] != "retraite" {
+		t.Fatalf("label lost on round-trip: %v", got)
+	}
+}

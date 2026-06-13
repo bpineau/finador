@@ -181,3 +181,24 @@ d'extensibilité (refuser `v` inconnu ; ignorer champ inconnu d'un `k` connu ; r
 implémentations à Slugify) ; `add` à valeur signée pour vendre (implicite, illisible dans un an) ;
 verbes top-level plats (ambigus). **Vente d'un bien :** cash découplé (clôture `asset set 0` à la
 vente ; `cash set` sur le compte réel plus tard).
+
+## D17 — Labels libres sur les couples (compte, actif)
+
+**Contexte :** un utilisateur veut taguer une *position* — un couple (compte, actif) précis — avec
+un nombre quelconque de labels nominaux libres (« le CW8 de mon PEA » → `retraite`, `core`).
+Substrat pour un futur reporting de performance par sous-ensemble (hors scope ici : seulement le
+modèle, la gestion CLI, l'affichage web). Pré-release : on **étend v3 sans bump** (deux nouveaux
+`k` ajoutés avant le gel du format).
+**Choix :** **chaque assignation de label est sa propre entité à id random** (`domain.Label{ID,
+Account, Asset, Name}`), pas un set par couple. Nouveaux enregistrements `label` (upsert par `id`)
+et `label-del` (tombstone par `id`), enveloppe `{k,ts,d}` habituelle. `account` et `asset` sont
+tous deux **requis aujourd'hui** ; vide **réservé** à un futur « wildcard » (tous comptes / tous
+actifs) — évolution additive, pas de nouveau `k`. **Raison clé :** quantité arbitraire par couple
+(plusieurs entités label) **et** deux machines taguant le même couple **fusionnent en union sans
+conflit** (chacune ajoute un id distinct) — les labels passent par la **machinerie générique d'id**
+du merge (`classOf`/`isTombstone` seulement, `entityID` lit déjà `d.id`). Gestion CLI noun-first
+`label add|rm|list` (groupe `setup`) ; affichage web : chips sur les feuilles de l'arbre « by
+account » via `Book.LabelsFor(account, asset)` (lecture seule).
+**Alternative écartée :** un **set de noms par couple** (`map[(account,asset)][]string`) — clé
+composite, et surtout merge plus délicat (fusion de listes intra-entité au lieu d'une union d'ids
+triviale) ; rejeté.

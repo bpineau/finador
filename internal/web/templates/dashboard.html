@@ -37,7 +37,7 @@
             <summary>{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></summary>
             <ul>
               {{range .Children}}
-              <li class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></li>
+              <li class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}{{range .Labels}}<span class="chip">{{.}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></li>
               {{end}}
             </ul>
           </details>{{else}}<div class="feuille">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}<span>{{.Label}}</span>{{end}}<span class="leader"></span><span class="montant">{{fmtMoney .Gross $.Val.Currency}}</span></div>{{end}}</li>

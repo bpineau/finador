@@ -385,6 +385,33 @@ func TestMergeConfigByKey(t *testing.T) {
 	}
 }
 
+func labelRec(id, ts, name string) record {
+	l := domain.Label{ID: domain.LabelID(id), Account: "acct1", Asset: "cw8", Name: name}
+	return record{K: kLabel, Ts: ts, D: mustJSON(l)}
+}
+
+// TestMergeUnionsLabels: two copies each tag the SAME (account, asset) pair with
+// a different label name. The labels are distinct random-id entities, so the
+// merge unions them through the generic id machinery — both must survive, with
+// no conflict.
+func TestMergeUnionsLabels(t *testing.T) {
+	f1, f2 := twoCopies(t, "pw")
+	sealRecords(t, f1, []record{labelRec("L1", "2026-06-13T10:00:00Z", "retraite")})
+	sealRecords(t, f2, []record{labelRec("L2", "2026-06-13T10:00:01Z", "core")})
+
+	if _, err := f1.Merge(f2, rejectResolve(t)); err != nil {
+		t.Fatal(err)
+	}
+	back, err := Open(f1.Path, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := back.Book.LabelsFor("acct1", "cw8")
+	if len(got) != 2 || got[0] != "core" || got[1] != "retraite" {
+		t.Fatalf("merge should union both labels, got %v", got)
+	}
+}
+
 // TestMergeEntityIDDecodes sanity-checks entityID across classes.
 func TestMergeEntityID(t *testing.T) {
 	cases := []struct {

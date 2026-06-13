@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"finador/internal/chart"
+	"finador/internal/domain"
 	"finador/internal/portfolio"
 )
 
@@ -17,15 +18,27 @@ type node struct {
 	Label    string
 	URL      string // vide : non cliquable
 	Gross    float64
+	Labels   []string // name-labels on a leaf (account, asset) position
 	Children []node
+}
+
+// labelLookup returns the name-labels on a (account, asset) position; nil is a
+// no-op used by tests that don't exercise labels.
+type labelLookup func(domain.AccountID, domain.AssetID) []string
+
+func (f labelLookup) at(acc domain.AccountID, asset domain.AssetID) []string {
+	if f == nil {
+		return nil
+	}
+	return f(acc, asset)
 }
 
 // buildTree shapes position lines into the two-then-three-level tree:
 // mode "account": account → top-group → assets (cash = leaf "cash");
 // mode "group": top-group → account (intersection link) → assets, with a
 // "cash" root whose children are envelopes. Every level sorts by
-// descending value.
-func buildTree(lines []portfolio.PositionLine, mode string) []node {
+// descending value. Leaf asset positions carry their name-labels (labelsFor).
+func buildTree(lines []portfolio.PositionLine, mode string, labelsFor labelLookup) []node {
 	type key2 struct{ a, b string }
 	if mode == "account" {
 		// account → group → assets
@@ -56,6 +69,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 			child.Gross += l.Gross
 			child.Children = append(child.Children, node{
 				Label: l.Asset.Name, URL: "/asset/" + url.PathEscape(string(l.Asset.ID)), Gross: l.Gross,
+				Labels: labelsFor.at(l.Account.ID, l.Asset.ID),
 			})
 		}
 		var out []node
@@ -113,6 +127,7 @@ func buildTree(lines []portfolio.PositionLine, mode string) []node {
 		child.Gross += l.Gross
 		child.Children = append(child.Children, node{
 			Label: l.Asset.Name, URL: "/asset/" + url.PathEscape(string(l.Asset.ID)), Gross: l.Gross,
+			Labels: labelsFor.at(l.Account.ID, l.Asset.ID),
 		})
 	}
 	var out []node
