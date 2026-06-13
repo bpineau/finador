@@ -18,9 +18,10 @@ import (
 func serveCmd(a *app) *cobra.Command {
 	var addr string
 	cmd := &cobra.Command{
-		Use:   "serve",
-		Short: "Serve the web application (password prompted at startup)",
-		Args:  cobra.NoArgs,
+		Use:     "serve",
+		Short:   "Serve the web application (password prompted at startup)",
+		Example: "  finador serve",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			host, _, err := net.SplitHostPort(addr)
 			if err != nil {

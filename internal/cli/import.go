@@ -12,9 +12,10 @@ import (
 
 func importCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "import <file.csv>",
-		Short: "Import transactions (columns by header; re-import is idempotent)",
-		Args:  cobra.ExactArgs(1),
+		Use:     "import <file.csv>",
+		Short:   "Import transactions (columns by header; re-import is idempotent)",
+		Example: "  finador import broker.csv",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			file, err := os.Open(args[0])
 			if err != nil {
