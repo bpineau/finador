@@ -42,10 +42,10 @@ finador init                                            # creates ~/.finador.fin
 finador account add "PEA Zephyr" --tax gains:17.2%
 finador account add "Savings"
 
-finador asset add CW8.PA --id cw8 --group equities/world   # resolved via Yahoo
-finador deposit "PEA Zephyr" 5000 2026-01-10             # external contribution
-finador add cw8 10 @550 2026-06-01 --account "PEA Zephyr"
-finador cash set Savings 11250                             # observed balance
+finador asset add CW8.PA --alias cw8 --group equities/world   # resolved via Yahoo
+finador cash deposit "PEA Zephyr" 5000 2026-01-10           # external contribution
+finador asset buy cw8 10 @550 2026-06-01 --account "PEA Zephyr"
+finador cash set Savings 11250                                 # observed balance
 
 finador asset add "Country house" --kind property --group property
 finador asset set "Country house" 450000 --account Savings
@@ -66,22 +66,23 @@ replaying the ledger, so transactions can always be edited or deleted safely.
 
 **Accounts are tax envelopes.** `--tax gains:17.2%` taxes
 `max(0, value − contribution basis)`; the basis is what you put in
-(`deposit` − `withdraw`) when the account's cash is tracked, or `buys − sells`
-when it is not. `--tax value:20%` taxes the whole value. `--tax none` (default)
-taxes nothing. Estimated tax shows up in `value --net`, on net curves and on the
-web.
+(`cash deposit` − `cash withdraw`) when the account's cash is tracked, or
+`asset buy − asset sell` when it is not. `--tax value:20%` taxes the whole value.
+`--tax none` (default) taxes nothing. Estimated tax shows up in `value --net`, on
+net curves and on the web.
 
 **Tracked vs untracked cash.** An account's cash is *tracked* as soon as it has at
-least one pure-cash `statement`, `deposit` or `withdraw`. In a tracked account,
-trades move the cash (a buy is value-neutral, like in real life). In an untracked
-account, finador assumes you don't care about its cash: buys and sells are treated
-as external flows in performance.
+least one pure-cash `statement`, `cash deposit` or `cash withdraw`. In a tracked
+account, trades move the cash (a buy is value-neutral, like in real life). In an
+untracked account, finador assumes you don't care about its cash: buys and sells are
+treated as external flows in performance.
 
-**`deposit` ≠ `cash set`.** A *contribution* is entered with `deposit`/`withdraw`
-(it feeds the tax basis and XIRR). `cash set` records an *observed balance*, and
-the gap between two statements counts as performance — that's how savings-account
-interest is captured. The first statement of an account or property is treated as
-an *acquisition* (an external flow), not as performance.
+**`cash deposit` ≠ `cash set`.** A *contribution* is entered with
+`cash deposit`/`cash withdraw` (it feeds the tax basis and XIRR). `cash set`
+records an *observed balance*, and the gap between two statements counts as
+performance — that's how savings-account interest is captured. The first statement
+of an account or property is treated as an *acquisition* (an external flow), not as
+performance.
 
 **Asset references.** Anywhere an asset is expected you may use its id, ticker,
 ISIN, any alias, or its full name — case-insensitive. If every exact match fails,
@@ -111,17 +112,17 @@ Global flags, valid on every command:
 
 ```sh
 finador init                          # create the file; password asked twice
-finador account add <name> [--tax none|gains:N%|value:N%] [--ccy EUR] [--id slug]
+finador account add <name> [--tax none|gains:N%|value:N%] [--ccy EUR] [--alias a]...
 finador account list
 ```
 
-Account names are free-form (`"CTO IBKR"`); the id defaults to a slug
-(`cto-ibkr`) and both work everywhere.
+Account names are free-form (`"CTO IBKR"`); use `--alias` to add short names
+that resolve everywhere.
 
 ### Assets
 
 ```sh
-finador asset add <ticker|name> [--kind security|property] [--id x] [--name n]
+finador asset add <ticker|name> [--kind security|property] [--name n]
                   [--isin LU…] [--alias a]... [--ccy EUR] [--group path]
 finador asset edit <asset> [--name n] [--ticker t] [--isin i] [--group g] [--ccy c]
                    [--add-alias a]... [--rm-alias a]... [--withholding 15%]
@@ -140,17 +141,19 @@ market quotes and statements, quotes win.
 ### Recording activity
 
 ```sh
-finador add  <asset> <qty> [@unit-price|total] [date] [--account acc] [--ccy c] [--note n]
-finador sell <asset> <qty> [@unit-price|total] [date] [--account acc] [--ccy c] [--note n]
-finador deposit  <account> <amount> [date] [--ccy c] [--note n]
-finador withdraw <account> <amount> [date] [--ccy c] [--note n]
-finador cash set <account> <balance> [--at YYYY-MM-DD] [--ccy c]
+finador asset buy     <asset> <qty> [@unit-price|total] [date] [--account acc] [--ccy c] [--note n]
+finador asset sell    <asset> <qty> [@unit-price|total] [date] [--account acc] [--ccy c] [--note n]
+finador asset dividend <asset> <amount> [date] [--account acc] [--ccy c] [--note n]
+finador asset fee     <asset> <amount> [date] [--account acc] [--ccy c] [--note n]
+finador cash deposit  <account> <amount> [date] [--ccy c] [--note n]
+finador cash withdraw <account> <amount> [date] [--ccy c] [--note n]
+finador cash set      <account> <balance> [--at YYYY-MM-DD] [--ccy c]
 ```
 
 Price syntax: `@550` is a unit price (total = qty × 550); a bare `5500` is the
 total; the date defaults to today; the order of the optional arguments is free.
-A negative quantity on `add` records a sell, but the shell flag parser needs a
-`--` first: `finador add -- cw8 -2 @577`.
+A negative quantity on `asset buy` records a sell, but the shell flag parser needs a
+`--` first: `finador asset buy -- cw8 -2 @577`.
 
 If `--account` is omitted, finador picks, in order: the account of the asset's
 latest transaction, the `default-account` config key, or the only account if there
@@ -328,7 +331,7 @@ finador value --what-if cw8=600 --what-if country=520000
 dated `asset set` valuations; perf treats the first statement as an acquisition
 and later changes as performance. The same mechanics value properties.
 
-**Fixing history.** `tx list --asset cw8` → `tx edit 17 --qty 12 --total 6600` →
+**Fixing history.** `tx list --asset cw8` → `tx edit <id-prefix> --qty 12 --total 6600` →
 done; every figure recomputes. `asset edit` renames, regroups, retickers or
 realiases without touching the ledger. Reference collisions (an alias equal to
 another asset's ticker, …) are rejected to keep resolution unambiguous. The file

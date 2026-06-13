@@ -11,9 +11,10 @@ import (
 
 func refreshCmd(a *app) *cobra.Command {
 	return &cobra.Command{
-		Use:   "refresh",
-		Short: "Refresh quotes, exchange rates and dividends from Yahoo",
-		Args:  cobra.NoArgs,
+		Use:     "refresh",
+		Short:   "Refresh quotes, exchange rates and dividends from Yahoo",
+		Example: "  finador refresh",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if a.offline {
 				return errors.New("refresh unavailable in --offline mode")
