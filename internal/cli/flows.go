@@ -48,7 +48,7 @@ func flowCmd(a *app, use string, kind domain.TxKind, short string) *cobra.Comman
 					Amount: domain.Money{Amount: amount.Abs(), Currency: effectiveCcy},
 					Note:   note,
 				})
-				fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s %s: %s on %s\n", tx.ID, tx.Kind, acc.Name, tx.Amount, tx.Date)
+				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s %s: %s on %s\n", tx.ID, tx.Kind, acc.Name, tx.Amount, tx.Date)
 				return nil
 			})
 		},

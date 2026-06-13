@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"time"
 
 	"finador/internal/domain"
 )
@@ -121,8 +122,10 @@ func (f *File) Save() error {
 	entries := append([]entry(nil), f.entries...) // local copy: commit only on success
 	prev := lastTagOrZero(entries)
 	seq := uint64(len(entries))
+	now := time.Now().UTC().Format(time.RFC3339Nano)
 	for _, r := range diff(f.snap, f.Book) {
 		seq++
+		r.Ts = now // stamp each NEW record at save time (part of the sealed plaintext)
 		line, tag := sealLine(g, f.hdrHash, seq, prev, r)
 		entries = append(entries, entry{line: line, tag: tag, rec: r})
 		prev = tag
@@ -185,7 +188,9 @@ func (f *File) Compact() error {
 	g := gcmOf(f.keyLog)
 	var entries []entry
 	prev := lastTagOrZero(entries)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
 	for i, r := range diff(snapshot{}, f.Book) { // empty prev -> all creates
+		r.Ts = now // a compacted log re-stamps every record at compaction time
 		line, tag := sealLine(g, f.hdrHash, uint64(i+1), prev, r)
 		entries = append(entries, entry{line: line, tag: tag, rec: r})
 		prev = tag

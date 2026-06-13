@@ -17,7 +17,7 @@ func accountCmd(a *app) *cobra.Command {
 }
 
 func accountAdd(a *app) *cobra.Command {
-	var tax, ccy, id string
+	var tax, ccy string
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Create an account — the name is free: \"PEA Zephyr\", \"CTO IBKR\"…",
@@ -31,12 +31,8 @@ func accountAdd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			accID := id
-			if accID == "" {
-				accID = domain.Slugify(args[0])
-			}
 			acc := &domain.Account{
-				ID:       domain.AccountID(accID),
+				ID:       domain.AccountID(domain.NewID()),
 				Name:     args[0],
 				Currency: parsedCcy,
 				Tax:      rule,
@@ -52,7 +48,6 @@ func accountAdd(a *app) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&tax, "tax", "none", "tax rule: none, gains:17.2%, value:20%")
 	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "account currency")
-	cmd.Flags().StringVar(&id, "id", "", "identifier (default: slug of the name)")
 	return cmd
 }
 

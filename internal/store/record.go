@@ -24,10 +24,12 @@ const (
 	kTxDel    recKind = "tx-del"
 )
 
-// record is one log entry: a kind tag and the JSON of its payload.
+// record is one log entry: a kind tag, a creation timestamp (RFC3339Nano, part
+// of the sealed plaintext) and the JSON of its payload.
 type record struct {
-	K recKind         `json:"k"`
-	D json.RawMessage `json:"d"`
+	K  recKind         `json:"k"`
+	Ts string          `json:"ts"`
+	D  json.RawMessage `json:"d"`
 }
 
 func mustJSON(v any) []byte {

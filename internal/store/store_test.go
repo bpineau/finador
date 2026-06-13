@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"finador/internal/domain"
 )
@@ -35,6 +36,18 @@ func TestCreateOpenRoundTrip(t *testing.T) {
 	}
 	if len(back.Book.Accounts) != 1 || back.Book.Accounts[0].Name != "PEA" || len(back.Book.Transactions) != 1 {
 		t.Fatalf("content lost: %+v", back.Book)
+	}
+	// Every record carries a parseable RFC3339Nano timestamp (format v3).
+	if len(back.entries) == 0 {
+		t.Fatal("no entries decoded")
+	}
+	for i, e := range back.entries {
+		if e.rec.Ts == "" {
+			t.Fatalf("record %d has no ts", i)
+		}
+		if _, err := time.Parse(time.RFC3339Nano, e.rec.Ts); err != nil {
+			t.Fatalf("record %d ts %q not RFC3339Nano: %v", i, e.rec.Ts, err)
+		}
 	}
 }
 

@@ -31,8 +31,15 @@ func TestHeaderRejectsForeign(t *testing.T) {
 }
 
 func TestHeaderRejectsBadParams(t *testing.T) {
-	bad := `{"fmt":"finador-ledger","v":2,"kdf":"argon2id","t":3,"m":1,"p":4,"salt":"AAAAAAAAAAAAAAAAAAAAAA==","id":"AAAAAAAAAAAAAAAAAAAAAA=="}`
+	bad := `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":1,"p":4,"salt":"AAAAAAAAAAAAAAAAAAAAAA==","id":"AAAAAAAAAAAAAAAAAAAAAA=="}`
 	if _, err := parseHeader([]byte(bad)); err == nil {
 		t.Fatal("expected out-of-bounds memory rejection")
+	}
+}
+
+func TestHeaderRejectsUnknownVersion(t *testing.T) {
+	old := `{"fmt":"finador-ledger","v":2,"kdf":"argon2id","t":3,"m":65536,"p":4,"salt":"AAAAAAAAAAAAAAAAAAAAAA==","id":"AAAAAAAAAAAAAAAAAAAAAA=="}`
+	if _, err := parseHeader([]byte(old)); err == nil || !strings.Contains(err.Error(), "unsupported version") {
+		t.Fatalf("expected unsupported version rejection, got %v", err)
 	}
 }

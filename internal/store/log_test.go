@@ -30,9 +30,9 @@ func TestReadLogAndReplay(t *testing.T) {
 	h := defaultHeader()
 	recs := []record{
 		{K: kAcct, D: mustJSON(domain.Account{ID: "pea", Name: "PEA", Currency: domain.EUR})},
-		{K: kTx, D: mustJSON(domain.Transaction{ID: 1, Account: "pea", Kind: domain.Deposit})},
-		{K: kTx, D: mustJSON(domain.Transaction{ID: 2, Account: "pea", Kind: domain.Deposit})},
-		{K: kTxDel, D: mustJSON(txRef{ID: 1})},
+		{K: kTx, D: mustJSON(domain.Transaction{ID: "tx-a", Account: "pea", Kind: domain.Deposit})},
+		{K: kTx, D: mustJSON(domain.Transaction{ID: "tx-b", Account: "pea", Kind: domain.Deposit})},
+		{K: kTxDel, D: mustJSON(txRef{ID: "tx-a"})},
 	}
 	raw := buildLog(t, h, "pw", recs)
 
@@ -44,17 +44,14 @@ func TestReadLogAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.Accounts) != 1 || len(b.Transactions) != 1 || b.Transactions[0].ID != 2 {
+	if len(b.Accounts) != 1 || len(b.Transactions) != 1 || b.Transactions[0].ID != "tx-b" {
 		t.Fatalf("replay wrong: accts=%d txs=%+v", len(b.Accounts), b.Transactions)
-	}
-	if b.LastTxID != 2 {
-		t.Fatalf("LastTxID=%d, want 2", b.LastTxID)
 	}
 }
 
 func TestReadLogDetectsTamper(t *testing.T) {
 	h := defaultHeader()
-	recs := []record{{K: kTx, D: mustJSON(domain.Transaction{ID: 1, Kind: domain.Deposit})}, {K: kTx, D: mustJSON(domain.Transaction{ID: 2, Kind: domain.Deposit})}}
+	recs := []record{{K: kTx, D: mustJSON(domain.Transaction{ID: "tx-a", Kind: domain.Deposit})}, {K: kTx, D: mustJSON(domain.Transaction{ID: "tx-b", Kind: domain.Deposit})}}
 	raw := buildLog(t, h, "pw", recs)
 	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
 
