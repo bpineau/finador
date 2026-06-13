@@ -331,7 +331,11 @@ and later changes as performance. The same mechanics value properties.
 **Fixing history.** `tx list --asset cw8` → `tx edit 17 --qty 12 --total 6600` →
 done; every figure recomputes. `asset edit` renames, regroups, retickers or
 realiases without touching the ledger. Reference collisions (an alias equal to
-another asset's ticker, …) are rejected to keep resolution unambiguous.
+another asset's ticker, …) are rejected to keep resolution unambiguous. The file
+is an append-only journal, so a correction (`tx edit`, `tx rm`, even on an old
+entry) appends a small record rather than rewriting the file — friendly to
+git-synced storage. `finador compact` rewrites a minimal journal, dropping the
+superseded records; rarely needed.
 
 **Concurrent access.** The web server and the CLI can share the file: writes are
 protected by optimistic locking. If another process wrote since you opened, the
