@@ -14,9 +14,9 @@ import (
 	"finador/internal/domain"
 )
 
-// FT quotes European mutual funds and SICAVs by ISIN through the Financial
-// Times market-data endpoints, which cover many FR/LU funds Yahoo lacks.
-// It is ported faithfully from portfodor's marketdata FT provider.
+// FT quotes mutual funds and SICAVs by ISIN or ticker through the Financial
+// Times market-data endpoints, which cover many FR/LU/US funds Yahoo lacks (or
+// that Yahoo throttles). It is ported faithfully from portfodor's FT provider.
 type FT struct {
 	BaseURL string
 	HTTP    *http.Client
@@ -39,17 +39,38 @@ type ftResolution struct {
 	Currency string
 }
 
-// Daily resolves ref.ISIN through FT search, then downloads its NAV series.
-// ErrNotCovered when no ISIN is given or FT doesn't list it.
+// Daily resolves the instrument through FT search, then downloads its NAV
+// series. FT search accepts an ISIN, a ticker or a name; we try the ISIN first
+// (most precise), then the ticker — so a fund Yahoo lists only by ticker (e.g. a
+// US mutual fund like SPICX) still resolves here when Yahoo is unavailable.
+// ErrNotCovered when neither identifier is given or FT doesn't list it.
 func (f *FT) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {
-	if ref.ISIN == "" {
-		return DailyData{}, ErrNotCovered // FT is keyed by ISIN
+	var queries []string
+	if ref.ISIN != "" {
+		queries = append(queries, ref.ISIN)
 	}
-	res, err := f.search(ctx, ref.ISIN)
-	if err != nil {
-		return DailyData{}, err
+	if ref.Symbol != "" {
+		queries = append(queries, ref.Symbol)
 	}
-	return f.series(ctx, ref.ISIN, res, from)
+	if len(queries) == 0 {
+		return DailyData{}, ErrNotCovered
+	}
+	lastErr := error(ErrNotCovered)
+	for _, q := range queries {
+		res, err := f.search(ctx, q)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		data, derr := f.series(ctx, q, res, from)
+		if derr == nil && len(data.Closes) > 0 {
+			return data, nil
+		}
+		if derr != nil {
+			lastErr = derr
+		}
+	}
+	return DailyData{}, lastErr
 }
 
 // search resolves an ISIN through the Financial Times securities search.
