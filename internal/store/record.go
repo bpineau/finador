@@ -22,6 +22,8 @@ const (
 	kTx       recKind = "tx"
 	kTxEdit   recKind = "tx-edit"
 	kTxDel    recKind = "tx-del"
+	kLabel    recKind = "label"
+	kLabelDel recKind = "label-del"
 )
 
 // record is one log entry: a kind tag, a creation timestamp (RFC3339Nano, part

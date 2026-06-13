@@ -132,6 +132,18 @@ func replay(entries []entry) (*domain.Book, error) {
 				return nil, err
 			}
 			b.Transactions = rejectTx(b.Transactions, ref.ID)
+		case kLabel:
+			var l domain.Label
+			if err := json.Unmarshal(e.rec.D, &l); err != nil {
+				return nil, err
+			}
+			b.Labels = upsertLabel(b.Labels, &l)
+		case kLabelDel:
+			var ref idRef
+			if err := json.Unmarshal(e.rec.D, &ref); err != nil {
+				return nil, err
+			}
+			b.Labels = rejectLabel(b.Labels, domain.LabelID(ref.ID))
 		default:
 			return nil, fmt.Errorf("unknown record kind %q", e.rec.K)
 		}
@@ -199,12 +211,33 @@ func rejectTx(xs []*domain.Transaction, id domain.TxID) []*domain.Transaction {
 	return out
 }
 
+func upsertLabel(xs []*domain.Label, l *domain.Label) []*domain.Label {
+	for i, x := range xs {
+		if x.ID == l.ID {
+			xs[i] = l
+			return xs
+		}
+	}
+	return append(xs, l)
+}
+
+func rejectLabel(xs []*domain.Label, id domain.LabelID) []*domain.Label {
+	out := xs[:0]
+	for _, x := range xs {
+		if x.ID != id {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
 // snapshot is the last-persisted state, by stable identity, used to compute the
 // minimal set of records to append on Save. Entities are compared by their JSON.
 type snapshot struct {
 	accts  map[domain.AccountID][]byte
 	assets map[domain.AssetID][]byte
 	txs    map[domain.TxID][]byte
+	labels map[domain.LabelID][]byte
 	config map[string]string
 }
 
@@ -213,6 +246,7 @@ func snapshotOf(b *domain.Book) snapshot {
 		accts:  map[domain.AccountID][]byte{},
 		assets: map[domain.AssetID][]byte{},
 		txs:    map[domain.TxID][]byte{},
+		labels: map[domain.LabelID][]byte{},
 		config: map[string]string{},
 	}
 	for _, a := range b.Accounts {
@@ -223,6 +257,9 @@ func snapshotOf(b *domain.Book) snapshot {
 	}
 	for _, t := range b.Transactions {
 		s.txs[t.ID] = mustJSON(t)
+	}
+	for _, l := range b.Labels {
+		s.labels[l.ID] = mustJSON(l)
 	}
 	for k, v := range b.Config {
 		s.config[k] = v
@@ -280,6 +317,18 @@ func diff(prev snapshot, b *domain.Book) []record {
 			recs = append(recs, record{K: kTxDel, D: mustJSON(txRef{ID: id})})
 		}
 	}
+
+	for _, l := range b.Labels {
+		cur := mustJSON(l)
+		if old, ok := prev.labels[l.ID]; !ok || !bytes.Equal(old, cur) {
+			recs = append(recs, record{K: kLabel, D: cur})
+		}
+	}
+	for id := range prev.labels {
+		if !hasLabel(b, id) {
+			recs = append(recs, record{K: kLabelDel, D: mustJSON(idRef{ID: string(id)})})
+		}
+	}
 	return recs
 }
 
@@ -304,6 +353,15 @@ func hasAsset(b *domain.Book, id domain.AssetID) bool {
 func hasTx(b *domain.Book, id domain.TxID) bool {
 	for _, t := range b.Transactions {
 		if t.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func hasLabel(b *domain.Book, id domain.LabelID) bool {
+	for _, l := range b.Labels {
+		if l.ID == id {
 			return true
 		}
 	}

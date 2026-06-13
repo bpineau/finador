@@ -157,7 +157,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	data.Tree = buildTree(lines, mode)
+	data.Tree = buildTree(lines, mode, b.LabelsFor)
 	data.Pie, data.PieSlices = buildPie(lines)
 
 	s.render(w, http.StatusOK, "dashboard.html", data)
