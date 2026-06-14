@@ -35,6 +35,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /account/{ref}/group/{gpath...}", s.intersectPage)
 	mux.HandleFunc("GET /account/{ref}", s.scopePage)
 	mux.HandleFunc("GET /asset/{ref}", s.scopePage)
+	mux.HandleFunc("POST /asset/{id}/rename", s.assetRename)
 	mux.HandleFunc("GET /tx", s.txPage)
 	mux.HandleFunc("POST /tx", s.txCreate)
 	mux.HandleFunc("GET /tx/{id}/edit", s.txEditPage)
