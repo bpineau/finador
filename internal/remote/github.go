@@ -59,6 +59,38 @@ func (g *GitHubClient) contentsURL() string {
 	return fmt.Sprintf("%s/repos/%s/%s/contents/%s", base, g.Owner, g.Repo, g.Path)
 }
 
+// repoURL returns the API URL for the repository metadata.
+func (g *GitHubClient) repoURL() string {
+	base := g.BaseURL
+	if base == "" {
+		base = defaultBaseURL
+	}
+	return fmt.Sprintf("%s/repos/%s/%s", base, g.Owner, g.Repo)
+}
+
+// CheckAccess verifies the token can reach the repository via a metadata GET —
+// independent of whether the .fin file exists. nil on success; ErrRemoteAuth on
+// 401/403/404 (GitHub returns 404 for a repo a token can't see); ErrOffline on
+// transport errors. Used by `remote login` to validate the token immediately.
+func (g *GitHubClient) CheckAccess(ctx context.Context) error {
+	resp, err := g.doWithRetry(ctx, func() (*http.Request, error) {
+		return http.NewRequestWithContext(ctx, http.MethodGet, g.repoURL(), nil)
+	})
+	if err != nil {
+		return err // ErrOffline
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+		return ErrRemoteAuth
+	default:
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("github repo check: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+}
+
 // setHeaders adds the required GitHub API request headers.
 func (g *GitHubClient) setHeaders(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+g.Token)

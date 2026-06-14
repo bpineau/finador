@@ -27,6 +27,18 @@ type fakeBackend struct {
 
 func (f *fakeBackend) Describe() string { return "fake:remote" }
 
+func (f *fakeBackend) CheckAccess(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.offline {
+		return ErrOffline
+	}
+	if f.authError {
+		return ErrRemoteAuth
+	}
+	return nil
+}
+
 func (f *fakeBackend) nextSHA() Version {
 	f.counter++
 	return Version(fmt.Sprintf("sha%d", f.counter))

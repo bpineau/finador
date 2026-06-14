@@ -336,3 +336,26 @@ func TestFetchRetriesOn5xx(t *testing.T) {
 		t.Errorf("attempts: got %d, want 2", attempts)
 	}
 }
+
+func TestCheckAccess(t *testing.T) {
+	// 200 → the token can reach the repo.
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/repos/alice/data") {
+			t.Errorf("CheckAccess hit %s, want the repo-metadata endpoint", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"full_name":"alice/data"}`))
+	}))
+	defer ok.Close()
+	if err := newTestClient(ok.URL).CheckAccess(context.Background()); err != nil {
+		t.Errorf("CheckAccess(200) = %v, want nil", err)
+	}
+
+	// 404 → a private repo the token can't see is reported as an auth problem.
+	missing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer missing.Close()
+	if err := newTestClient(missing.URL).CheckAccess(context.Background()); !errors.Is(err, ErrRemoteAuth) {
+		t.Errorf("CheckAccess(404) = %v, want ErrRemoteAuth", err)
+	}
+}

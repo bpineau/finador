@@ -26,9 +26,18 @@ func mergeCmd(a *app) *cobra.Command {
 			"both copies edited the same entry, the last edit wins by timestamp; a true tie " +
 			"(same entry, same instant, different values) prompts you to choose.\n\n" +
 			"It expects copies of the SAME ledger (same file id) — it refuses to merge unrelated files.",
-		Example: "  finador merge ../laptop2/portfolio.fin",
+		Example: "  finador merge ../laptop2/finador.fin",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// `merge` operates on the local file (a.dbPath). In GitHub mode that
+			// file isn't the synced copy, and the result wouldn't be pushed — so
+			// refuse rather than write to the wrong place. Remote copies already
+			// reconcile automatically on sync.
+			if _, isRemote, derr := a.dataSource(); derr != nil {
+				return derr
+			} else if isRemote {
+				return fmt.Errorf("`merge` is for local-file mode — in GitHub mode diverged copies reconcile automatically on `finador sync`")
+			}
 			cache := a.cache()
 			pw, fresh, err := keyring.PasswordFor(a.dbPath, cache, keyring.Prompt)
 			if err != nil {
