@@ -27,12 +27,10 @@ body {
   font-variant: small-caps; font-weight: 600; line-height: 1;
   font-size: clamp(1.7rem, 4.4vw, 2.1rem);
   letter-spacing: .3em; padding-left: .3em; /* recentre optiquement l'interlettrage */
-  animation: marque-apparait .85s ease both;
 }
 .exergue {
   margin: .55rem 0 0; font-style: italic; color: var(--encre-2);
   font-size: .73rem; letter-spacing: .05em;
-  animation: doux-apparait .6s ease .12s both;
 }
 .folio {
   display: flex; flex-wrap: wrap; align-items: baseline;
@@ -40,7 +38,6 @@ body {
   margin-top: .7rem; padding: .42rem 0 .5rem;
   border-top: 1px solid var(--filet);
   border-bottom: 3px double var(--encre);
-  animation: doux-apparait .6s ease .22s both;
 }
 .date-du-jour { font-style: italic; font-size: .82rem; color: var(--encre-2); }
 .folio nav { display: flex; flex-wrap: wrap; gap: 1.2rem; }
@@ -50,21 +47,8 @@ body {
 }
 .folio nav a:hover { color: var(--encre); text-decoration: underline; text-underline-offset: .3em; }
 
-@keyframes marque-apparait {
-  from { opacity: 0; letter-spacing: .52em; }
-  to   { opacity: 1; letter-spacing: .3em; }
-}
-@keyframes doux-apparait { from { opacity: 0; transform: translateY(-4px); } }
-
-/* ---- sections, apparitions ---- */
-main > section { margin-top: 2.2rem; animation: apparait .5s ease both; }
-main > section:nth-child(2) { animation-delay: .06s; }
-main > section:nth-child(3) { animation-delay: .12s; }
-main > section:nth-child(4) { animation-delay: .18s; }
-@keyframes apparait { from { opacity: 0; transform: translateY(6px); } }
-@media (prefers-reduced-motion: reduce) {
-  main > section, .marque, .exergue, .folio { animation: none; }
-}
+/* ---- sections ---- */
+main > section { margin-top: 2.2rem; }
 
 h2, .libelle {
   font-variant: small-caps; letter-spacing: .14em; text-transform: lowercase;
@@ -125,7 +109,7 @@ main a:visited { color: var(--encre); }
 }
 .arbre details > summary::-webkit-details-marker { display: none; }
 .arbre details > summary::before {
-  content: "▸"; color: var(--encre-2); font-size: .7rem; transition: transform .15s ease;
+  content: "▸"; color: var(--encre-2); font-size: .7rem;
 }
 .arbre details[open] > summary::before { transform: rotate(90deg); }
 .arbre .feuille { display: flex; align-items: baseline; gap: .6rem; padding-left: .95rem; }
@@ -138,7 +122,6 @@ main a:visited { color: var(--encre); }
 }
 .onglets { display: flex; gap: .8rem; font-size: .8rem; margin-bottom: .5rem; }
 .onglets .actif-onglet { font-weight: 600; border-bottom: 2px solid var(--encre); }
-@media (prefers-reduced-motion: reduce) { .arbre details > summary::before { transition: none; } }
 
 /* ---- courbe ---- */
 figure.courbe { margin: 0; border: 1px solid var(--filet); background: #fffdf6; padding: .6rem; }
