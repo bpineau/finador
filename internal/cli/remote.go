@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,7 +80,7 @@ func remoteSet(a *app) *cobra.Command {
 		Long: "Write the config so finador stores the ledger in the given GitHub repo. " +
 			"Run `finador remote login` once to store the token, then any command syncs " +
 			"transparently. Use `--db` or FINADOR_DB to force local mode for a single run.",
-		Example: "  finador remote set bpineau/finador-data --path portfolio.fin --branch main",
+		Example: "  finador remote set bpineau/finador-data --path finador.fin --branch main",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			owner, repo, ok := strings.Cut(args[0], "/")
@@ -104,7 +105,7 @@ func remoteSet(a *app) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&path, "path", "portfolio.fin", "path of the .fin file inside the repo")
+	cmd.Flags().StringVar(&path, "path", "finador.fin", "path of the .fin file inside the repo")
 	cmd.Flags().StringVar(&branch, "branch", "main", "branch to read and write")
 	return cmd
 }
@@ -201,6 +202,25 @@ func remoteLogin(a *app) *cobra.Command {
 			}
 			keyring.PutSecret(a.cache(), tokenKey(cfg), token)
 			fmt.Fprintln(cmd.OutOrStdout(), "GitHub token stored")
+
+			// Verify the token reaches the repo now, so an expired/wrong-scope
+			// token is caught here rather than at the next sync.
+			backend := a.remoteBackend
+			if backend == nil {
+				backend = remote.NewGitHub(*cfg.GitHub, token)
+			}
+			switch err := backend.CheckAccess(cmd.Context()); {
+			case err == nil:
+				fmt.Fprintf(cmd.OutOrStdout(), "Verified: the token can access %s/%s.\n",
+					cfg.GitHub.Owner, cfg.GitHub.Repo)
+			case errors.Is(err, remote.ErrOffline):
+				fmt.Fprintln(cmd.OutOrStdout(), "Saved, but couldn't verify right now (offline).")
+			case errors.Is(err, remote.ErrRemoteAuth):
+				return fmt.Errorf("token saved, but GitHub rejected it for %s/%s — check it isn't expired and has Contents access to that exact repo",
+					cfg.GitHub.Owner, cfg.GitHub.Repo)
+			default:
+				return err
+			}
 			return nil
 		},
 	}

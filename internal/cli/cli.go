@@ -343,6 +343,20 @@ func (a *app) open() (*store.File, error) {
 // rewrites the file and rotates .bak — read-only commands use open() instead.
 // Remote mode pulls a fresh base, mutates the working copy, then pushes it.
 func (a *app) mutate(fn func(*domain.Book) error) error {
+	return a.mutateFile(func(f *store.File) error {
+		if err := fn(f.Book); err != nil {
+			return err
+		}
+		return f.Save()
+	})
+}
+
+// mutateFile is the single write path. It also serves operations that work on
+// the whole File rather than just the Book (e.g. compact, which rewrites the
+// ledger). fn is responsible for persisting its change (f.Save() / f.Compact()).
+// Local mode: open, apply. Remote mode: pull a fresh base (ForWrite), apply,
+// push (AfterWrite) — so EVERY write fetches-before and pushes-after.
+func (a *app) mutateFile(fn func(*store.File) error) error {
 	s, isRemote, err := a.dataSource()
 	if err != nil {
 		return err
@@ -352,10 +366,7 @@ func (a *app) mutate(fn func(*domain.Book) error) error {
 		if err != nil {
 			return err
 		}
-		if err := fn(f.Book); err != nil {
-			return err
-		}
-		return f.Save()
+		return fn(f)
 	}
 
 	ctx := context.Background()
@@ -379,10 +390,7 @@ func (a *app) mutate(fn func(*domain.Book) error) error {
 	if fresh {
 		cache.Put(keyring.Key(path), pw, configTTL(f.Book))
 	}
-	if err := fn(f.Book); err != nil {
-		return err
-	}
-	if err := f.Save(); err != nil {
+	if err := fn(f); err != nil {
 		return err
 	}
 
@@ -405,11 +413,13 @@ func printWarnings(warnings []string) {
 func remoteError(err error) error {
 	switch {
 	case errors.Is(err, remote.ErrRemoteAuth):
-		return fmt.Errorf("GitHub authentication failed — check the token or run `finador remote login`: %w", err)
+		return fmt.Errorf("GitHub rejected the token — it may be expired or lack Contents access to the repo; regenerate it and run `finador remote login`")
 	case errors.Is(err, remote.ErrOffline):
 		return fmt.Errorf("offline and no local copy available — connect and retry: %w", err)
+	case errors.Is(err, remote.ErrRemoteConflict):
+		return fmt.Errorf("the remote changed and couldn't be reconciled automatically — run `finador sync` and retry")
 	case errors.Is(err, remote.ErrRemoteMissing):
-		return fmt.Errorf("no file found at the configured remote path/branch — check `finador remote show` (a wrong --path or --branch is the usual cause); for a genuinely new repo, run `finador init` or `finador remote adopt`")
+		return fmt.Errorf("no file found at the configured remote path/branch — check `finador remote show` (a wrong --path/--branch, a missing repo, or a token without access are the usual causes); for a genuinely new repo, run `finador init` or `finador remote adopt`")
 	default:
 		return err
 	}

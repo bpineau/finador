@@ -2,6 +2,8 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+
+	"finador/internal/store"
 )
 
 func compactCmd(a *app) *cobra.Command {
@@ -14,11 +16,13 @@ func compactCmd(a *app) *cobra.Command {
 		Example: "  finador compact",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			f, err := a.open()
-			if err != nil {
-				return err
-			}
-			if err := f.Compact(); err != nil {
+			// compact rewrites the ledger, so it must go through the write path
+			// (pull a fresh base, rewrite, push) — not a read. Otherwise, in
+			// GitHub mode the compacted copy would never be pushed and the next
+			// pull would silently restore the un-compacted remote.
+			if err := a.mutateFile(func(f *store.File) error {
+				return f.Compact()
+			}); err != nil {
 				return err
 			}
 			cmd.Println("Ledger compacted.")
