@@ -332,11 +332,17 @@ func TestPerfEndToEnd(t *testing.T) {
 
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
 	// série : 5000 plat jusqu'au 1er juin (l'achat est neutre), puis
-	// 06-05 : 10×560 − 500 = 5100 → TWR origine = +2.00 %
-	for _, want := range []string{"PERIOD", "TWR", "XIRR", "inception", "+2.00%", "CAGR", "Sharpe", "Sortino", "max drawdown"} {
+	// 06-05 : 10×560 − 500 = 5100 → TWR origine = +2.00 %.
+	// 146 j d'historique : vol/Sharpe/Sortino affichés, CAGR masqué (< 1 an).
+	for _, want := range []string{"PERIOD", "TWR", "XIRR", "inception", "+2.00%",
+		"tracking since 2026-01-10 (146 d)", "Sharpe", "Sortino", "max drawdown"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf: %q manquant dans:\n%s", want, out)
 		}
+	}
+	// CAGR n'a de sens qu'à ≥ 1 an : masqué ici.
+	if strings.Contains(out, "CAGR") {
+		t.Errorf("CAGR ne devrait pas apparaître sous 1 an d'historique:\n%s", out)
 	}
 	// XIRR des fenêtres courtes : tiret
 	if !strings.Contains(out, "—") {

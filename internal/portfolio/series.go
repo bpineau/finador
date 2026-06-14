@@ -233,6 +233,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		if t.Kind == domain.Sell {
 			sign = -1
 		}
+		qtyBefore := p.qty
 
 		// Update position state (not for property — property stays statement-valued)
 		if p.asset.Kind != domain.Property {
@@ -243,6 +244,23 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 				sold := min(toF(t.Quantity), p.qty)
 				p.basis -= p.basis * sold / p.qty
 				p.qty -= sold
+			}
+		}
+
+		// External flow valued at the MARKET value of the shares transacted at
+		// t.Date — the value actually crossing the scope boundary — not the cash
+		// amount. For a normal at-market buy the two coincide; for a position
+		// onboarded at its average cost they don't, and using the cash amount
+		// would book a phantom cost→market jump as performance. Falls back to
+		// the cash amount when no price is known on that date.
+		flowVal := disp
+		if p.asset.Kind != domain.Property {
+			if close, _, ok := w.b.Market.Prices[p.asset.ID].At(t.Date); ok {
+				qtyTx := toF(t.Quantity)
+				if t.Kind == domain.Sell {
+					qtyTx = min(qtyTx, qtyBefore)
+				}
+				flowVal = w.convF(qtyTx*close, p.asset.Currency, w.ccy, t.Date, label)
 			}
 		}
 
@@ -264,11 +282,11 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		switch {
 		case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset || w.scope.Kind == ByLabel:
 			if w.scope.hasAsset(acc.acc, p.asset) {
-				w.addFlow(t.Date, sign*disp, collect)
+				w.addFlow(t.Date, sign*flowVal, collect)
 			}
 		default: // All, ByAccount
 			if inCash && !acc.tracked {
-				w.addFlow(t.Date, sign*disp, collect)
+				w.addFlow(t.Date, sign*flowVal, collect)
 			}
 		}
 

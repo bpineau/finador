@@ -135,9 +135,16 @@ func perfCmd(a *app) *cobra.Command {
 				printRow("window", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), 0, 0)
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "\nCAGR %s   vol %s   Sharpe %.2f   Sortino %.2f   (rf %s)\n",
-				pct(metrics.CAGR), pct(metrics.Vol),
-				metrics.Sharpe, metrics.Sortino, pct(metrics.RiskFree))
+			summary := cmd.OutOrStdout()
+			fmt.Fprintf(summary, "\ntracking since %s (%d d)", metrics.Since, metrics.Days)
+			if metrics.HasCAGR {
+				fmt.Fprintf(summary, "   CAGR %s", pct(metrics.CAGR))
+			}
+			if metrics.HasRisk {
+				fmt.Fprintf(summary, "   vol %s   Sharpe %.2f   Sortino %.2f   (rf %s)",
+					pct(metrics.Vol), metrics.Sharpe, metrics.Sortino, pct(metrics.RiskFree))
+			}
+			fmt.Fprintln(summary)
 			dd := metrics.Drawdown
 			if dd.Depth < 0 {
 				rec := "not recovered"
