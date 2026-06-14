@@ -156,8 +156,26 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		out.Tax = exact
 	}
 	out.Net = out.Gross - out.Tax
-	out.Stale = v.stale
+	out.Stale = dedupe(v.stale)
 	return out, nil
+}
+
+// dedupe removes repeated notes (preserving first-seen order): an asset held in
+// several accounts is valued once per position, so a single asset-level note
+// — a what-if override, a stale-quote flag — would otherwise appear N times.
+func dedupe(notes []string) []string {
+	if len(notes) < 2 {
+		return notes
+	}
+	seen := make(map[string]bool, len(notes))
+	out := notes[:0]
+	for _, n := range notes {
+		if !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 type valuer struct {
