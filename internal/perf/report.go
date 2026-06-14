@@ -31,16 +31,32 @@ type Row struct {
 	HasXIRR bool
 }
 
+// Minimum track records before annualized figures mean anything: annualizing a
+// return earned over a few days compounds noise into absurdity. Below these
+// spans the report exposes the cumulative since-inception return instead, and
+// the Has* flags tell the renderer to hide the annualized cells.
+const (
+	MinDaysForRisk = 90  // vol/Sharpe/Sortino — about a quarter of daily returns
+	MinDaysForCAGR = 365 // CAGR is a *compound annual* rate: needs at least a year
+)
+
 // Metrics holds the summary statistics computed over the full origin window.
+// InceptionTWR/Since/Days always describe the track record; the annualized
+// figures (CAGR, Vol, Sharpe, Sortino) are only set — and HasCAGR/HasRisk only
+// true — once enough history backs them.
 type Metrics struct {
+	InceptionTWR                         float64 // cumulative TWR since the first point
+	Since                                domain.Date
+	Days                                 int
 	CAGR, Vol, Sharpe, Sortino, RiskFree float64
+	HasCAGR, HasRisk                     bool
 	Drawdown                             Drawdown
 }
 
 // Report builds the standard period table + metrics for a daily series.
-// It covers each period returned by Names() plus the "inception" row.
-// Points and flows are expressed in display currency (raw series output).
-// rf is the annualized risk-free rate (e.g. 0.024 for 2.4 %).
+// It covers each period returned by Names() that the track record actually
+// spans, plus the "inception" row. Points and flows are expressed in display
+// currency (raw series output). rf is the annualized risk-free rate.
 func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row, Metrics) {
 	if len(points) == 0 {
 		return nil, Metrics{}
@@ -52,6 +68,9 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 		pf, pt, err := PeriodRange(name, evalTo)
 		if err != nil {
 			continue
+		}
+		if pf.Before(origin) {
+			continue // window predates the track record — the inception row covers it
 		}
 		rows = append(rows, periodRow(name, points, flows, pf, pt))
 	}
@@ -66,12 +85,21 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 		days = int(allPts[len(allPts)-1].Date.Time().Sub(allPts[0].Date.Time()).Hours() / 24)
 	}
 	m := Metrics{
-		CAGR:     CAGR(twrTotal, days),
-		Vol:      Vol(returns),
-		Sharpe:   Sharpe(returns, rf),
-		Sortino:  Sortino(returns, rf),
-		RiskFree: rf,
-		Drawdown: MaxDrawdown(allPts),
+		InceptionTWR: twrTotal,
+		Since:        origin,
+		Days:         days,
+		RiskFree:     rf,
+		Drawdown:     MaxDrawdown(allPts),
+	}
+	if days >= MinDaysForRisk && len(returns) >= 2 {
+		m.Vol = Vol(returns)
+		m.Sharpe = Sharpe(returns, rf)
+		m.Sortino = Sortino(returns, rf)
+		m.HasRisk = true
+	}
+	if days >= MinDaysForCAGR {
+		m.CAGR = CAGR(twrTotal, days)
+		m.HasCAGR = true
 	}
 	return rows, m
 }

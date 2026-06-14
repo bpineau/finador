@@ -146,7 +146,11 @@ After `refresh`, any holding still showing **“counted as 0”** is one no sour
   (not a real ISIN) have no public quote: value them by hand (step 7).
 - **Honest note on performance.** Because you didn't backfill the trades, the *historical*
   gain isn't attributed to `perf` (finador has no history to compute it from) — only moves
-  **after** this setup count. The tax estimate is exact regardless.
+  **after** this setup count. Each position enters the performance series at its market value
+  on the day you declare it, so the latent gain isn't booked as a one-day spike. Annualized
+  figures stay hidden until there's enough history (vol/Sharpe from ~90 days, CAGR from a
+  year); until then you see the cumulative return since you started (`tracking since …`). The
+  tax estimate is exact regardless.
 - **Sync across machines.** To keep this encrypted file in a private GitHub repo and sync it
   automatically, see *Use a private GitHub repo* in the [README](README.md).
 - **Tidy up.** After a bulk setup, `finador compact` rewrites a minimal ledger.

@@ -279,3 +279,45 @@ func TestSeriesMatchesValueWithWithholdingDividend(t *testing.T) {
 		approx(t, "net("+ref+")", last.Net, want.Net)
 	}
 }
+
+// Onboarding a position at its (stale) average cost must not fabricate
+// performance: the external flow is the shares' MARKET value when they enter
+// the scope, so TWR stays flat instead of booking the cost→market gap.
+func TestSeriesOpeningBuyValuedAtMarket(t *testing.T) {
+	b := domain.NewBook()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(b.AddAccount(&domain.Account{ID: "cto", Name: "CTO", Currency: domain.EUR}))
+	must(b.AddAsset(&domain.Asset{ID: "aa", Kind: domain.Security, Name: "A", Currency: domain.EUR, Group: "g"}))
+	must(b.AddAsset(&domain.Asset{ID: "bb", Kind: domain.Security, Name: "B", Currency: domain.EUR, Group: "g"}))
+
+	// A is bought at market (cost == value) and held flat — it gives the window
+	// a positive base value so the next day's return is actually measured.
+	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "cto", Asset: "aa",
+		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("1000")})
+	// B is onboarded mid-window at a STALE average cost (500) while the market
+	// already says 1000 — the classic "declare today's positions" case.
+	b.Add(domain.Transaction{Date: mustDate("2026-01-05"), Account: "cto", Asset: "bb",
+		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("500")})
+
+	b.Market.Price("aa").Merge([]domain.PricePoint{{Date: mustDate("2026-01-01"), Close: 100}}) // 10×100, flat
+	b.Market.Price("bb").Merge([]domain.PricePoint{{Date: mustDate("2026-01-05"), Close: 100}}) // 10×100 at entry, flat
+
+	res, err := Series(b, scopeOf(t, b, "g"), mustDate("2026-01-01"), mustDate("2026-01-10"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The mid-window opening is a value transfer (+1000 market), not the 500 cost.
+	if len(res.Flows) != 1 {
+		t.Fatalf("flows = %+v, want exactly one (B's entry)", res.Flows)
+	}
+	approx(t, "opening flow", res.Flows[0].Amount, 1000)
+	// Everything is flat at market → TWR ~0, not the +50 % the cost→market gap
+	// would fabricate on the day B appears.
+	got := perf.TWR(res.PerfPoints(false), res.PerfFlows())
+	approx(t, "TWR", got, 0)
+}
