@@ -50,13 +50,15 @@ func TestSeriesExternalFlowsAllScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	// PEA est suivi : ses trades sont internes.
-	// La maison : son premier relevé est au 2026-01-01 (== from) → pas collecté (flux du jour de base).
+	// La maison : son premier relevé est au 2026-01-01 (== from) → pas collecté (flux du jour de base) ;
+	// son second relevé (450000 le 06-01) re-base la valeur → flux d'ajustement +50000.
 	// Flux attendus :
 	//   [0] 01-05 +12000 : adoption du livret (premier relevé cash, règle D8)
 	//   [1] 01-10 +10000 : deposit pea
 	//   [2] 01-20 +1100  : buy cto (compte non suivi)
-	if len(res.Flows) != 3 {
-		t.Fatalf("flows = %+v, attendu 3", res.Flows)
+	//   [3] 06-01 +50000 : re-base de la maison (revalorisation déclarée, pas une perf)
+	if len(res.Flows) != 4 {
+		t.Fatalf("flows = %+v, attendu 4", res.Flows)
 	}
 	if res.Flows[0].Date != mustDate("2026-01-05") {
 		t.Errorf("flow[0] = %+v", res.Flows[0])
@@ -70,6 +72,10 @@ func TestSeriesExternalFlowsAllScope(t *testing.T) {
 		t.Errorf("flow[2] = %+v", res.Flows[2])
 	}
 	approx(t, "flow buy cto", res.Flows[2].Amount, 1100)
+	if res.Flows[3].Date != mustDate("2026-06-01") {
+		t.Errorf("flow[3] = %+v", res.Flows[3])
+	}
+	approx(t, "flow re-base maison", res.Flows[3].Amount, 50000)
 }
 
 func TestSeriesExternalFlowsGroupScope(t *testing.T) {
@@ -143,26 +149,35 @@ func TestSeriesAutoDividendFlows(t *testing.T) {
 
 func TestSeriesAdoptionFlowsForProperty(t *testing.T) {
 	b := valuationBook(t)
-	// la première estimation de la maison (400000 le 1er janv) est une adoption :
-	// elle doit apparaître comme flux externe, la seconde (450000) non.
+	// La maison est valorisée par déclaration, pas par un marché : chaque relevé
+	// re-base la valeur (apport), il n'en sort jamais de "performance".
+	//   - 1er relevé (400000 le 1er janv) = adoption (apport plein)
+	//   - 2e relevé (450000 le 1er juin) = re-base → flux d'ajustement +50000
 	res, err := Series(b, scopeOf(t, b, ""), mustDate("2025-12-25"), mustDate("2026-06-05"), domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var adoptions []ExternalFlow
-	for _, f := range res.Flows {
-		if f.Date == mustDate("2026-01-01") {
-			adoptions = append(adoptions, f)
+	flowAt := func(d string) (ExternalFlow, int) {
+		var hits []ExternalFlow
+		for _, f := range res.Flows {
+			if f.Date == mustDate(d) {
+				hits = append(hits, f)
+			}
 		}
-	}
-	if len(adoptions) != 1 {
-		t.Fatalf("flux d'adoption au 2026-01-01 = %+v, attendu 1 seul", adoptions)
-	}
-	approx(t, "adoption maison", adoptions[0].Amount, 400000)
-	for _, f := range res.Flows {
-		if f.Date == mustDate("2026-06-01") {
-			t.Fatalf("le 2e relevé ne doit pas être un flux: %+v", f)
+		if len(hits) == 1 {
+			return hits[0], 1
 		}
+		return ExternalFlow{}, len(hits)
+	}
+	if f, n := flowAt("2026-01-01"); n != 1 {
+		t.Fatalf("flux au 2026-01-01 = %d, attendu 1 (adoption)", n)
+	} else {
+		approx(t, "adoption maison", f.Amount, 400000)
+	}
+	if f, n := flowAt("2026-06-01"); n != 1 {
+		t.Fatalf("flux au 2026-06-01 = %d, attendu 1 (re-base)", n)
+	} else {
+		approx(t, "re-base maison", f.Amount, 50000)
 	}
 }
 
@@ -278,6 +293,33 @@ func TestSeriesMatchesValueWithWithholdingDividend(t *testing.T) {
 		approx(t, "gross("+ref+")", last.Gross, want.Gross)
 		approx(t, "net("+ref+")", last.Net, want.Net)
 	}
+}
+
+// A property is valued by declaration: entering an acquisition price and then a
+// current value is onboarding, not a multi-year gain compressed into one day.
+// Every statement re-bases the value (a flow), so TWR stays flat.
+func TestSeriesPropertyRevaluationIsNotPerformance(t *testing.T) {
+	b := domain.NewBook()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(b.AddAccount(&domain.Account{ID: "immo", Name: "Immo", Currency: domain.EUR}))
+	must(b.AddAsset(&domain.Asset{ID: "house", Kind: domain.Property, Name: "House", Currency: domain.EUR, Group: "immo"}))
+	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "immo", Asset: "house",
+		Kind: domain.Statement, Amount: eur("200000")}) // acquisition
+	b.Add(domain.Transaction{Date: mustDate("2026-03-01"), Account: "immo", Asset: "house",
+		Kind: domain.Statement, Amount: eur("260000")}) // current value, declared on onboarding day
+
+	res, err := Series(b, scopeOf(t, b, "immo"), mustDate("2026-01-01"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The +60000 re-statement is an adjustment flow, not a return.
+	twr := perf.TWR(res.PerfPoints(false), res.PerfFlows())
+	approx(t, "property TWR (declared revaluation ≠ perf)", twr, 0)
 }
 
 // Onboarding a position at its (stale) average cost must not fabricate

@@ -363,32 +363,34 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			return
 		}
 		isFirstStmt := p.stmt == nil
+		// Value this couple held just before the new statement (0 if first).
+		prevHeld := 0.0
+		if !isFirstStmt {
+			prevHeld = w.conv(*p.stmt, w.ccy, t.Date, p.asset.Name)
+		}
 		m := t.Amount
 		p.stmt = &m
 		if !p.hasFst && p.asset.Kind == domain.Property {
 			p.first = w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
 			p.hasFst = true
 		}
-		// Première réconciliation d'un couple (compte, actif) = adoption (apport),
-		// pas performance ; les relevés suivants mesurent la performance.
-		// On émet un flux uniquement si la position est effectivement valorisée
-		// par ce relevé à cette date :
-		//   - bien immobilier (property) : toujours valorisé par relevés
-		//   - titre (security) sans cours de marché à cette date : valorisé par relevé
-		if isFirstStmt && w.scope.hasAsset(acc.acc, p.asset) {
-			emitAdoption := false
-			if p.asset.Kind == domain.Property {
-				emitAdoption = true
-			} else {
-				// security : uniquement si aucun cours disponible à cette date
-				_, _, hasPx := w.b.Market.Prices[p.asset.ID].At(t.Date)
-				if !hasPx && p.qty > 0 {
-					emitAdoption = true
+		// A statement re-declares a value rather than observing a market, so the
+		// gap since the previously-held value is an adjustment (apport), not
+		// performance — emitting it as an external flow keeps TWR from booking a
+		// multi-year appreciation as a one-day jump. The first statement
+		// (prevHeld 0) is the full adoption.
+		//   - property: always declaration-valued → re-baseline on every statement
+		//   - security: only while it has no market price at this date (the price,
+		//     once present, supersedes the statement and carries the performance)
+		if w.scope.hasAsset(acc.acc, p.asset) {
+			newDisp := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
+			switch {
+			case p.asset.Kind == domain.Property:
+				w.addFlow(t.Date, newDisp-prevHeld, collect)
+			case isFirstStmt:
+				if _, _, hasPx := w.b.Market.Prices[p.asset.ID].At(t.Date); !hasPx && p.qty > 0 {
+					w.addFlow(t.Date, newDisp, collect)
 				}
-			}
-			if emitAdoption {
-				adoptionAmt := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
-				w.addFlow(t.Date, adoptionAmt, collect)
 			}
 		}
 	}

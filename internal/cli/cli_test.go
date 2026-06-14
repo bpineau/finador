@@ -335,6 +335,7 @@ func TestPerfEndToEnd(t *testing.T) {
 	// 06-05 : 10×560 − 500 = 5100 → TWR origine = +2.00 %.
 	// 146 j d'historique : vol/Sharpe/Sortino affichés, CAGR masqué (< 1 an).
 	for _, want := range []string{"PERIOD", "TWR", "XIRR", "inception", "+2.00%",
+		"GAIN (EUR)", "+100.00", // money P&L, net of contributions (10×(560−550))
 		"tracking since 2026-01-10 (146 d)", "Sharpe", "Sortino", "max drawdown"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf: %q manquant dans:\n%s", want, out)
