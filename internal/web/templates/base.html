@@ -10,13 +10,16 @@
 <body>
 <header class="manchette">
   <a class="marque" href="/">FINADOR</a>
-  <span class="date-du-jour">{{fmtDate .Today}}</span>
-  <nav>
-    <a href="/">Overview</a>
-    <a href="/assets">Assets</a>
-    <a href="/tx">Transactions</a>
-    <a href="/import">Import</a>
-  </nav>
+  <p class="exergue">the confidential ledger of your wealth</p>
+  <div class="folio">
+    <span class="date-du-jour">{{fmtDate .Today}}</span>
+    <nav>
+      <a href="/">Overview</a>
+      <a href="/assets">Assets</a>
+      <a href="/tx">Transactions</a>
+      <a href="/import">Import</a>
+    </nav>
+  </div>
 </header>
 <main>
 {{block "main" .}}{{end}}
