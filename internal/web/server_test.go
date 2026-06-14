@@ -16,6 +16,7 @@ import (
 
 	"finador/internal/domain"
 	"finador/internal/market"
+	"finador/internal/portfolio"
 	"finador/internal/store"
 )
 
@@ -222,6 +223,60 @@ func excerpt(s string) string {
 		return s[:800]
 	}
 	return s
+}
+
+func cw8TxID(t *testing.T, f *store.File) domain.TxID {
+	t.Helper()
+	for _, tx := range portfolio.Sorted(f.Book) {
+		if tx.Asset == "cw8" {
+			return tx.ID
+		}
+	}
+	t.Fatal("no cw8 transaction in the fixture")
+	return ""
+}
+
+// The transaction-edit page offers a dedicated, ID-based rename — distinct from
+// the "asset" field, which reassigns the entry.
+func TestTxEditOffersAssetRename(t *testing.T) {
+	srv, f := testServer(t)
+	_, body := get(t, srv, "/tx/"+string(cw8TxID(t, f))+"/edit")
+	if !strings.Contains(body, `action="/asset/cw8/rename"`) || !strings.Contains(body, "Rename asset") {
+		t.Errorf("tx-edit page missing the asset-rename control:\n%s", excerpt(body))
+	}
+}
+
+func TestAssetRename(t *testing.T) {
+	srv, f := testServer(t)
+	post := func(name string) int {
+		req := httptest.NewRequest(http.MethodPost, "/asset/cw8/rename",
+			strings.NewReader(url.Values{"name": {name}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := post("World Tracker"); code != http.StatusSeeOther {
+		t.Fatalf("rename = %d, want 303", code)
+	}
+	// renamed by ID: same asset, new label, holdings/ID untouched
+	if asset, err := f.Book.Asset("cw8"); err != nil || asset.Name != "World Tracker" {
+		t.Fatalf("asset name = %q (err %v), want World Tracker", assetName(f), err)
+	}
+	if _, body := get(t, srv, "/assets"); !strings.Contains(body, "World Tracker") {
+		t.Errorf("renamed label missing from /assets:\n%s", excerpt(body))
+	}
+	// an empty name is rejected
+	if code := post(""); code != http.StatusBadRequest {
+		t.Errorf("empty rename = %d, want 400", code)
+	}
+}
+
+func assetName(f *store.File) string {
+	if a, err := f.Book.Asset("cw8"); err == nil {
+		return a.Name
+	}
+	return ""
 }
 
 func TestImportUpload(t *testing.T) {
