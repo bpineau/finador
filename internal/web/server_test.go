@@ -174,6 +174,7 @@ func TestDashboardComplete(t *testing.T) {
 		"performance", // perf section
 		"inception",   // period table row
 		"TWR",
+		">gain<",         // money P&L column header
 		"tracking since", // span shown even when annualized stats are hidden
 	} {
 		if !strings.Contains(body, want) {

@@ -90,6 +90,43 @@ func TestReportXIRRDashOnShortNamedPeriods(t *testing.T) {
 	}
 }
 
+// Gain is the value change net of contributions: declaring/adding money is
+// never a gain, only what that money then earns.
+func TestReportGainNetsOutContributions(t *testing.T) {
+	start := d("2026-01-01")
+	var pts []Point
+	for i := range 41 {
+		pts = append(pts, Point{Date: start.AddDays(i), Value: 1000 + float64(i)*2.5}) // 1000 → 1100
+	}
+	evalTo := start.AddDays(40)
+
+	rows, _ := Report(pts, nil, evalTo, 0)
+	var inc *Row
+	for i := range rows {
+		if rows[i].Name == "inception" {
+			inc = &rows[i]
+		}
+	}
+	if inc == nil || !inc.HasGain {
+		t.Fatal("inception gain missing")
+	}
+	approx(t, "inception gain", inc.Gain, 100, 1e-6)
+
+	// A mid-window contribution of +500 lifts the value but is NOT a gain.
+	flows := []Flow{{Date: start.AddDays(20), Amount: 500}}
+	pts2 := make([]Point, len(pts))
+	copy(pts2, pts)
+	for i := 20; i < len(pts2); i++ {
+		pts2[i].Value += 500
+	}
+	rows2, _ := Report(pts2, flows, evalTo, 0)
+	for i := range rows2 {
+		if rows2[i].Name == "inception" {
+			approx(t, "gain net of contribution", rows2[i].Gain, 100, 1e-6)
+		}
+	}
+}
+
 func TestRiskFreeFromConfig(t *testing.T) {
 	cases := []struct {
 		cfg  map[string]string
