@@ -15,7 +15,7 @@ import (
 type GitHub struct {
 	Owner  string `json:"owner"`
 	Repo   string `json:"repo"`
-	Path   string `json:"path"`   // e.g. "portfolio.fin"
+	Path   string `json:"path"`   // e.g. "finador.fin"
 	Branch string `json:"branch"` // e.g. "main"
 }
 
