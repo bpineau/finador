@@ -409,7 +409,7 @@ func remoteError(err error) error {
 	case errors.Is(err, remote.ErrOffline):
 		return fmt.Errorf("offline and no local copy available — connect and retry: %w", err)
 	case errors.Is(err, remote.ErrRemoteMissing):
-		return fmt.Errorf("the remote has no portfolio file yet — run `finador init` to start fresh, or `finador remote adopt` to upload your existing ~/.finador.fin")
+		return fmt.Errorf("no file found at the configured remote path/branch — check `finador remote show` (a wrong --path or --branch is the usual cause); for a genuinely new repo, run `finador init` or `finador remote adopt`")
 	default:
 		return err
 	}
