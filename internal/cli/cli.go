@@ -248,11 +248,47 @@ func (a *app) commitMessage() string {
 	return "finador " + name + " (" + time.Now().UTC().Format("2006-01-02 15:04") + ")"
 }
 
+// staticPW wraps an already-resolved password as a provider.
+func staticPW(pw string) func() (string, error) {
+	return func() (string, error) { return pw, nil }
+}
+
+// walletPassword returns a lazy resolver for the wallet password, keyed on path.
+// It consults env/keychain/prompt at most once and caches a freshly typed one,
+// so a command that may not need it (a conflict-free `sync`) prompts only when a
+// merge actually has to decrypt — and never prompts twice.
+func (a *app) walletPassword(path string) func() (string, error) {
+	var (
+		pw   string
+		done bool
+	)
+	return func() (string, error) {
+		if done {
+			return pw, nil
+		}
+		cache := a.cache()
+		p, fresh, err := keyring.PasswordFor(path, cache, keyring.Prompt)
+		if err != nil {
+			return "", err
+		}
+		if fresh {
+			cache.Put(keyring.Key(path), p, defaultTTL)
+		}
+		pw, done = p, true
+		return pw, nil
+	}
+}
+
 // remoteMerge adapts the interactive conflict resolver to a remote.MergeFunc:
 // it merges the remote copy (remotePath) into the local working copy (localPath),
-// writing the reconciled result back to localPath.
-func (a *app) remoteMerge(pw string) remote.MergeFunc {
+// writing the reconciled result back to localPath. The password is resolved
+// lazily (getPW) so callers that may never merge don't prompt for nothing.
+func (a *app) remoteMerge(getPW func() (string, error)) remote.MergeFunc {
 	return func(localPath, remotePath string) error {
+		pw, err := getPW()
+		if err != nil {
+			return err
+		}
 		local, err := store.Open(localPath, pw)
 		if err != nil {
 			return fmt.Errorf("open local copy for merge: %w", err)
@@ -330,7 +366,7 @@ func (a *app) mutate(fn func(*domain.Book) error) error {
 		return err
 	}
 
-	warnings, err := s.ForWrite(ctx, a.remoteMerge(pw))
+	warnings, err := s.ForWrite(ctx, a.remoteMerge(staticPW(pw)))
 	if err != nil {
 		return remoteError(err)
 	}
@@ -350,7 +386,7 @@ func (a *app) mutate(fn func(*domain.Book) error) error {
 		return err
 	}
 
-	warnings, err = s.AfterWrite(ctx, a.commitMessage(), a.remoteMerge(pw))
+	warnings, err = s.AfterWrite(ctx, a.commitMessage(), a.remoteMerge(staticPW(pw)))
 	if err != nil {
 		return remoteError(err)
 	}
@@ -372,6 +408,8 @@ func remoteError(err error) error {
 		return fmt.Errorf("GitHub authentication failed — check the token or run `finador remote login`: %w", err)
 	case errors.Is(err, remote.ErrOffline):
 		return fmt.Errorf("offline and no local copy available — connect and retry: %w", err)
+	case errors.Is(err, remote.ErrRemoteMissing):
+		return fmt.Errorf("the remote has no portfolio file yet — run `finador init` to start fresh, or `finador remote adopt` to upload your existing ~/.finador.fin")
 	default:
 		return err
 	}

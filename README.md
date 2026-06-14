@@ -509,8 +509,9 @@ Keep the encrypted ledger in a private GitHub repo (full walkthrough in
 default; these commands are only for GitHub mode.
 
 ```sh
-finador remote set <owner>/<repo> [--path portfolio.fin] [--branch main]   # switch to GitHub mode
+finador remote set <owner>/<repo> [--path portfolio.fin] [--branch master]  # switch to GitHub mode
 finador remote login                                                       # store the token (Keychain)
+finador remote adopt                                                       # upload an existing ~/.finador.fin (migration)
 finador remote show                                                        # mode, repo, sync state (never the token)
 finador remote off                                                         # back to local file mode
 finador sync                                                               # force pull, push pending changes
@@ -518,8 +519,9 @@ finador sync                                                               # for
 
 | Command | What it does |
 |---|---|
-| `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `portfolio.fin`) is the file's path inside the repo; `--branch` (default `main`). |
+| `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `portfolio.fin`) is the file's path inside the repo; `--branch` (default **`main`** — pass `--branch master` if that's your repo's default branch, finador doesn't auto-detect it). |
 | `remote login` | Prompts for the fine-grained PAT and stores it in the macOS Keychain (re-run to rotate). `GITHUB_TOKEN` overrides it. |
+| `remote adopt` | Uploads an existing local `.fin` (`--from`, default `~/.finador.fin`) to the remote as-is — a one-time migration. Refuses to overwrite an existing remote file unless `--force`. |
 | `remote show` | Prints the active mode, the repo/path/branch and the sync state (last pull, unpushed changes). Never prints the token. |
 | `remote off` | Sets `source: local` — commands use `~/.finador.fin` again. |
 | `sync` | Forces a pull now (don't wait the hourly refresh) and pushes pending offline changes, reconciling via `merge` if the remote moved. |
@@ -547,9 +549,11 @@ local mode for a single invocation, whatever the config says.
   distinctly from being offline.
 - The GitHub Contents API caps a file at ~1 MB; the ledger (market cache excluded) stays well
   under it. `finador lock` forgets both cached passwords and the GitHub token.
-- **Already have a local file?** Remote mode starts fresh (`init`) or pulls an existing remote;
-  it does not auto-import a pre-existing `~/.finador.fin`. (A one-command migration may be added
-  later — ask if you need it.)
+- **Already have a local file?** `init` starts fresh and `sync` only pulls an existing remote —
+  neither imports a pre-existing `~/.finador.fin`. Migrate it with **`finador remote adopt`**,
+  which uploads the encrypted file as-is (no password needed) and installs it as the working
+  copy. On an empty remote, `sync` says so and points you to `init`/`adopt` rather than failing
+  cryptically.
 
 ## CSV import
 
@@ -668,17 +672,28 @@ one repo. Local mode stays the default and the fallback.
 **One-time setup**
 
 1. Create a **private** repo on GitHub, e.g. `you/finador-data` (empty is fine).
-2. Create a **fine-grained personal access token** (Settings → Developer settings →
-   Fine-grained tokens) scoped to **only that repository**, permission **Contents: Read and
-   write**. A free account is enough.
+2. Create a **fine-grained personal access token** at
+   <https://github.com/settings/personal-access-tokens> (Settings → Developer settings →
+   Fine-grained tokens → Generate new token). Set **Repository access → Only select
+   repositories →** your repo, and the single permission **Contents: Read and write**
+   (*Metadata: Read* is added automatically). A free account is enough. The token carries an
+   expiry; renew it later by regenerating it on GitHub and re-running `finador remote login`.
 3. Point finador at it and store the token (macOS Keychain):
    ```sh
    finador remote set you/finador-data --path portfolio.fin
    finador remote login          # paste the token  (or: export GITHUB_TOKEN=…)
    finador init                  # creates and pushes the encrypted file
    ```
-   On another machine, repeat steps 1–3 with the same repo/token, then run any command — it
-   pulls the existing `portfolio.fin`.
+   **If your repo's default branch isn't `main`** (e.g. `master`), add `--branch master` to
+   `remote set` — finador defaults to `main` and does **not** auto-detect the repo's branch.
+
+   **Already have a populated `~/.finador.fin`?** Don't run `init` (it would start empty).
+   After `remote set` + `remote login`, migrate it in one command:
+   ```sh
+   finador remote adopt          # uploads ~/.finador.fin as-is (still encrypted), then reads it
+   ```
+   On another machine, repeat steps 1–3 with the same repo/token (and matching `--branch`),
+   then run any command — it pulls the existing `portfolio.fin`.
 
 **How sync works**
 

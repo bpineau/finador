@@ -52,6 +52,6 @@ func PasswordFor(db string, cache Cache, prompt func(string) (string, error)) (p
 	if pw, ok := cache.Get(Key(db)); ok {
 		return pw, false, nil
 	}
-	pw, err = prompt("Password: ")
+	pw, err = prompt("Wallet password: ")
 	return pw, true, err
 }
