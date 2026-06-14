@@ -481,7 +481,8 @@ the overview showing top-level group weights and cash with a muted palette and
 an HTML legend, an **assets tab** showing every holding on one dense row with
 1W/1M/1Y sparklines and gross/net amounts (with an **export CSV** download),
 drill-down scope pages with curves and performance (charts default to full
-history, with quiet 1m/3m/1y range links), transaction entry/edit/delete,
+history, with quiet 1m/3m/1y range links), transaction entry/edit/delete
+(the edit page also renames the entry's asset everywhere, by its stable ID),
 CSV import, quote refresh.
 No web authentication: keep it on 127.0.0.1 (a loud warning is printed
 otherwise).
