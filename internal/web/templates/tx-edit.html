@@ -16,7 +16,7 @@
           <input id="account" name="account" list="accounts-list" value="{{.AccountName}}" placeholder="existing or new">
           <datalist id="accounts-list">{{range .Accounts}}<option value="{{.Name}}">{{end}}</datalist></div>
         <div><label for="asset">asset</label>
-          <input id="asset" name="asset" list="assets-list" value="{{.AssetName}}" placeholder="optional — existing or new">
+          <input id="asset" name="asset" list="assets-list" value="{{.AssetName}}" placeholder="reassign to an existing/new asset">
           <datalist id="assets-list">{{range .Assets}}<option value="{{.Name}}">{{end}}</datalist></div>
         <div><label for="qty">quantity</label><input id="qty" name="qty" value="{{.Tx.Quantity}}"></div>
         <div><label for="amount">total amount</label><input id="amount" name="amount" value="{{.Tx.Amount.Amount}}"></div>
@@ -27,4 +27,21 @@
     </fieldset>
   </form>
 </section>
+
+{{if .Tx.Asset}}
+<section>
+  <form method="post" action="/asset/{{.Tx.Asset}}/rename">
+    <fieldset>
+      <legend>rename asset</legend>
+      <p class="note-bas">Changes the label <em>everywhere</em> this asset appears, in one move.
+        Your transactions, rankings and history follow it — they reference the asset itself, not its name.</p>
+      <div class="champs">
+        <div><label for="asset-name">name</label>
+          <input id="asset-name" name="name" value="{{.AssetName}}"></div>
+      </div>
+      <button type="submit">Rename asset</button>
+    </fieldset>
+  </form>
+</section>
+{{end}}
 {{end}}

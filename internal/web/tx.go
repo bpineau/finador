@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/shopspring/decimal"
 
@@ -205,6 +207,40 @@ func (s *Server) txEditSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/tx", http.StatusSeeOther)
+}
+
+// assetRename changes an asset's display name globally. It renames by the
+// asset's stable ID, so every transaction, ranking and chart that references it
+// just shows the new label — nothing is reclassified and no second asset is
+// created. (Retyping the name in a transaction's "asset" field does the
+// opposite: it reassigns that one entry, creating a new asset on the fly.)
+func (s *Server) assetRename(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b := s.file.Book
+	asset, err := b.Asset(r.PathValue("id"))
+	if err != nil {
+		s.renderError(w, http.StatusNotFound, "asset not found")
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		s.renderError(w, http.StatusBadRequest, "a name is required")
+		return
+	}
+	old := asset.Name
+	asset.Name = name
+	if err := b.CheckAssetRefs(asset); err != nil {
+		asset.Name = old
+		s.renderError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.file.Save(); err != nil {
+		asset.Name = old
+		s.renderError(w, http.StatusInternalServerError, "could not save: "+err.Error())
+		return
+	}
+	http.Redirect(w, r, "/tx?flash="+url.QueryEscape("renamed to "+name), http.StatusSeeOther)
 }
 
 func (s *Server) txDelete(w http.ResponseWriter, r *http.Request) {
