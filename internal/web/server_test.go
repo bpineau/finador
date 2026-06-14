@@ -174,10 +174,16 @@ func TestDashboardComplete(t *testing.T) {
 		"performance", // perf section
 		"inception",   // period table row
 		"TWR",
+		"tracking since", // span shown even when annualized stats are hidden
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dashboard: %q missing", want)
 		}
+	}
+	// The fixture spans ~5 months (< 1 year): CAGR must stay hidden rather than
+	// annualize a short window into nonsense.
+	if strings.Contains(body, "CAGR") {
+		t.Errorf("CAGR should be hidden under a year of history:\n%s", excerpt(body))
 	}
 	// curves carry theme colours
 	if !strings.Contains(body, "#1c1914") || !strings.Contains(body, "#1e6e4e") {

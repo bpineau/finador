@@ -110,17 +110,78 @@ func TestRiskFreeFromConfig(t *testing.T) {
 	}
 }
 
-func TestReportMetricsNotEmpty(t *testing.T) {
-	start := d("2026-01-01")
-	evalTo := d("2026-04-11")
-	pts := syntheticSeries(start, 99, evalTo)
-
-	_, metrics := Report(pts, nil, evalTo, 0.02)
-
-	if metrics.CAGR == 0 && metrics.Vol == 0 {
-		t.Error("CAGR and Vol cannot both be 0 on a non-trivial series")
+// rampSeries: a gently rising series with a daily sawtooth so daily returns
+// genuinely vary (non-zero vol) regardless of which weekday the window ends on.
+func rampSeries(start domain.Date, days int) ([]Point, domain.Date) {
+	var pts []Point
+	for i := range days + 1 {
+		v := 100.0 + float64(i)*0.1 + float64(i%3) // upward trend + 3-day sawtooth
+		pts = append(pts, Point{Date: start.AddDays(i), Value: v})
 	}
-	if metrics.RiskFree != 0.02 {
-		t.Errorf("RiskFree = %v, want 0.02", metrics.RiskFree)
+	return pts, start.AddDays(days)
+}
+
+// Annualized figures stay hidden until the track record is long enough; the
+// cumulative inception return and span are always reported.
+func TestReportMetricsGating(t *testing.T) {
+	const rf = 0.02
+
+	// < 90 days: no annualized stats, but inception TWR + span are present.
+	pts, evalTo := rampSeries(d("2026-01-01"), 40)
+	_, m := Report(pts, nil, evalTo, rf)
+	if m.HasRisk || m.HasCAGR {
+		t.Errorf("40d: expected no annualized stats, got HasRisk=%v HasCAGR=%v", m.HasRisk, m.HasCAGR)
+	}
+	if m.Days != 40 || m.Since != d("2026-01-01") {
+		t.Errorf("40d: Days=%d Since=%v, want 40 / 2026-01-01", m.Days, m.Since)
+	}
+	if m.InceptionTWR == 0 {
+		t.Error("40d: InceptionTWR should be reported even when annualized stats are hidden")
+	}
+
+	// 90–365 days: risk stats appear, CAGR still hidden (sub-year).
+	pts, evalTo = rampSeries(d("2025-01-01"), 200)
+	_, m = Report(pts, nil, evalTo, rf)
+	if !m.HasRisk {
+		t.Error("200d: HasRisk should be true")
+	}
+	if m.HasCAGR {
+		t.Error("200d: CAGR should stay hidden under a year")
+	}
+	if m.Vol == 0 {
+		t.Error("200d: Vol should be non-zero on a varying series")
+	}
+
+	// ≥ 365 days: CAGR appears too.
+	pts, evalTo = rampSeries(d("2024-01-01"), 400)
+	_, m = Report(pts, nil, evalTo, rf)
+	if !m.HasRisk || !m.HasCAGR {
+		t.Errorf("400d: want both annualized blocks, got HasRisk=%v HasCAGR=%v", m.HasRisk, m.HasCAGR)
+	}
+	if m.RiskFree != rf {
+		t.Errorf("RiskFree = %v, want %v", m.RiskFree, rf)
+	}
+}
+
+// Periods whose window starts before the first data point are omitted (the
+// portfolio didn't exist then); the inception row covers the real span.
+func TestReportSkipsPreInceptionPeriods(t *testing.T) {
+	pts, evalTo := rampSeries(d("2026-04-01"), 40) // born 2026-04-01, ~40 days
+	rows, _ := Report(pts, nil, evalTo, 0)
+
+	names := map[string]bool{}
+	for _, r := range rows {
+		names[r.Name] = true
+	}
+	if !names["inception"] {
+		t.Error("inception row must always be present")
+	}
+	for _, gone := range []string{"1y", "ytd", "prev-yr", "3m"} {
+		if names[gone] {
+			t.Errorf("period %q predates inception and should be omitted (rows: %v)", gone, names)
+		}
+	}
+	if !names["1m"] { // 1 month fits inside ~40 days of history
+		t.Errorf("1m fits the track record and should be present (rows: %v)", names)
 	}
 }

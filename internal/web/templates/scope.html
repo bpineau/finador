@@ -40,7 +40,7 @@
       <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{fmtPct .XIRR}}{{else}}—{{end}}</td></tr>
     {{end}}
   </table>
-  <p class="sous-titre">CAGR {{fmtPct .Met.CAGR}} · vol {{fmtPct .Met.Vol}} · Sharpe {{fmtNum .Met.Sharpe}} · Sortino {{fmtNum .Met.Sortino}}</p>
+  <p class="sous-titre">{{if .Met.HasCAGR}}CAGR {{fmtPct .Met.CAGR}} · {{end}}{{if .Met.HasRisk}}vol {{fmtPct .Met.Vol}} · Sharpe {{fmtNum .Met.Sharpe}} · Sortino {{fmtNum .Met.Sortino}} · {{end}}tracking since {{.Met.Since}} ({{.Met.Days}} d)</p>
   {{end}}
 </section>
 
