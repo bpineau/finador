@@ -35,7 +35,8 @@ func syncCmd(a *app) *cobra.Command {
 			printWarnings(warnings)
 			if !s.HasWorkingCopy() {
 				fmt.Fprintf(cmd.OutOrStdout(),
-					"%s has no file yet — run `finador init` to start fresh, or `finador remote adopt` to upload your existing ~/.finador.fin\n",
+					"no file found at %s — check the --path and --branch above (a mismatch is the usual cause); "+
+						"for a genuinely new repo, run `finador init` or `finador remote adopt`\n",
 					s.Describe())
 				return nil
 			}

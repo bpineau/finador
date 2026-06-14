@@ -552,8 +552,11 @@ local mode for a single invocation, whatever the config says.
 - **Already have a local file?** `init` starts fresh and `sync` only pulls an existing remote —
   neither imports a pre-existing `~/.finador.fin`. Migrate it with **`finador remote adopt`**,
   which uploads the encrypted file as-is (no password needed) and installs it as the working
-  copy. On an empty remote, `sync` says so and points you to `init`/`adopt` rather than failing
-  cryptically.
+  copy. The remote `--path` must match the file's name in the repo (e.g. don't configure
+  `portfolio.fin` while the repo holds `finador.fin`).
+- **No file found at the remote?** Reads and `sync` report it and show the path/branch they
+  looked at — a wrong `--path` or `--branch` (finador defaults to `main`) is the usual cause;
+  check `finador remote show`. For a genuinely new repo, run `init` or `remote adopt`.
 
 ## CSV import
 
