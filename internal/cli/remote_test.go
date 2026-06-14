@@ -246,8 +246,8 @@ func TestSyncOnEmptyRemoteGuidesToInitOrAdopt(t *testing.T) {
 	configureRemote(t, fake)
 
 	out := mustRunRemote(t, fake, "sync")
-	if !strings.Contains(out, "has no file yet") || !strings.Contains(out, "remote adopt") {
-		t.Errorf("sync on an empty remote should guide to init/adopt:\n%s", out)
+	if !strings.Contains(out, "no file found at") || !strings.Contains(out, "remote adopt") {
+		t.Errorf("sync on a missing remote should flag path/branch and guide to init/adopt:\n%s", out)
 	}
 	if strings.Contains(out, "Synced with") {
 		t.Errorf("sync must not claim success on an empty remote:\n%s", out)
