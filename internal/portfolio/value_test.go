@@ -297,3 +297,23 @@ func TestParseScopeOrderAndErrors(t *testing.T) {
 		t.Errorf("ParseScope(inconnu): %v", err)
 	}
 }
+
+// An asset held in several accounts is valued once per position, so an
+// asset-level note (here a what-if override) must not be repeated.
+func TestValueWhatIfNoteDeduped(t *testing.T) {
+	b := valuationBook(t) // cw8 held in both pea (12) and cto (2)
+	v, err := Value(b, scopeOf(t, b, ""), mustDate("2026-06-05"), domain.EUR, fxStub{},
+		WithPriceOverrides(map[domain.AssetID]float64{"cw8": 600}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, s := range v.Stale {
+		if strings.Contains(s, "what-if") && strings.Contains(s, "CW8") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("what-if note appeared %d times, want 1:\n%v", n, v.Stale)
+	}
+}
