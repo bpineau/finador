@@ -3,12 +3,15 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
 	"finador/internal/cli"
+	"finador/internal/domain"
 	"finador/internal/remote"
+	"finador/internal/store"
 )
 
 // fakeBackend is an in-memory remote.Backend for the remote-mode tests. It never
@@ -200,5 +203,53 @@ func TestSyncWithoutRemoteErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no remote configured") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestRemoteAdoptMigratesLocalFile(t *testing.T) {
+	remoteEnv(t)
+	fake := &fakeBackend{}
+	configureRemote(t, fake)
+
+	// a populated local file to migrate (same password as remoteEnv)
+	local := filepath.Join(t.TempDir(), "local.fin")
+	f, err := store.Create(local, "secret-de-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Book.AddAccount(&domain.Account{ID: "pea", Name: "PEA BforBank", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, present := fake.snapshot(); present {
+		t.Fatal("backend should be empty before adopt")
+	}
+	out := mustRunRemote(t, fake, "remote", "adopt", "--from", local)
+	if !strings.Contains(out, "Uploaded") {
+		t.Errorf("adopt output: %q", out)
+	}
+	if _, present := fake.snapshot(); !present {
+		t.Fatal("adopt should have pushed the local file to the backend")
+	}
+	// the migrated data is now readable through GitHub mode
+	if out := mustRunRemote(t, fake, "account", "list"); !strings.Contains(out, "PEA BforBank") {
+		t.Errorf("adopted account not visible after migration:\n%s", out)
+	}
+}
+
+func TestSyncOnEmptyRemoteGuidesToInitOrAdopt(t *testing.T) {
+	remoteEnv(t)
+	fake := &fakeBackend{} // empty remote
+	configureRemote(t, fake)
+
+	out := mustRunRemote(t, fake, "sync")
+	if !strings.Contains(out, "has no file yet") || !strings.Contains(out, "remote adopt") {
+		t.Errorf("sync on an empty remote should guide to init/adopt:\n%s", out)
+	}
+	if strings.Contains(out, "Synced with") {
+		t.Errorf("sync must not claim success on an empty remote:\n%s", out)
 	}
 }
