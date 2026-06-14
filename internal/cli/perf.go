@@ -106,17 +106,18 @@ func perfCmd(a *app) *cobra.Command {
 			}
 
 			fmt.Fprintf(out, "%s — performance (%s), as of %s\n", scope.Label, display, evalTo)
-			fmt.Fprintf(out, "%-9s %14s %14s\n", "PERIOD", "TWR", "XIRR")
-			printRow := func(name, twrStr, xirrStr string, ts, xs float64) {
-				fmt.Fprintf(out, "%-9s %s %s\n",
+			fmt.Fprintf(out, "%-9s %14s %14s %16s\n", "PERIOD", "TWR", "XIRR", "GAIN ("+string(display)+")")
+			printRow := func(name, twrStr, xirrStr, gainStr string, ts, xs, gs float64) {
+				fmt.Fprintf(out, "%-9s %s %s %s\n",
 					name,
 					tint(pad(twrStr, 14), ts, colored),
 					tint(pad(xirrStr, 14), xs, colored),
+					tint(pad(gainStr, 16), gs, colored),
 				)
 			}
 			for _, row := range rows {
-				twrStr, xirrStr := "—", "—"
-				var ts, xs float64
+				twrStr, xirrStr, gainStr := "—", "—", "—"
+				var ts, xs, gs float64
 				if row.HasTWR {
 					twrStr = pctSigned(row.TWR)
 					ts = row.TWR
@@ -125,14 +126,19 @@ func perfCmd(a *app) *cobra.Command {
 					xirrStr = pctSigned(row.XIRR)
 					xs = row.XIRR
 				}
-				printRow(row.Name, twrStr, xirrStr, ts, xs)
+				if row.HasGain {
+					gainStr = fmt.Sprintf("%+.2f", row.Gain)
+					gs = row.Gain
+				}
+				printRow(row.Name, twrStr, xirrStr, gainStr, ts, xs, gs)
 			}
 			if from != "" {
 				wf, err := domain.ParseDate(from)
 				if err != nil {
 					return err
 				}
-				printRow("window", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), 0, 0)
+				gainStr, gv := gainCell(res, wf, evalTo)
+				printRow("window", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), gainStr, 0, 0, gv)
 			}
 
 			summary := cmd.OutOrStdout()
@@ -191,6 +197,20 @@ func twrCell(res portfolio.SeriesResult, from, to domain.Date) string {
 		return "—"
 	}
 	return pctSigned(perf.TWR(pts, flows))
+}
+
+// gainCell: money P&L over [from, to], net of contributions; "—" if too short.
+func gainCell(res portfolio.SeriesResult, from, to domain.Date) (string, float64) {
+	pts, flows := window(res, from, to)
+	if len(pts) < 2 {
+		return "—", 0
+	}
+	var nf float64
+	for _, f := range flows {
+		nf += f.Amount
+	}
+	g := pts[len(pts)-1].Value - pts[0].Value - nf
+	return fmt.Sprintf("%+.2f", g), g
 }
 
 // xirrCell: windows shorter than 30 days print "—" (annualizing a daily move

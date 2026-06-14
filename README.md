@@ -385,12 +385,15 @@ finador perf [scope] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c] [--exclude 
 ```
 
 Prints a period table — `1d 5d 1m 3m ytd 1y prev-yr inception` (plus a `window`
-row when `--from` is given) — with two complementary measures:
+row when `--from` is given) — with three complementary measures:
 
 - **TWR** chains daily returns with external flows neutralized: the performance of
   the *strategy*, comparable across scopes.
 - **XIRR** is the money-weighted annual rate of *your* euros, contributions
   included. Shown only for windows ≥ 30 days (annualizing a daily move is noise).
+- **GAIN** is the money made or lost over the window, *net of contributions* — the
+  value change your deposits and onboarding declarations don't explain. Declaring
+  "I hold 1000 € of X" is not a 1000 € gain; only what it earns afterwards counts.
 
 Periods that predate your first transaction are omitted (a fresh portfolio has no
 "1y") — the `inception` row always shows the real, full span.
@@ -405,6 +408,10 @@ to it), which makes output reproducible in scripts.
 A holding declared at its *average cost* (the onboarding recipe) enters the
 performance series at its **market value** on the day you record it, not at cost —
 so the latent gain you built up before tracking isn't mistaken for a one-day spike.
+Likewise, a property (or any hand-valued holding) is priced by *declaration*, not a
+market: each `asset set` re-bases its value as an adjustment, so entering an old
+acquisition price and today's value never books years of appreciation as a single
+day's return.
 
 ### Charts: `chart`
 

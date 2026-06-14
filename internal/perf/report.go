@@ -29,6 +29,8 @@ type Row struct {
 	HasTWR  bool
 	XIRR    float64
 	HasXIRR bool
+	Gain    float64 // money gained/lost over the window, net of contributions (display ccy)
+	HasGain bool
 }
 
 // Minimum track records before annualized figures mean anything: annualizing a
@@ -111,6 +113,15 @@ func periodRow(name string, points []Point, flows []Flow, from, to domain.Date) 
 	if len(pts) >= 2 {
 		row.TWR = TWR(pts, fls)
 		row.HasTWR = true
+		// Money P&L over the window: the value change NOT explained by money you
+		// put in or took out. Declaring an existing holding (a contribution) is
+		// neutralized via the flows, so it never reads as a gain.
+		var netFlow float64
+		for _, f := range fls {
+			netFlow += f.Amount
+		}
+		row.Gain = pts[len(pts)-1].Value - pts[0].Value - netFlow
+		row.HasGain = true
 	}
 	// XIRR : fenêtres < 30 jours ou V0 ≤ 0 → tiret
 	if to.Time().Sub(from.Time()).Hours() >= 30*24 && len(pts) >= 2 && pts[0].Value > 0 {
