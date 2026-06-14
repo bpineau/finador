@@ -49,7 +49,9 @@ func (b *fakeBackend) Push(_ context.Context, data []byte, base remote.Version, 
 	return remote.Version(verStr(b.version)), nil
 }
 
-func (b *fakeBackend) Describe() string { return "fake:owner/repo/portfolio.fin@main" }
+func (b *fakeBackend) Describe() string { return "fake:owner/repo/finador.fin@main" }
+
+func (b *fakeBackend) CheckAccess(context.Context) error { return nil }
 
 func (b *fakeBackend) snapshot() ([]byte, bool) {
 	b.mu.Lock()
@@ -167,7 +169,7 @@ func TestRemoteShowHidesToken(t *testing.T) {
 	configureRemote(t, fake)
 
 	out := mustRunRemote(t, fake, "remote", "show")
-	for _, want := range []string{"github", "owner/repo", "portfolio.fin", "main"} {
+	for _, want := range []string{"github", "owner/repo", "finador.fin", "main"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("remote show missing %q:\n%s", want, out)
 		}
@@ -251,5 +253,48 @@ func TestSyncOnEmptyRemoteGuidesToInitOrAdopt(t *testing.T) {
 	}
 	if strings.Contains(out, "Synced with") {
 		t.Errorf("sync must not claim success on an empty remote:\n%s", out)
+	}
+}
+
+func TestRemoteCompactPushes(t *testing.T) {
+	remoteEnv(t)
+	fake := &fakeBackend{}
+	configureRemote(t, fake)
+	mustRunRemote(t, fake, "init")
+	mustRunRemote(t, fake, "account", "add", "PEA BforBank")
+	mustRunRemote(t, fake, "account", "add", "CTO IBKR")
+
+	before, present := fake.snapshot()
+	if !present {
+		t.Fatal("expected a remote file before compact")
+	}
+
+	mustRunRemote(t, fake, "compact")
+
+	after, present := fake.snapshot()
+	if !present {
+		t.Fatal("compact dropped the remote file")
+	}
+	if bytes.Equal(before, after) {
+		t.Fatal("compact did not push a rewritten file to the remote (write went unpushed)")
+	}
+	if out := mustRunRemote(t, fake, "account", "list"); !strings.Contains(out, "PEA BforBank") || !strings.Contains(out, "CTO IBKR") {
+		t.Errorf("accounts lost after compact:\n%s", out)
+	}
+}
+
+func TestMergeRefusedInRemoteMode(t *testing.T) {
+	remoteEnv(t)
+	fake := &fakeBackend{}
+	configureRemote(t, fake)
+	mustRunRemote(t, fake, "init")
+
+	// The guard fires before the file argument is opened, so the path is moot.
+	out, err := runRemote(t, fake, "merge", "/nonexistent.fin")
+	if err == nil {
+		t.Fatalf("merge in GitHub mode should be refused; got:\n%s", out)
+	}
+	if !strings.Contains(err.Error(), "local-file mode") {
+		t.Errorf("unexpected merge error: %v", err)
 	}
 }

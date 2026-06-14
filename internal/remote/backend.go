@@ -40,6 +40,11 @@ type Backend interface {
 	// Returns ErrRemoteConflict if the remote has moved on since base.
 	Push(ctx context.Context, data []byte, base Version, message string) (Version, error)
 
+	// CheckAccess verifies the credentials can reach the repository, independent
+	// of whether the file exists yet. Returns nil on success, ErrRemoteAuth if
+	// the token is rejected or lacks access, ErrOffline if unreachable.
+	CheckAccess(ctx context.Context) error
+
 	// Describe returns a human-readable identifier for the remote location
 	// (e.g. "github:owner/repo/path@branch").
 	Describe() string
