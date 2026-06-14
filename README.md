@@ -392,10 +392,19 @@ row when `--from` is given) — with two complementary measures:
 - **XIRR** is the money-weighted annual rate of *your* euros, contributions
   included. Shown only for windows ≥ 30 days (annualizing a daily move is noise).
 
-Below the table: CAGR, annualized volatility, Sharpe and Sortino (risk-free rate
-from `config set risk-free 2.4%`), and max drawdown with peak/trough/recovery
-dates. `--to` moves the evaluation date (periods are relative to it), which makes
-output reproducible in scripts.
+Periods that predate your first transaction are omitted (a fresh portfolio has no
+"1y") — the `inception` row always shows the real, full span.
+
+Below the table: `tracking since <date> (N d)`, then the annualized figures, each
+gated by how much history backs it — **vol, Sharpe, Sortino** appear from ~90 days,
+**CAGR** only from a full year (annualizing a few weeks compounds noise into
+nonsense). Max drawdown shows whenever there's a dip. Risk-free rate comes from
+`config set risk-free 2.4%`; `--to` moves the evaluation date (periods are relative
+to it), which makes output reproducible in scripts.
+
+A holding declared at its *average cost* (the onboarding recipe) enters the
+performance series at its **market value** on the day you record it, not at cost —
+so the latent gain you built up before tracking isn't mistaken for a one-day spike.
 
 ### Charts: `chart`
 
