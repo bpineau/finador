@@ -626,3 +626,52 @@ func TestSyncCleanRefreshes(t *testing.T) {
 		t.Fatalf("clean Sync should not Push, got %d", b.pushes)
 	}
 }
+
+func TestForReadOnEmptyRemoteErrs(t *testing.T) {
+	now := time.Now()
+	b := &fakeBackend{} // empty: Fetch returns ErrRemoteMissing
+	s := newSyncer(t, b, &now)
+	if _, err := s.ForRead(context.Background()); !errors.Is(err, ErrRemoteMissing) {
+		t.Fatalf("ForRead on an empty remote = %v, want ErrRemoteMissing", err)
+	}
+}
+
+func TestAdoptSeedsEmptyRemote(t *testing.T) {
+	now := time.Now()
+	b := &fakeBackend{}
+	s := newSyncer(t, b, &now)
+
+	if err := s.Adopt(context.Background(), []byte("ENCRYPTED"), "adopt", false); err != nil {
+		t.Fatal(err)
+	}
+	// pushed to the backend and installed as the working copy
+	if got := readCopy(t, s); got != "ENCRYPTED" {
+		t.Fatalf("working copy = %q, want ENCRYPTED", got)
+	}
+	data, _, err := b.Fetch(context.Background())
+	if err != nil || string(data) != "ENCRYPTED" {
+		t.Fatalf("remote = %q (err %v), want ENCRYPTED", data, err)
+	}
+	// state reflects a clean, freshly-pulled copy → next read won't re-pull
+	if sha, _, dirty := s.Status(); sha == "" || dirty {
+		t.Fatalf("state after adopt: sha=%q dirty=%v", sha, dirty)
+	}
+}
+
+func TestAdoptRefusesExistingUnlessForce(t *testing.T) {
+	now := time.Now()
+	b := &fakeBackend{}
+	s := newSyncer(t, b, &now)
+	if _, err := b.Push(context.Background(), []byte("OLD"), "", "seed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Adopt(context.Background(), []byte("NEW"), "adopt", false); err == nil {
+		t.Fatal("adopt should refuse to overwrite an existing remote file")
+	}
+	if err := s.Adopt(context.Background(), []byte("NEW"), "adopt", true); err != nil {
+		t.Fatalf("forced adopt: %v", err)
+	}
+	if data, _, _ := b.Fetch(context.Background()); string(data) != "NEW" {
+		t.Fatalf("remote = %q, want NEW after forced adopt", data)
+	}
+}

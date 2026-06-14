@@ -83,6 +83,43 @@ func NewSyncer(b Backend, gh GitHub, readPullAfter time.Duration) (*Syncer, erro
 // WorkingCopy returns the path commands open, mutate and save.
 func (s *Syncer) WorkingCopy() string { return s.copyPath }
 
+// HasWorkingCopy reports whether a local working copy exists on disk.
+func (s *Syncer) HasWorkingCopy() bool { return s.copyExists() }
+
+// Adopt seeds the remote from bytes you already have locally — a one-time
+// migration into GitHub mode. It pushes them as the file (no decryption) and
+// installs them as the working copy + state, so the next read uses them. It
+// refuses to overwrite an existing remote file unless force is set.
+func (s *Syncer) Adopt(ctx context.Context, data []byte, message string, force bool) error {
+	st, err := s.loadState()
+	if err != nil {
+		return err
+	}
+	var base Version
+	switch _, v, ferr := s.backend.Fetch(ctx); {
+	case ferr == nil:
+		if !force {
+			return fmt.Errorf("the remote already holds a file — refusing to overwrite; pass --force, or use `finador sync` to reconcile")
+		}
+		base = v
+	case errors.Is(ferr, ErrRemoteMissing):
+		base = ""
+	default:
+		return ferr
+	}
+	newSHA, err := s.backend.Push(ctx, data, base, message)
+	if err != nil {
+		return err
+	}
+	if err := atomicWrite(s.copyPath, data); err != nil {
+		return err
+	}
+	st.SHA = newSHA
+	st.LastPull = s.now()
+	st.Dirty = false
+	return s.saveState(st)
+}
+
 // Describe returns the backend's human-readable remote identifier.
 func (s *Syncer) Describe() string { return s.backend.Describe() }
 
@@ -339,6 +376,12 @@ func (s *Syncer) ForRead(ctx context.Context) (warnings []string, err error) {
 			return nil, fmt.Errorf("%w: no local copy to read", ErrOffline)
 		}
 		return []string{"offline: using local copy"}, nil
+	}
+	// Online pull succeeded but the remote has no file yet (ErrRemoteMissing
+	// left the copy absent): there is nothing to read — the caller must
+	// init or adopt. Surfacing it here beats a cryptic "file does not exist".
+	if !s.copyExists() {
+		return nil, ErrRemoteMissing
 	}
 	return nil, nil
 }

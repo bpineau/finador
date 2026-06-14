@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -21,7 +23,51 @@ func remoteCmd(a *app) *cobra.Command {
 			"  finador remote login\n" +
 			"  finador remote show",
 	}
-	cmd.AddCommand(remoteSet(a), remoteShow(a), remoteOff(a), remoteLogin(a))
+	cmd.AddCommand(remoteSet(a), remoteShow(a), remoteOff(a), remoteLogin(a), remoteAdopt(a))
+	return cmd
+}
+
+// remoteAdopt uploads an existing local .fin to the remote — a one-time
+// migration into GitHub mode for a portfolio you already built locally.
+func remoteAdopt(a *app) *cobra.Command {
+	var from string
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "adopt",
+		Short: "Upload an existing local .fin to the remote (one-time migration)",
+		Long: "Seed GitHub mode from a portfolio you already have on this machine: it pushes " +
+			"the encrypted file as-is (no decryption, no password needed) and installs it as " +
+			"the working copy, so the next command reads your real data. Refuses to overwrite " +
+			"an existing remote file unless --force.",
+		Example: "  finador remote adopt\n" +
+			"  finador remote adopt --from ~/.finador.fin",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, isRemote, err := a.dataSource()
+			if err != nil {
+				return err
+			}
+			if !isRemote {
+				return fmt.Errorf("no remote configured — run `finador remote set <owner>/<repo>` first")
+			}
+			src := from
+			if src == "" {
+				src = defaultDB()
+			}
+			data, err := os.ReadFile(src)
+			if err != nil {
+				return fmt.Errorf("read %s: %w", src, err)
+			}
+			if err := s.Adopt(cmd.Context(), data, "finador adopt "+filepath.Base(src), force); err != nil {
+				return remoteError(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(),
+				"Uploaded %s to %s — your existing portfolio is now in GitHub mode\n", src, s.Describe())
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&from, "from", "", "local .fin to upload (default: ~/.finador.fin)")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing remote file")
 	return cmd
 }
 

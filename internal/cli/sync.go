@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"finador/internal/keyring"
 )
 
 func syncCmd(a *app) *cobra.Command {
@@ -27,19 +25,20 @@ func syncCmd(a *app) *cobra.Command {
 				return fmt.Errorf("no remote configured — run `finador remote set <owner>/<repo>`")
 			}
 
-			// A password is needed only to merge on conflict; resolve it the same
-			// way reads/writes do, keyed on the working-copy path.
-			path := s.WorkingCopy()
-			pw, _, err := keyring.PasswordFor(path, a.cache(), keyring.Prompt)
-			if err != nil {
-				return err
-			}
-
-			warnings, err := s.Sync(context.Background(), a.remoteMerge(pw))
+			// The wallet password is needed only to merge on conflict; resolve it
+			// lazily so a conflict-free sync never prompts (and a freshly typed one
+			// is cached, fixing the per-sync re-prompt).
+			warnings, err := s.Sync(context.Background(), a.remoteMerge(a.walletPassword(s.WorkingCopy())))
 			if err != nil {
 				return remoteError(err)
 			}
 			printWarnings(warnings)
+			if !s.HasWorkingCopy() {
+				fmt.Fprintf(cmd.OutOrStdout(),
+					"%s has no file yet — run `finador init` to start fresh, or `finador remote adopt` to upload your existing ~/.finador.fin\n",
+					s.Describe())
+				return nil
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Synced with %s\n", s.Describe())
 			return nil
 		},

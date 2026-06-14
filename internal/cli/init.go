@@ -48,7 +48,7 @@ func initCmd(a *app) *cobra.Command {
 			if isRemote {
 				// First push creates (or, if the remote already has a file, merges
 				// into) the remote — the sync layer handles ErrRemoteMissing→create.
-				warnings, perr := s.AfterWrite(context.Background(), "finador init", a.remoteMerge(pw))
+				warnings, perr := s.AfterWrite(context.Background(), "finador init", a.remoteMerge(staticPW(pw)))
 				if perr != nil {
 					return remoteError(perr)
 				}
@@ -64,11 +64,11 @@ func initCmd(a *app) *cobra.Command {
 }
 
 func askTwice() (string, error) {
-	p1, err := keyring.Prompt("Password: ")
+	p1, err := keyring.Prompt("Wallet password: ")
 	if err != nil {
 		return "", err
 	}
-	p2, err := keyring.Prompt("Confirm: ")
+	p2, err := keyring.Prompt("Confirm wallet password: ")
 	if err != nil {
 		return "", err
 	}
