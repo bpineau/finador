@@ -75,10 +75,10 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		return scope.lineLabel(acc, asset)
 	}
 
-	// 1. positions titres
+	// 1. security positions
 	for _, h := range Holdings(b, at) {
 		if h.Asset.Kind == domain.Property || !scope.hasAsset(h.Account, h.Asset) {
-			continue // les biens sont valorisés par relevés (section 2)
+			continue // properties are statement-valued (section 2)
 		}
 		gross, err := v.positionValue(h)
 		if err != nil {
@@ -92,7 +92,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		perAccount[h.Account.ID] += gross
 	}
 
-	// 2. biens, valorisés par relevés
+	// 2. properties, statement-valued
 	for _, p := range statementPairs(b, at) {
 		if p.asset.Kind != domain.Property || !scope.hasAsset(p.account, p.asset) {
 			continue
@@ -109,7 +109,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		perAccount[p.account.ID] += gross
 	}
 
-	// 3. liquidités des comptes suivis
+	// 3. cash of tracked accounts
 	for _, acc := range b.Accounts {
 		if !scope.hasCash(acc) || !CashTracked(b, acc.ID) {
 			continue
@@ -136,7 +136,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		out.Gross += l.Gross
 		out.Tax += l.Tax
 	}
-	// All/Account : l'impôt total exact est celui de la règle d'enveloppe
+	// All/Account: the exact total tax is the one from the envelope rule
 	if scope.Kind == All || scope.Kind == ByAccount {
 		exact := 0.0
 		for accID, gross := range perAccount {
@@ -362,11 +362,12 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		}
 		basis += sign * amt
 	}
-	// Les biens valorisés par relevés entrent dans la base par leur première
-	// estimation connue — sinon une enveloppe immo serait taxée sur la valeur
-	// totale et non la plus-value. Approximation documentée : si un apport
-	// suivi a financé le bien ET que le bien a un relevé initial, la base
-	// compte les deux (cas inhabituel, à corriger à la main si rencontré).
+	// Statement-valued properties enter the basis through their first known
+	// estimate — otherwise a real-estate envelope would be taxed on the total
+	// value rather than the gain. Documented approximation: if a tracked
+	// contribution funded the property AND the property has an initial
+	// statement, the basis counts both (an unusual case, to be fixed by hand
+	// if encountered).
 	for _, p := range statementPairs(v.b, v.at) {
 		if p.account.ID != acc.ID || p.asset.Kind != domain.Property {
 			continue
@@ -381,8 +382,8 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		}
 		basis += amt
 	}
-	// Base négative (retraits > apports) : plafonnée à 0 — approximation v1,
-	// la fiscalité réelle traite les sur-retraits proportionnellement.
+	// Negative basis (withdrawals > contributions): clamped to 0 — a v1
+	// approximation; real taxation handles over-withdrawals proportionally.
 	return max(0, basis), nil
 }
 
@@ -407,7 +408,7 @@ func (v *valuer) cashValue(acc *domain.Account) (float64, error) {
 			continue
 		}
 		if !anchor.IsZero() && !anchor.Before(t.Date) {
-			continue // déjà inclus dans le relevé d'ancrage
+			continue // already included in the anchor statement
 		}
 		sign := 0.0
 		switch t.Kind {

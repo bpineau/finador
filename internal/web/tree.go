@@ -13,10 +13,10 @@ import (
 	"finador/internal/portfolio"
 )
 
-// node is one displayable level of the répartition tree.
+// node is one displayable level of the breakdown tree.
 type node struct {
 	Label    string
-	URL      string // vide : non cliquable
+	URL      string // empty: not clickable
 	Gross    float64
 	Labels   []string // name-labels on a leaf (account, asset) position
 	Children []node
@@ -56,7 +56,7 @@ func buildTree(lines []portfolio.PositionLine, mode string, labelsFor labelLooku
 			}
 			root.Gross += l.Gross
 			if l.Asset == nil {
-				cashOf[accID] += l.Gross // feuille « cash » ajoutée à la fin
+				cashOf[accID] += l.Gross // "cash" leaf added at the end
 				continue
 			}
 			g := topGroup(l.Asset.Group)
@@ -186,7 +186,7 @@ func sortNodes(ns []node) {
 type pieSlice struct {
 	Label   string
 	URL     string
-	Color   template.CSS // toujours une constante de chart.PiePalette
+	Color   template.CSS // always a constant from chart.PiePalette
 	Amount  float64
 	Percent int
 }
@@ -231,9 +231,9 @@ func buildPie(lines []portfolio.PositionLine) (template.HTML, []pieSlice) {
 	colors := make([]string, len(out))
 	for i := range out {
 		color := chart.PiePalette[i%len(chart.PiePalette)]
-		out[i].Color = template.CSS(color) // palette constante — pas de donnée utilisateur
+		out[i].Color = template.CSS(color) // constant palette — no user data
 		out[i].Percent = int(math.Round(out[i].Amount / total * 100))
 		values[i], colors[i] = out[i].Amount, color
 	}
-	return template.HTML(chart.Pie(values, colors, 190)), out // #nosec G203 — notre propre SVG
+	return template.HTML(chart.Pie(values, colors, 190)), out // #nosec G203 — our own SVG
 }

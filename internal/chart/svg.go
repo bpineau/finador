@@ -24,7 +24,7 @@ const (
 // SVG renders self-contained markup: inline attributes only, no CSS, no JS.
 // The first line gets a light area fill; the scale covers every line.
 func SVG(lines []Line, w, h int) string {
-	// dimensions utilisateur : plancher pour éviter un rendu illisible
+	// user dimensions: floor them to avoid an unreadable render
 	w = max(w, 320)
 	h = max(h, 120)
 	lines = nonEmpty(lines)
@@ -46,14 +46,14 @@ func SVG(lines []Line, w, h int) string {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" font-family="ui-monospace,monospace" font-size="11">`+"\n", w, h)
-	// étiquettes d'échelle (pas de lignes de grille)
+	// scale labels (no grid lines)
 	for i := range 4 {
 		gv := lo + (hi-lo)*float64(3-i)/3
 		gy := y(gv)
 		fmt.Fprintf(&b, `<text x="%d" y="%s" text-anchor="end" fill="#666666">%s</text>`+"\n",
 			padL-6, f(gy+4), formatCompact(gv))
 	}
-	// aire sous la première série
+	// area under the first series
 	first := lines[0]
 	var area strings.Builder
 	for i, p := range first.Points {
@@ -64,7 +64,7 @@ func SVG(lines []Line, w, h int) string {
 		f(x(len(first.Points)-1, len(first.Points))), f(float64(padT)+plotH),
 		f(x(0, len(first.Points))), f(float64(padT)+plotH),
 		first.Color)
-	// courbes
+	// curves
 	for _, l := range lines {
 		var pts strings.Builder
 		for i, p := range l.Points {
@@ -73,7 +73,7 @@ func SVG(lines []Line, w, h int) string {
 		fmt.Fprintf(&b, `<polyline points="%s" fill="none" stroke="%s" stroke-width="1.8"/>`+"\n",
 			strings.TrimSpace(pts.String()), l.Color)
 	}
-	// légende + dates
+	// legend + dates
 	lx := padL
 	for _, l := range lines {
 		fmt.Fprintf(&b, `<rect x="%d" y="4" width="10" height="3" fill="%s"/><text x="%d" y="10" fill="#444444">%s</text>`+"\n",

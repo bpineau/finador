@@ -3,7 +3,7 @@ package portfolio
 import "finador/internal/domain"
 
 // PositionLine is one valued position — or one envelope's cash when Asset is
-// nil. The raw material of the web's hierarchical répartition trees.
+// nil. The raw material of the web's hierarchical allocation trees.
 type PositionLine struct {
 	Account *domain.Account
 	Asset   *domain.Asset
@@ -17,7 +17,7 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 	var out []PositionLine
 	for _, h := range Holdings(b, at) {
 		if h.Asset.Kind == domain.Property {
-			continue // valorisés par relevés ci-dessous
+			continue // statement-valued below
 		}
 		gross, err := v.positionValue(h)
 		if err != nil {

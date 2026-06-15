@@ -20,7 +20,7 @@ const (
 // TaxOnValue taxes the whole value (PER deducted at entry).
 type TaxRule struct {
 	Mode TaxMode
-	Rate decimal.Decimal // 0.172 pour 17,2 %
+	Rate decimal.Decimal // 0.172 for 17.2%
 }
 
 var hundred = decimal.NewFromInt(100)

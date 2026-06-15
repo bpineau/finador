@@ -17,7 +17,7 @@ func Sparkline(points []perf.Point, w, h int, color string) string {
 	w, h = max(w, 20), max(h, 8)
 	lo, hi := bounds(points)
 	if hi == lo {
-		hi = lo + 1 // série plate : trait horizontal au milieu
+		hi = lo + 1 // flat series: horizontal line in the middle
 	}
 	pad := 2.0
 	x := func(i int) float64 {

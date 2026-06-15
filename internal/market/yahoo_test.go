@@ -11,8 +11,8 @@ import (
 	"finador/internal/domain"
 )
 
-// Réponse chart réaliste : 3 jours dont un close null (jour férié), un
-// dividende, fuseau Europe/Paris (timestamps à 09:00 locale → 07:00 UTC).
+// Realistic chart response: 3 days including one null close (holiday), one
+// dividend, Europe/Paris time zone (timestamps at 09:00 local → 07:00 UTC).
 const chartCW8 = `{"chart":{"result":[{"meta":{"currency":"EUR","symbol":"CW8.PA","exchangeTimezoneName":"Europe/Paris"},"timestamp":[1780297200,1780383600,1780470000],"events":{"dividends":{"1780297200":{"amount":1.5,"date":1780297200}}},"indicators":{"quote":[{"close":[550.0,null,553.25]}]}}],"error":null}}`
 
 const searchCW8 = `{"quotes":[{"symbol":"CW8.PA","longname":"Amundi MSCI World UCITS ETF","quoteType":"ETF"},{"symbol":"CW8.MI","longname":"Amundi MSCI World (Milan)","quoteType":"ETF"}]}`
@@ -45,7 +45,7 @@ func TestYahooDaily(t *testing.T) {
 	if got.Currency != domain.EUR {
 		t.Errorf("ccy = %s", got.Currency)
 	}
-	// le close null du 2e jour est sauté
+	// the null close on the 2nd day is skipped
 	if len(got.Closes) != 2 {
 		t.Fatalf("closes = %+v", got.Closes)
 	}
@@ -104,7 +104,7 @@ func TestYahooRetriesOn429(t *testing.T) {
 		}
 		w.Write([]byte(chartCW8))
 	})
-	y.RetryWait = 0 // pas d'attente en test
+	y.RetryWait = 0 // no wait in tests
 	if _, err := y.Daily(context.Background(), Ref{Symbol: "CW8.PA"}, mustDate("2026-06-01")); err != nil {
 		t.Fatal(err)
 	}

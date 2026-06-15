@@ -49,14 +49,14 @@ func TestSeriesExternalFlowsAllScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// PEA est suivi : ses trades sont internes.
-	// La maison : son premier relevé est au 2026-01-01 (== from) → pas collecté (flux du jour de base) ;
-	// son second relevé (450000 le 06-01) re-base la valeur → flux d'ajustement +50000.
-	// Flux attendus :
-	//   [0] 01-05 +12000 : adoption du livret (premier relevé cash, règle D8)
-	//   [1] 01-10 +10000 : deposit pea
-	//   [2] 01-20 +1100  : buy cto (compte non suivi)
-	//   [3] 06-01 +50000 : re-base de la maison (revalorisation déclarée, pas une perf)
+	// PEA is tracked: its trades are internal.
+	// The house: its first statement is on 2026-01-01 (== from) → not collected (base-day flow);
+	// its second statement (450000 on 06-01) re-bases the value → adjustment flow +50000.
+	// Expected flows:
+	//   [0] 01-05 +12000: livret adoption (first cash statement, rule D8)
+	//   [1] 01-10 +10000: pea deposit
+	//   [2] 01-20 +1100 : cto buy (untracked account)
+	//   [3] 06-01 +50000: house re-base (declared revaluation, not a return)
 	if len(res.Flows) != 4 {
 		t.Fatalf("flows = %+v, attendu 4", res.Flows)
 	}
@@ -84,7 +84,7 @@ func TestSeriesExternalFlowsGroupScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// tous les trades sur cw8 sont des flux de la poche : +5000, +1100, +2750, −1800
+	// all trades on cw8 are pocket flows: +5000, +1100, +2750, −1800
 	wantFlows := []struct {
 		date string
 		amt  float64
@@ -108,9 +108,9 @@ func TestSeriesBeforeMarketData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// au 12 janv : aucune clôture cw8 (la série commence le 20 mars) → la
-	// position contribue 0 ; cash pea 10000 (déposé le 10), livret 12000
-	// (relevé du 5), maison 400000 (relevé du 1er)
+	// on Jan 12: no cw8 close (the series starts on March 20) → the
+	// position contributes 0; pea cash 10000 (deposited on the 10th), livret 12000
+	// (statement on the 5th), house 400000 (statement on the 1st)
 	last := res.Points[len(res.Points)-1]
 	approx(t, "gross avant données marché", last.Gross, 10000+12000+400000)
 }
@@ -121,7 +121,7 @@ func TestSeriesDefaultFrom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// from zéro → première transaction du ledger (relevé maison du 1er janv)
+	// from zero → first ledger transaction (house statement on Jan 1)
 	if res.Points[0].Date != mustDate("2026-01-01") {
 		t.Errorf("premier point = %s", res.Points[0].Date)
 	}
@@ -132,8 +132,8 @@ func TestSeriesAutoDividendFlows(t *testing.T) {
 	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
 		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
 	}
-	// portée groupe : le dividende sort de la poche → flux −(15+2)×2 ?
-	// pea détient 15 parts au 1er mars, cto 2 → −34 au total
+	// group scope: the dividend leaves the pocket → flow −(15+2)×2 ?
+	// pea holds 15 shares on March 1, cto 2 → −34 in total
 	res, err := Series(b, scopeOf(t, b, "actions"), mustDate("2026-01-01"), mustDate("2026-06-05"), domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
@@ -149,10 +149,10 @@ func TestSeriesAutoDividendFlows(t *testing.T) {
 
 func TestSeriesAdoptionFlowsForProperty(t *testing.T) {
 	b := valuationBook(t)
-	// La maison est valorisée par déclaration, pas par un marché : chaque relevé
-	// re-base la valeur (apport), il n'en sort jamais de "performance".
-	//   - 1er relevé (400000 le 1er janv) = adoption (apport plein)
-	//   - 2e relevé (450000 le 1er juin) = re-base → flux d'ajustement +50000
+	// The house is valued by declaration, not by a market: each statement
+	// re-bases the value (a contribution), it never yields a "return".
+	//   - 1st statement (400000 on Jan 1) = adoption (full contribution)
+	//   - 2nd statement (450000 on June 1) = re-base → adjustment flow +50000
 	res, err := Series(b, scopeOf(t, b, ""), mustDate("2025-12-25"), mustDate("2026-06-05"), domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ func TestSeriesAdoptionFlowsForProperty(t *testing.T) {
 
 func TestSeriesAdoptionFlowForCashStatement(t *testing.T) {
 	b := valuationBook(t)
-	// livret : premier relevé cash 12000 le 5 janv = adoption
+	// livret: first cash statement 12000 on Jan 5 = adoption
 	res, err := Series(b, scopeOf(t, b, ""), mustDate("2025-12-25"), mustDate("2026-06-05"), domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestSeriesTWRSaneWithAdoptedProperty(t *testing.T) {
 		flows[i] = perf.Flow{Date: f.Date, Amount: f.Amount}
 	}
 	twr := perf.TWR(pts, flows)
-	// sans la règle d'adoption, le TWR explose (>+4000 %) ; avec, il reste < 20 %
+	// without the adoption rule, the TWR explodes (>+4000%); with it, it stays < 20%
 	if twr > 0.20 || twr < -0.20 {
 		t.Fatalf("TWR patrimoine = %+.2f%%, attendu raisonnable", twr*100)
 	}
@@ -271,8 +271,8 @@ func TestSeriesExternalFlowsLabelScope(t *testing.T) {
 }
 
 func TestSeriesMatchesValueWithWithholdingDividend(t *testing.T) {
-	// le test d'or de base n'a pas de dividende : celui-ci verrouille la
-	// retenue à la source identique des deux côtés (value.go ↔ series.go)
+	// the base golden test has no dividend: this one locks the
+	// withholding tax identical on both sides (value.go ↔ series.go)
 	b := valuationBook(t)
 	cw8, _ := b.Asset("cw8")
 	cw8.Withholding = 0.15

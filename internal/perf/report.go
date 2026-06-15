@@ -78,7 +78,7 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 	}
 	rows = append(rows, periodRow("inception", points, flows, origin, evalTo))
 
-	// Métriques sur la fenêtre complète depuis l'origine
+	// Metrics over the full window since inception
 	allPts, allFlows := windowSlice(points, flows, origin, evalTo)
 	twrTotal := TWR(allPts, allFlows)
 	returns := DailyReturns(allPts, allFlows)
@@ -123,7 +123,7 @@ func periodRow(name string, points []Point, flows []Flow, from, to domain.Date) 
 		row.Gain = pts[len(pts)-1].Value - pts[0].Value - netFlow
 		row.HasGain = true
 	}
-	// XIRR : fenêtres < 30 jours ou V0 ≤ 0 → tiret
+	// XIRR: windows < 30 days or V0 ≤ 0 → dash
 	if to.Time().Sub(from.Time()).Hours() >= 30*24 && len(pts) >= 2 && pts[0].Value > 0 {
 		cfs := []Flow{{Date: pts[0].Date, Amount: -pts[0].Value}}
 		for _, fl := range fls {
@@ -138,8 +138,8 @@ func periodRow(name string, points []Point, flows []Flow, from, to domain.Date) 
 	return row
 }
 
-// windowSlice extrait les points dans [from, to] et les flux strictement
-// après from et ≤ to (les flux du jour de base sont dans V0).
+// windowSlice extracts the points in [from, to] and the flows strictly
+// after from and ≤ to (flows on the base day are already in V0).
 func windowSlice(points []Point, flows []Flow, from, to domain.Date) ([]Point, []Flow) {
 	var pts []Point
 	for _, p := range points {

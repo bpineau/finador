@@ -68,9 +68,9 @@ func flowsByDay(flows []Flow) map[domain.Date]float64 {
 
 // XIRR solves the money-weighted annual rate by bisection. Cashflows follow
 // the investor's convention: invested money negative, final value positive.
-// Pour des flux à plusieurs changements de signe, la NPV peut avoir plusieurs
-// racines : la bissection en retourne une — convention assumée pour des flux
-// d'épargne classiques.
+// For flows with several sign changes the NPV may have multiple roots:
+// bisection returns one of them — an accepted convention for typical
+// savings flows.
 func XIRR(cashflows []Flow) (float64, error) {
 	if len(cashflows) < 2 {
 		return 0, errors.New("XIRR: at least two cashflows required")
@@ -163,9 +163,9 @@ func mean(xs []float64) float64 {
 
 // Drawdown describes the worst peak-to-trough loss of a series.
 type Drawdown struct {
-	Depth        float64 // négatif : −0.25 = −25 %
+	Depth        float64 // negative: −0.25 = −25%
 	Peak, Trough domain.Date
-	Recovered    *domain.Date // nil si le pic n'est pas regagné
+	Recovered    *domain.Date // nil if the peak is never regained
 }
 
 func MaxDrawdown(points []Point) Drawdown {
@@ -175,8 +175,8 @@ func MaxDrawdown(points []Point) Drawdown {
 	}
 	peak := points[0]
 	for _, p := range points[1:] {
-		// une valeur qui regagne exactement le pic ré-ancre le pic :
-		// un drawdown ne doit pas enjamber une récupération complète
+		// a value that exactly regains the peak re-anchors the peak:
+		// a drawdown must not straddle a full recovery
 		if p.Value >= peak.Value {
 			peak = p
 			continue
@@ -189,7 +189,7 @@ func MaxDrawdown(points []Point) Drawdown {
 			dd.Recovered = nil
 		}
 	}
-	// première date où le pic du drawdown maximal est regagné
+	// first date on which the max drawdown's peak is regained
 	inDD := false
 	for _, p := range points {
 		if p.Date == dd.Peak {

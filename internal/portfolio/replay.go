@@ -48,12 +48,12 @@ func Holdings(b *domain.Book, asOf domain.Date) []Holding {
 	var out []Holding
 	for _, k := range order {
 		if !qty[k].IsPositive() {
-			continue // survente = erreur de saisie : jamais de position négative
+			continue // oversell = input error: never a negative position
 		}
 		acc, errA := b.Account(string(k.acc))
 		asset, errB := b.Asset(string(k.asset))
 		if errA != nil || errB != nil {
-			continue // référence orpheline : ignorée, le ledger reste la vérité
+			continue // orphaned reference: ignored, the ledger stays the truth
 		}
 		out = append(out, Holding{Account: acc, Asset: asset, Qty: qty[k]})
 	}
@@ -75,7 +75,7 @@ func Quantity(b *domain.Book, acc domain.AccountID, asset domain.AssetID, asOf d
 		}
 	}
 	if q.IsNegative() {
-		return decimal.Zero // survente = erreur de saisie : jamais de position négative
+		return decimal.Zero // oversell = input error: never a negative position
 	}
 	return q
 }

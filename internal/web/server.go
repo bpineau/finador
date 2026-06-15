@@ -1,4 +1,4 @@
-// Package web is the zero-JavaScript façade of finador: server-rendered
+// Package web is the zero-JavaScript facade of finador: server-rendered
 // html/template pages over the same portfolio engine as the CLI, all assets
 // embedded. The encrypted file is shared behind a RWMutex; every mutation
 // saves atomically then redirects (303).

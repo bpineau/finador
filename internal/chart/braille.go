@@ -17,18 +17,18 @@ func Braille(points []perf.Point, width, height int) string {
 	if len(points) == 0 {
 		return ""
 	}
-	// des dimensions nulles ou négatives (flags utilisateur) ne doivent jamais paniquer
+	// zero or negative dimensions (user flags) must never panic
 	width, height = max(width, 10), max(height, 2)
 	lo, hi := bounds(points)
 	if hi == lo {
-		hi = lo + 1 // série plate : on lui donne de l'épaisseur
+		hi = lo + 1 // flat series: give it some thickness
 	}
 	cols, rows := width*2, height*4
 	grid := make([][]bool, rows)
 	for i := range grid {
 		grid[i] = make([]bool, cols)
 	}
-	// y en dots, 0 = haut
+	// y in dots, 0 = top
 	yOf := func(v float64) int {
 		y := int(math.Round((hi - v) / (hi - lo) * float64(rows-1)))
 		return min(max(y, 0), rows-1)
@@ -38,7 +38,7 @@ func Braille(points []perf.Point, width, height int) string {
 		idx := x * (len(points) - 1) / max(cols-1, 1)
 		y := yOf(points[idx].Value)
 		grid[y][x] = true
-		if prevY >= 0 { // relie les colonnes pour les pentes raides
+		if prevY >= 0 { // connect columns across steep slopes
 			for yy := min(prevY, y); yy <= max(prevY, y); yy++ {
 				grid[yy][x] = true
 			}

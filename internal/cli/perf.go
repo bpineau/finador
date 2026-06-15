@@ -77,7 +77,7 @@ func perfCmd(a *app) *cobra.Command {
 			ensureDisplayFX(cmd, a, f, display)
 			fx := market.Converter{FX: b.Market.FX}
 
-			// série complète depuis l'origine : base des métriques et des périodes
+			// full series since inception: basis for both metrics and periods
 			res, err := portfolio.Series(b, scope, domain.Date{}, evalTo, display, fx)
 			if err != nil {
 				return err
@@ -184,7 +184,7 @@ func window(res portfolio.SeriesResult, from, to domain.Date) ([]perf.Point, []p
 	var flows []perf.Flow
 	for _, fl := range res.Flows {
 		if to.Before(fl.Date) || !from.Before(fl.Date) {
-			continue // les flux du jour de base (et avant) sont dans V0
+			continue // flows on the base day (and before) are already in V0
 		}
 		flows = append(flows, perf.Flow{Date: fl.Date, Amount: fl.Amount})
 	}

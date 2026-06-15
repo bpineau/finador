@@ -140,7 +140,7 @@ func (b *Book) Asset(ref string) (*Asset, error) {
 // resolve returns the single item matching ref on the first tier that yields
 // any match; several matches on the same tier is an ambiguity. When every
 // exact tier fails, a unique case-insensitive PREFIX of any reference wins —
-// « add cw8 » without remembering the full id.
+// "add cw8" without remembering the full id.
 func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*T, error) {
 	if ref == "" {
 		return nil, fmt.Errorf("%s (empty reference): %w", what, ErrNotFound)
@@ -152,14 +152,14 @@ func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*
 			})
 		})
 		switch len(matches) {
-		case 0: // tier suivant
+		case 0: // next tier
 		case 1:
 			return matches[0], nil
 		default:
 			return nil, fmt.Errorf("%s %q: %w", what, ref, ErrAmbiguous)
 		}
 	}
-	// tier préfixe : sur TOUTES les références confondues
+	// prefix tier: across ALL references combined
 	low := strings.ToLower(ref)
 	var hits []*T
 	var hitIDs []string
@@ -170,7 +170,7 @@ func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*
 			})
 			if found {
 				hits = append(hits, it)
-				hitIDs = append(hitIDs, tiers[0](it)[0]) // l'ID, premier tier
+				hitIDs = append(hitIDs, tiers[0](it)[0]) // the ID, first tier
 				break
 			}
 		}

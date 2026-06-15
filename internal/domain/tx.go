@@ -15,9 +15,9 @@ const (
 	Sell
 	Dividend
 	Fee
-	Deposit   // apport externe : alimente la base fiscale et le XIRR
-	Withdraw  // retrait externe
-	Statement // solde de cash ou estimation de bien, constaté à une date
+	Deposit   // external contribution: feeds the tax basis and the XIRR
+	Withdraw  // external withdrawal
+	Statement // cash balance or property estimate, recorded on a date
 )
 
 var txKindNames = map[TxKind]string{
@@ -57,13 +57,13 @@ func (k *TxKind) UnmarshalText(b []byte) error {
 type TxID string
 
 // Transaction is one immutable-by-default ledger line; everything derived
-// (positions, bases fiscales, séries) is recomputed from the ledger.
+// (positions, tax bases, series) is recomputed from the ledger.
 // Quantity and Amount are always positive: Kind carries the direction.
 type Transaction struct {
 	ID         TxID            `json:"id"`
 	Date       Date            `json:"date"`
 	Account    AccountID       `json:"account"`
-	Asset      AssetID         `json:"asset,omitempty"` // vide : cash pur du compte
+	Asset      AssetID         `json:"asset,omitempty"` // empty: pure account cash
 	Kind       TxKind          `json:"kind"`
 	Quantity   decimal.Decimal `json:"qty"`
 	Amount     Money           `json:"amount"`

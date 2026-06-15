@@ -22,7 +22,7 @@ func TestBreakdownSumsToValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	approx(t, "Σ breakdown = Value", total, want.Gross)
-	// chaque position porte compte ET actif ; le cash a Asset nil
+	// each position carries account AND asset; cash has Asset nil
 	var cashLines, positions int
 	for _, l := range lines {
 		if l.Account == nil {
@@ -34,7 +34,7 @@ func TestBreakdownSumsToValue(t *testing.T) {
 			positions++
 		}
 	}
-	if cashLines != 2 { // pea et livret sont suivis ; cto non
+	if cashLines != 2 { // pea and livret are tracked; cto is not
 		t.Errorf("cashLines = %d, attendu 2", cashLines)
 	}
 	if positions != 3 { // pea/cw8, cto/cw8, immo/maison
@@ -51,9 +51,9 @@ func TestIntersectScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// seulement la position cw8 du PEA : 12 × 560 — ni le cash, ni le cw8 du CTO
+	// only the PEA's cw8 position: 12 × 560 — neither the cash, nor the CTO's cw8
 	approx(t, "gross pea∩actions", v.Gross, 6720)
-	// les séries fonctionnent sur la même portée (perfs/courbes des vues croisées)
+	// series work on the same scope (perf/curves of cross views)
 	res, err := Series(b, s, mustDate("2026-01-01"), at, domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)

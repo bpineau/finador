@@ -29,7 +29,7 @@ func TestPieSingleAndEmpty(t *testing.T) {
 	if out := Pie([]float64{0, 0}, []string{"#000", "#000"}, 180); out != "" {
 		t.Errorf("all-zero: %q", out)
 	}
-	// une seule part non nulle → un anneau complet (deux arcs, pas un path dégénéré)
+	// a single non-zero slice → a full ring (two arcs, not a degenerate path)
 	out := Pie([]float64{0, 42}, []string{"#000", "#1c1914"}, 180)
 	if !strings.Contains(out, "<path") && !strings.Contains(out, "<circle") {
 		t.Errorf("single slice should render: %q", out)
@@ -49,7 +49,7 @@ func TestNoGridLines(t *testing.T) {
 	if strings.Contains(out, "<line") {
 		t.Error("grid lines should be gone")
 	}
-	// les étiquettes d'échelle restent
+	// the scale labels stay
 	if !strings.Contains(out, "129") && !strings.Contains(out, "100") {
 		t.Error("scale labels should remain")
 	}
