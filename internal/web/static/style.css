@@ -175,10 +175,15 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 .assets-table .sparkcell { width: 76px; padding: .15rem .1rem; }
 .assets-table .sparkcell svg { display: block; }
 .assets-table .nombre { width: 110px; }
+/* names stay clickable but read as plain text, not underlined links */
+.assets-table a { color: var(--encre); text-decoration: none; }
+.assets-table a:hover { color: var(--garance); }
+/* one light hairline (the header); groups are set off by spacing, not heavy rules */
+.assets-table th { border-bottom: 1px solid var(--filet); }
+.assets-table td { border-bottom: none; }
 .assets-table .section-row td {
   font-variant: small-caps; letter-spacing: .1em; font-size: .74rem;
-  color: var(--encre-2); border-bottom: 1px solid var(--encre);
-  padding-top: .8rem; background: none;
+  color: var(--encre-2); padding-top: 1rem; background: none;
 }
 .assets-table tr:hover td { background: var(--papier-2); }
 .assets-table .section-row:hover td { background: none; }
