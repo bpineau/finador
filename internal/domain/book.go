@@ -20,6 +20,23 @@ type Book struct {
 
 func NewBook() *Book { return &Book{Config: map[string]string{}} }
 
+// DisplayCurrency is the currency values are shown in: the configured "currency"
+// if valid, otherwise EUR. Single source for the CLI and web front-ends.
+func (b *Book) DisplayCurrency() Currency {
+	if c, err := ParseCurrency(b.Config["currency"]); err == nil {
+		return c
+	}
+	return EUR
+}
+
+// CurrencyOr parses a user-supplied currency code, an empty string meaning fallback.
+func CurrencyOr(s string, fallback Currency) (Currency, error) {
+	if s == "" {
+		return fallback, nil
+	}
+	return ParseCurrency(s)
+}
+
 // CheckAccountRefs verifies that none of a's references (ID, Name, Aliases)
 // collides exactly (case-insensitive) with another account — adding or
 // editing must not poison resolution. When called for an edit, a must

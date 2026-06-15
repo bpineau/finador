@@ -46,7 +46,7 @@ func chartCmd(a *app) *cobra.Command {
 				scope.Excluded = excluded
 				scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
 			}
-			display, err := currencyOr(ccy, displayCurrency(b))
+			display, err := currencyOr(ccy, b.DisplayCurrency())
 			if err != nil {
 				return err
 			}

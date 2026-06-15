@@ -27,7 +27,7 @@ func exportCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			display, err := currencyOr(ccy, displayCurrency(b))
+			display, err := currencyOr(ccy, b.DisplayCurrency())
 			if err != nil {
 				return err
 			}

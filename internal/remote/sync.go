@@ -144,13 +144,8 @@ func (s *Syncer) Status() (sha string, lastPull time.Time, dirty bool) {
 	return string(st.SHA), st.LastPull, st.Dirty
 }
 
-// now returns the current time via the (overridable) clock.
-func (s *Syncer) now() time.Time {
-	if s.clock != nil {
-		return s.clock()
-	}
-	return time.Now()
-}
+// now returns the current time via the (overridable) clock, always set in NewSyncer.
+func (s *Syncer) now() time.Time { return s.clock() }
 
 // checkoutDir is the directory holding the working copy and state.
 func (s *Syncer) checkoutDir() string { return filepath.Dir(s.copyPath) }

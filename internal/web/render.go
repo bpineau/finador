@@ -24,7 +24,6 @@ var funcs = template.FuncMap{
 	"fmtNum":   fmtNum,
 	"fmtPct":   fmtPct,
 	"fmtDate":  fmtDate,
-	"fmtDelta": fmtDelta,
 	"signe":    signe,
 }
 
@@ -134,8 +133,6 @@ func signe(x float64) string {
 	}
 	return ""
 }
-
-func fmtDelta(x float64) string { return fmtPct(x) }
 
 var enMonths = [...]string{"January", "February", "March", "April", "May", "June",
 	"July", "August", "September", "October", "November", "December"}

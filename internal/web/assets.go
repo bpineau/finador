@@ -47,7 +47,7 @@ func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.RUnlock()
 	b := s.file.Book
 	today := domain.Today()
-	ccy := displayCurrency(b)
+	ccy := b.DisplayCurrency()
 	fx := market.Converter{FX: b.Market.FX}
 
 	data := assetsData{Today: today, Ccy: ccy,
@@ -120,7 +120,7 @@ func (s *Server) assetsCSV(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	b := s.file.Book
-	rows, err := portfolio.AssetRows(b, domain.Today(), displayCurrency(b),
+	rows, err := portfolio.AssetRows(b, domain.Today(), b.DisplayCurrency(),
 		market.Converter{FX: b.Market.FX})
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
