@@ -199,6 +199,23 @@ Two gotchas:
 On the **web and mobile**, the same move is: add the two buy transactions from the
 *Transactions* screen; the cash entries are equally optional.
 
+### Switch one holding for another (arbitrage, same account)
+
+Rotating one position into another inside the same account is just a `sell` then a
+`buy` on that account — no cash step needed (both legs are in the same envelope). Say
+you swap 3 units of CW8.PA for 2 shares of AAPL in your broker account (fake prices,
+~300 € each side):
+
+```sh
+finador asset sell CW8.PA 3 @100 --account "CTO"
+finador asset buy  AAPL   2 @150 --account "CTO"
+```
+
+It's **neutral for performance** — you swapped holdings, you didn't add or remove money
+(the sell and the buy are equal, opposite capital flows). The sell trims CW8.PA's cost
+basis proportionally; the buy sets AAPL's basis, tracked from there. Record any trading
+cost separately with `asset fee` — that one *does* weigh on performance.
+
 ### Buy a real-estate property
 
 A property is valued by dated statements (the Statement model). The **first**
