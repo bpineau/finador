@@ -1,0 +1,29 @@
+{{define "asset-edit.html"}}{{template "base" .}}{{end}}
+{{define "title"}}edit asset — finador{{end}}
+{{define "main"}}
+<p class="fil-ariane"><a href="/assets">assets</a> → edit asset [{{.Asset.ID}}]</p>
+<section>
+  <h2>edit asset [{{.Asset.ID}}]</h2>
+  {{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
+  <form method="post" action="/assets/{{.Asset.ID}}/edit">
+    <fieldset>
+      <legend>asset</legend>
+      <div class="champs">
+        <div><label for="name">name</label><input id="name" name="name" value="{{.Asset.Name}}"></div>
+        <div><label for="kind">kind</label>
+          <select id="kind" name="kind">
+            <option value="security" {{if eq .Asset.Kind.String "security"}}selected{{end}}>security</option>
+            <option value="property" {{if eq .Asset.Kind.String "property"}}selected{{end}}>property</option>
+          </select></div>
+        <div><label for="ticker">ticker</label><input id="ticker" name="ticker" value="{{.Asset.Ticker}}" placeholder="CW8.PA"></div>
+        <div><label for="isin">ISIN</label><input id="isin" name="isin" value="{{.Asset.ISIN}}" placeholder="LU1681043599"></div>
+        <div><label for="ccy">currency</label><input id="ccy" name="ccy" value="{{.Asset.Currency}}"></div>
+        <div><label for="group">group</label><input id="group" name="group" value="{{.Asset.Group}}" placeholder="actions/monde"></div>
+        <div><label for="aliases">aliases</label><input id="aliases" name="aliases" value="{{.AliasesCSV}}" placeholder="comma, separated"></div>
+        <div><label for="withholding">withholding %</label><input id="withholding" name="withholding" value="{{.WithholdPct}}" placeholder="15"></div>
+      </div>
+      <button type="submit">Save changes</button>
+    </fieldset>
+  </form>
+</section>
+{{end}}

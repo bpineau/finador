@@ -1,10 +1,12 @@
 package web
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
 	"finador/internal/chart"
@@ -37,6 +39,7 @@ type assetsData struct {
 	Today    domain.Date
 	Ccy      domain.Currency
 	Sections []assetSection
+	Assets   []*domain.Asset
 	Warnings []string
 	Flash    string
 	Error    string
@@ -45,13 +48,18 @@ type assetsData struct {
 func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	s.renderAssetsPage(w, http.StatusOK, r.URL.Query().Get("flash"), r.URL.Query().Get("error"))
+}
+
+// renderAssetsPage builds the per-asset valuation table and the create form. It is
+// called with the lock (R or W) already held.
+func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errMsg string) {
 	b := s.file.Book
 	today := domain.Today()
 	ccy := b.DisplayCurrency()
 	fx := market.Converter{FX: b.Market.FX}
 
-	data := assetsData{Today: today, Ccy: ccy,
-		Flash: r.URL.Query().Get("flash"), Error: r.URL.Query().Get("error")}
+	data := assetsData{Today: today, Ccy: ccy, Assets: b.Assets, Flash: flash, Error: errMsg}
 	bySection := map[string]*assetSection{}
 	var rawWarnings []string
 
@@ -111,7 +119,7 @@ func (s *Server) assetsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	sortSections(data.Sections)
 	data.Warnings = dedupeWarnings(rawWarnings)
-	s.render(w, http.StatusOK, "assets.html", data)
+	s.render(w, status, "assets.html", data)
 }
 
 // assetsCSV serves the same per-asset valuation as the assets page, as a CSV
@@ -129,6 +137,177 @@ func (s *Server) assetsCSV(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="finador-assets.csv"`)
 	_ = portfolio.WriteAssetCSV(w, rows)
+}
+
+func (s *Server) assetCreate(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := parseAssetForm(r)
+	if err != nil {
+		s.renderAssetsPage(w, http.StatusBadRequest, "", err.Error())
+		return
+	}
+	asset := &domain.Asset{
+		ID:          domain.AssetID(domain.NewID()),
+		Kind:        f.kind,
+		Name:        f.name,
+		Ticker:      f.ticker,
+		ISIN:        f.isin,
+		Aliases:     f.aliases,
+		Currency:    f.ccy,
+		Group:       f.group,
+		Withholding: f.withholding,
+	}
+	if err := s.file.Book.AddAsset(asset); err != nil {
+		s.renderAssetsPage(w, http.StatusBadRequest, "", err.Error())
+		return
+	}
+	if err := s.file.Save(); err != nil {
+		s.renderAssetsPage(w, http.StatusInternalServerError, "", "could not save: "+err.Error())
+		return
+	}
+	http.Redirect(w, r, "/assets?flash="+url.QueryEscape("created "+asset.Name), http.StatusSeeOther)
+}
+
+type assetEditData struct {
+	Today       domain.Date
+	Asset       *domain.Asset
+	AliasesCSV  string
+	WithholdPct string // withholding rate as a percentage string, e.g. "15"
+	Error       string
+}
+
+func (s *Server) findAsset(w http.ResponseWriter, r *http.Request) (*domain.Asset, bool) {
+	asset, err := s.file.Book.Asset(r.PathValue("id"))
+	if err != nil {
+		s.renderError(w, http.StatusNotFound, "asset not found")
+		return nil, false
+	}
+	return asset, true
+}
+
+func (s *Server) assetEditPage(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	asset, ok := s.findAsset(w, r)
+	if !ok {
+		return
+	}
+	s.renderAssetEdit(w, http.StatusOK, asset, "")
+}
+
+// renderAssetEdit is called with the lock already held.
+func (s *Server) renderAssetEdit(w http.ResponseWriter, status int, asset *domain.Asset, errMsg string) {
+	s.render(w, status, "asset-edit.html", assetEditData{
+		Today:       domain.Today(),
+		Asset:       asset,
+		AliasesCSV:  strings.Join(asset.Aliases, ", "),
+		WithholdPct: withholdPct(asset.Withholding),
+		Error:       errMsg,
+	})
+}
+
+func (s *Server) assetEditSubmit(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	asset, ok := s.findAsset(w, r)
+	if !ok {
+		return
+	}
+	f, err := parseAssetForm(r)
+	if err != nil {
+		s.renderAssetEdit(w, http.StatusBadRequest, asset, err.Error())
+		return
+	}
+	// asset is a live pointer in the book: apply the edit, but restore the previous
+	// state if validation or save fails so the in-memory book stays consistent.
+	prev := *asset
+	asset.Kind, asset.Name, asset.Ticker, asset.ISIN = f.kind, f.name, f.ticker, f.isin
+	asset.Aliases, asset.Currency, asset.Group, asset.Withholding = f.aliases, f.ccy, f.group, f.withholding
+	if err := s.file.Book.CheckAssetRefs(asset); err != nil {
+		*asset = prev
+		s.renderAssetEdit(w, http.StatusBadRequest, asset, err.Error())
+		return
+	}
+	if err := s.file.Save(); err != nil {
+		*asset = prev
+		s.renderAssetEdit(w, http.StatusInternalServerError, asset, "could not save: "+err.Error())
+		return
+	}
+	http.Redirect(w, r, "/assets?flash="+url.QueryEscape("updated "+asset.Name), http.StatusSeeOther)
+}
+
+func (s *Server) assetDelete(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// RemoveAsset refuses to orphan transactions (and purges the asset's market cache);
+	// surface that refusal as a page error rather than a hard error page.
+	if err := s.file.Book.RemoveAsset(r.PathValue("id")); err != nil {
+		s.renderAssetsPage(w, http.StatusBadRequest, "", err.Error())
+		return
+	}
+	if err := s.file.Save(); err != nil {
+		s.renderAssetsPage(w, http.StatusInternalServerError, "", "could not save: "+err.Error())
+		return
+	}
+	http.Redirect(w, r, "/assets?flash="+url.QueryEscape("asset deleted"), http.StatusSeeOther)
+}
+
+// assetForm holds the validated fields shared by create and edit.
+type assetForm struct {
+	kind        domain.AssetKind
+	name        string
+	ticker      string
+	isin        string
+	aliases     []string
+	ccy         domain.Currency
+	group       string
+	withholding float64
+}
+
+func parseAssetForm(r *http.Request) (assetForm, error) {
+	var f assetForm
+	f.name = strings.TrimSpace(r.FormValue("name"))
+	if f.name == "" {
+		return f, fmt.Errorf("a name is required")
+	}
+	kindStr := strings.TrimSpace(r.FormValue("kind"))
+	if kindStr == "" {
+		kindStr = "security"
+	}
+	kind, err := domain.ParseAssetKind(kindStr)
+	if err != nil {
+		return f, err
+	}
+	f.kind = kind
+	ccyStr := strings.TrimSpace(r.FormValue("ccy"))
+	if ccyStr == "" {
+		ccyStr = "EUR"
+	}
+	ccy, err := domain.ParseCurrency(ccyStr)
+	if err != nil {
+		return f, err
+	}
+	f.ccy = ccy
+	f.ticker = strings.TrimSpace(r.FormValue("ticker"))
+	f.isin = strings.TrimSpace(r.FormValue("isin"))
+	f.group = strings.TrimSpace(r.FormValue("group"))
+	f.aliases = parseAliasList(r.FormValue("aliases"))
+	if wh := strings.TrimSpace(r.FormValue("withholding")); wh != "" {
+		if f.withholding, err = domain.ParsePercent(wh); err != nil {
+			return f, err
+		}
+	}
+	return f, nil
+}
+
+// withholdPct renders a withholding fraction (0.15) as a percentage string ("15"),
+// trailing zeros trimmed; the empty string for no withholding.
+func withholdPct(w float64) string {
+	if w <= 0 {
+		return ""
+	}
+	return strconv.FormatFloat(w*100, 'f', -1, 64)
 }
 
 // lastN keeps the trailing n points of a daily series.
