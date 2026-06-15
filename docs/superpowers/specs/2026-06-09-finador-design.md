@@ -18,7 +18,7 @@ Outil personnel de suivi de patrimoine (façon Finary / portfolio Yahoo Finance)
 | CLI | Sous-commandes riches, avec **spf13/cobra** |
 | Stockage | Snapshot chiffré en mémoire : `en-tête ‖ AES-256-GCM(gzip(JSON))`, pas de SQLite |
 | Fiscalité | Règle fiscale par enveloppe : `TaxOnGains` (plus-value taxée) ou `TaxOnValue` (tout taxé) |
-| Enveloppes | Entité de premier rang, nom libre (« PEA BforBank », « CTO IBKR »), multi-comptes par actif |
+| Enveloppes | Entité de premier rang, nom libre (« PEA BforBank », « CTO Saxo »), multi-comptes par actif |
 | Groupes | Hiérarchiques, en chemin (`actions/us/tech`), agrégeables par préfixe |
 | Transactions | Éditables (ID stable, edit/rm) ; tout l'état dérivé se recalcule depuis le ledger |
 | Compilation | Go 1.26 seul, pur Go (pas de CGo, pas de transpileur JS), `go build` suffit |
@@ -70,8 +70,8 @@ type TaxRule struct {
 }
 
 type Account struct {
-    ID       AccountID // slug : "pea-bforbank", "cto-ibkr"
-    Name     string    // libellé libre : "PEA BforBank", "CTO IBKR"
+    ID       AccountID // slug : "pea-bforbank", "cto-saxo"
+    Name     string    // libellé libre : "PEA BforBank", "CTO Saxo"
     Currency Currency  // devise de référence du compte
     Tax      TaxRule
 }
@@ -246,7 +246,7 @@ finador account add "PER Linxea"   --tax value:20%
 finador asset  add CW8.PA --group actions/monde
 finador asset  set maison-acheres 450000 --at 2026-06-01
 finador add    cw8 10 @550 2026-06-01 --account "PEA BforBank"   # qty<0 = vente
-finador cash   set "CTO IBKR" 12500
+finador cash   set "CTO Saxo" 12500
 finador deposit|withdraw "PEA BforBank" 5000 2026-01-10
 finador tx     list|edit|rm [id]
 finador import transactions.csv

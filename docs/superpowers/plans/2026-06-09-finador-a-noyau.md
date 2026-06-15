@@ -312,7 +312,7 @@ import "testing"
 func TestSlugify(t *testing.T) {
 	for in, want := range map[string]string{
 		"PEA BforBank":     "pea-bforbank",
-		"CTO IBKR":         "cto-ibkr",
+		"CTO Saxo":         "cto-saxo",
 		"Maison à Achères": "maison-a-acheres",
 		"CW8.PA":           "cw8-pa",
 		"  défi  élevé!  ": "defi-eleve",
@@ -1657,9 +1657,9 @@ func TestInitCreatesFile(t *testing.T) {
 func TestAccountAddAndList(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
-	run(t, db, "account", "add", "CTO IBKR", "--tax", "gains:30%", "--ccy", "USD")
+	run(t, db, "account", "add", "CTO Saxo", "--tax", "gains:30%", "--ccy", "USD")
 	out := run(t, db, "account", "list")
-	for _, want := range []string{"pea-bforbank", "PEA BforBank", "gains:17.2%", "cto-ibkr", "USD"} {
+	for _, want := range []string{"pea-bforbank", "PEA BforBank", "gains:17.2%", "cto-saxo", "USD"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("list: %q manquant dans:\n%s", want, out)
 		}
@@ -1856,7 +1856,7 @@ func accountAdd(a *app) *cobra.Command {
 	var tax, ccy, id string
 	cmd := &cobra.Command{
 		Use:   "add <nom>",
-		Short: "Crée une enveloppe — le nom est libre : \"PEA BforBank\", \"CTO IBKR\"…",
+		Short: "Crée une enveloppe — le nom est libre : \"PEA BforBank\", \"CTO Saxo\"…",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rule, err := domain.ParseTaxRule(tax)

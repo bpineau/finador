@@ -77,9 +77,9 @@ func TestAssetAddSetList(t *testing.T) {
 func TestAccountAddAndList(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA BforBank", "--tax", "gains:17.2%")
-	run(t, db, "account", "add", "CTO IBKR", "--tax", "gains:30%", "--ccy", "USD")
+	run(t, db, "account", "add", "CTO Saxo", "--tax", "gains:30%", "--ccy", "USD")
 	out := run(t, db, "account", "list")
-	for _, want := range []string{"PEA BforBank", "gains:17.2%", "CTO IBKR", "USD"} {
+	for _, want := range []string{"PEA BforBank", "gains:17.2%", "CTO Saxo", "USD"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("list: %q manquant dans:\n%s", want, out)
 		}
