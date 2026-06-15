@@ -27,11 +27,11 @@ func ramp(n int) []perf.Point {
 func TestBrailleShape(t *testing.T) {
 	out := Braille(ramp(60), 30, 8)
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-	// 8 lignes de courbe + 1 ligne de dates
+	// 8 curve lines + 1 date line
 	if len(lines) != 9 {
 		t.Fatalf("lignes = %d\n%s", len(lines), out)
 	}
-	// chaque ligne de courbe contient au moins un caractère braille non vide
+	// each curve line contains at least one non-empty braille character
 	brailleCount := 0
 	for _, l := range lines[:8] {
 		for _, r := range l {
@@ -43,7 +43,7 @@ func TestBrailleShape(t *testing.T) {
 	if brailleCount == 0 {
 		t.Fatalf("aucun point braille:\n%s", out)
 	}
-	// étiquettes : max sur la 1re ligne, min sur la dernière ligne de courbe
+	// labels: max on the first line, min on the last curve line
 	if !strings.Contains(lines[0], "159") {
 		t.Errorf("max absent de la 1re ligne: %q", lines[0])
 	}
@@ -58,8 +58,8 @@ func TestBrailleShape(t *testing.T) {
 func TestBrailleRampGoesUp(t *testing.T) {
 	out := Braille(ramp(60), 30, 8)
 	lines := strings.Split(out, "\n")
-	first := firstBrailleCol(lines[0]) // la fin de la rampe (haut) est à droite
-	last := firstBrailleCol(lines[7])  // le début (bas) est à gauche
+	first := firstBrailleCol(lines[0]) // the end of the ramp (top) is on the right
+	last := firstBrailleCol(lines[7])  // the start (bottom) is on the left
 	if last == -1 || first == -1 || last >= first {
 		t.Errorf("rampe non croissante: bas à col %d, haut à col %d\n%s", last, first, out)
 	}

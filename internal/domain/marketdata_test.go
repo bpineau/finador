@@ -27,9 +27,9 @@ func TestPriceSeriesAt(t *testing.T) {
 		ok    bool
 	}{
 		{"2026-06-05", 105, "2026-06-05", true},
-		{"2026-06-04", 103, "2026-06-03", true}, // report de la dernière clôture
+		{"2026-06-04", 103, "2026-06-03", true}, // forward-fill of the last close
 		{"2026-06-01", 100, "2026-06-01", true},
-		{"2026-05-31", 0, "", false}, // avant le début de la série
+		{"2026-05-31", 0, "", false}, // before the start of the series
 		{"2026-07-01", 105, "2026-06-05", true},
 	} {
 		got, gDate, ok := s.At(d(tc.at))
@@ -42,7 +42,7 @@ func TestPriceSeriesAt(t *testing.T) {
 func TestPriceSeriesMergeUpsert(t *testing.T) {
 	s := &PriceSeries{}
 	s.Merge([]PricePoint{{Date: d("2026-06-01"), Close: 100}, {Date: d("2026-06-02"), Close: 101}})
-	// chevauchement : le 02 est corrigé, le 03 ajouté ; l'ordre reste trié
+	// overlap: the 02 is corrected, the 03 added; the order stays sorted
 	s.Merge([]PricePoint{{Date: d("2026-06-02"), Close: 102}, {Date: d("2026-06-03"), Close: 103}})
 	if len(s.Points) != 3 {
 		t.Fatalf("points = %d, attendu 3", len(s.Points))

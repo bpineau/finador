@@ -58,7 +58,7 @@ func New(opts ...Option) *cobra.Command {
 		Long: "finador tracks your wealth in one encrypted file.\n" +
 			"Pick a noun — account, asset, cash, tx — and its subcommands guide you from there.",
 		SilenceUsage:  true,
-		SilenceErrors: true, // main les affiche, une seule fois
+		SilenceErrors: true, // main prints them, once
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			// Capture, for the duration of this invocation, whether --db was set
 			// explicitly (forces local mode) and the command name (commit message).

@@ -2,6 +2,6 @@
 
 package store
 
-// Sans flock, le contrôle d'horodatage reste : la fenêtre de course se réduit
-// à quelques microsecondes — accepté hors unix.
+// Without flock, the timestamp check remains: the race window shrinks
+// to a few microseconds — accepted off unix.
 func lockSidecar(string) (func(), error) { return func() {}, nil }

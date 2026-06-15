@@ -23,7 +23,7 @@ func importCmd(a *app) *cobra.Command {
 			}
 			defer file.Close()
 			var added, skipped int
-			// mutate n'écrit le fichier que si tout l'import a réussi.
+			// mutate only writes the file if the whole import succeeded.
 			if err := a.mutate(func(b *domain.Book) error {
 				added, skipped, err = portfolio.ImportCSV(b, file)
 				return err

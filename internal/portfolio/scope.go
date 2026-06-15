@@ -15,7 +15,7 @@ const (
 	ByGroup
 	ByAccount
 	ByAsset
-	ByAccountGroup // intersection enveloppe ∩ groupe (niveaux croisés des arbres web)
+	ByAccountGroup // intersection envelope ∩ group (crossed levels of the web trees)
 	ByLabel        // positions carrying a specific label name
 )
 
@@ -24,12 +24,12 @@ const (
 // prefix first, then account, then asset.
 type Scope struct {
 	Kind     ScopeKind
-	Group    string // chemin en minuscules
+	Group    string // lowercase path
 	Account  *domain.Account
 	Asset    *domain.Asset
 	Label    string
 	Pairs    map[pairKey]bool        // populated for ByLabel
-	Excluded map[domain.AssetID]bool // actifs retirés de la portée (jetable, CLI --exclude)
+	Excluded map[domain.AssetID]bool // assets removed from the scope (throwaway, CLI --exclude)
 }
 
 func ParseScope(b *domain.Book, ref string) (Scope, error) {

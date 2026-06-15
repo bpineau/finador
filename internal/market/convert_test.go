@@ -28,11 +28,11 @@ func TestConvert(t *testing.T) {
 		at       string
 		want     float64
 	}{
-		{100, domain.EUR, domain.EUR, "2026-06-01", 100},     // identité
+		{100, domain.EUR, domain.EUR, "2026-06-01", 100},     // identity
 		{100, domain.EUR, domain.USD, "2026-06-01", 110},     // direct
 		{110, domain.USD, domain.EUR, "2026-06-01", 100},     // inverse
 		{100, domain.EUR, domain.USD, "2026-06-02", 110},     // forward-fill
-		{100, "GBP", domain.EUR, "2026-06-03", 130.0 / 1.12}, // croisé par USD
+		{100, "GBP", domain.EUR, "2026-06-03", 130.0 / 1.12}, // crossed via USD
 	} {
 		got, err := c.Convert(tc.amount, tc.from, tc.to, mustDate(tc.at))
 		if err != nil {
