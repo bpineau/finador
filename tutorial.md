@@ -19,14 +19,36 @@ them. The model in three ideas:
   doesn't list them. Holdings with no public quote (some employee funds, real estate) you
   value by hand with `asset set`.
 
-### 0. Create the encrypted file
+### 0. Create the encrypted file (GitHub-private from the start)
+
+Most people want **GitHub mode** (private repo + auto-sync) from the very first command —
+and yes, it works right at `init`: configure the remote first, then `init` creates the
+file **and** first-pushes it.
+
+One-time on GitHub (web UI): create an **empty private repo**, and a **fine-grained PAT**
+— Settings → Developer settings → Personal access tokens → Fine-grained; *Repository
+access* = that one repo; *Permissions → Contents: Read and write*.
 
 ```sh
-finador init        # asks for a password (twice), creates ~/.finador.fin
+finador remote set <owner>/<repo> --path finador.fin --branch main   # point at the private repo (these are the defaults)
+finador remote login                                                 # paste the PAT (hidden input; access is verified on the spot)
+finador init                                                         # asks the wallet password (×2) → creates the .fin AND first-pushes it
+finador remote show                                                 # mode, repo, sync state (never the token)
+# from here, every command pulls-before / pushes-after transparently.
 ```
 
-The password is then cached in the macOS Keychain for ~12 h per terminal
-(`finador config set keychain-ttl 8h` to change it; `finador lock` to forget it now).
+Two distinct secrets: the **wallet password** (asked by `init`) encrypts the file; the
+**PAT** only moves that encrypted file to/from GitHub. The repo never holds either in
+clear. Password cached in the macOS Keychain (`finador lock` to forget; `finador config
+set keychain-ttl 8h` to change the TTL).
+
+```sh
+# Local-only instead (no GitHub):
+finador init                       # creates ~/.finador.fin
+# Already local and want GitHub later? Migrate in one shot:
+finador remote set <owner>/<repo>  # + finador remote login, then:
+finador remote adopt               # uploads your existing .fin as-is
+```
 
 ### 1. Investment accounts — each with its tax rule
 
