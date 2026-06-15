@@ -131,6 +131,64 @@ finador export > assets.csv # one row per holding: ticker, name, ISIN, gross, ne
 After `refresh`, any holding still showing **“counted as 0”** is one no source could quote
 (a typo'd ISIN, or an employee/FCPE fund) — value it with `asset set` as in step 7.
 
+## Everyday operations (after setup)
+
+### Invest cash you already have
+
+The move you'll make most once set up: you have cash and you put it into the market.
+The one rule to internalize: **declaring a holding is never a gain.** A `buy` enters the
+performance series at that day's *market value* (capital deployed), so a position you
+just declared reads **0 %**, not +100 % — only its later moves count.
+
+Say you have 30 000 € sitting on your Livret A and you invest it through your CTO:
+
+```sh
+# Mandatory — just record the buys. This IS the whole operation.
+finador asset buy world 200 @100 --account saxo    # 20 000 € into the world ETF
+finador asset buy apple 60 @166  --account saxo     # ~10 000 € into Apple
+```
+
+Each buy builds the position's cost basis and starts tracking its performance from the
+market value that day. Nothing else is required.
+
+**The cash side is optional** — only worth it if you want to *see idle, uninvested
+balances* (cash waiting at a broker, a savings account's interest). If you do, record
+the move as a **pair** (there's no “transfer” verb), which keeps both balances exact and
+stays neutral for performance:
+
+```sh
+finador cash withdraw livreta 30000   # leaves the Livret A
+finador cash deposit  saxo    30000    # lands on the CTO; the buys above then spend it down to ~0
+```
+
+Don't use `cash set` to empty the account here: `set` is an *observed balance*, so going
+from 30 000 to 0 would be booked as a 30 000 € loss. `withdraw` is the neutral move.
+
+### After selling a property (a house)
+
+In real life the sale and the cash landing on your bank account happen weeks apart,
+often on a different account — finador models exactly that: close the position when it's
+sold, record the cash when it actually arrives.
+
+```sh
+# 1. Close the position the day it's sold (its declared value goes to 0).
+finador asset set studio 0 --at 2026-05-20
+
+# 2. When the proceeds land, record the cash on the receiving account —
+#    `cash set` if you track that account by observed balance:
+finador cash set checking 285000 --at 2026-06-10
+#    …or `cash deposit checking 285000` if you track its flows instead (a neutral contribution).
+```
+
+- **The gap is real, not a bug.** Between the two dates your net worth shows the money
+  *in transit* — the property already at 0, the cash not yet recorded. That's the time it
+  spent at the notary.
+- **History is kept.** The property's whole valuation trail (220 000 → 260 000 → 0) stays
+  in the ledger, so `value` and `perf` recompute from it. Don't `asset rm` it — leaving it
+  at 0 preserves the record (and `rm` only works once it has no transactions).
+- **Tax.** Once the position is closed its envelope's latent-tax estimate drops to 0 —
+  finador estimates *latent* tax on what you still hold, not the tax actually due on a sale.
+
 ## Notes & good to know
 
 - **Basis = what you put in.** A `gains` envelope's taxable basis is the sum of its `buy`

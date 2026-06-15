@@ -157,44 +157,44 @@ Once your portfolio is set up, this is the move you'll make most: you have cash 
 put it into ETFs or shares. One thing to internalize first:
 
 **Declaring a holding is never a gain.** A `buy` is recorded as capital *deployed* at
-that day's market value, and performance is tracked from there — "bought 100 WPEA at
+that day's market value, and performance is tracked from there — "bought 100 shares at
 10 €", now 12 € → **+20%**, not +120%. So you can just record your buys and trust the
 figures.
 
-Say you move 300,000 € of cash into 200,000 € of NTSG and 100,000 € of UETW in your
-IBKR account (fake prices):
+Say you move 30,000 € of cash into 20,000 € of CW8.PA and 10,000 € of PE500.PA in your
+broker account (fake prices):
 
 **Mandatory — record the buys.** This is the whole operation:
 
 ```sh
-finador asset buy NTSG.DE 4000 @50 --account "IBKR" --group equities/world
-finador asset buy UETW.DE 4000 @25 --account "IBKR" --group equities/world
+finador asset buy CW8.PA   200 @100 --account "CTO" --group equities/world
+finador asset buy PE500.PA 250 @40  --account "CTO" --group equities/us
 ```
 
 Each buy creates the security on the fly (resolved by Yahoo ticker — use the exact
-symbol, e.g. `.DE` / `.MI` / `.PA`), starts its cost basis, and begins tracking its
-performance. `@50` is a unit price (total = qty × price); a bare number is the total.
+symbol, e.g. `.PA` / `.DE` / `.MI`), starts its cost basis, and begins tracking its
+performance. `@100` is a unit price (total = qty × price); a bare number is the total.
 
 **Optional — the cash side.** Recording cash flows is worth it *only* if you want to
 see **idle, uninvested balances** (cash parked at a broker, a savings account's
 interest). If you don't, skip it entirely — the buys above are complete and correct.
 
-If you do track cash, model the move out of Revolut as a **pair** (there's no
-"transfer" verb), which keeps both balances exact and stays neutral for performance:
+If you do track cash, model the move out of the savings account as a **pair** (there's
+no "transfer" verb), which keeps both balances exact and stays neutral for performance:
 
 ```sh
-finador cash withdraw "Revolut" 300000     # leaves Revolut
-finador cash deposit  "IBKR"    300000     # arrives on IBKR — the buys then spend it down to ~0
+finador cash withdraw "Livret A" 30000     # leaves the savings account
+finador cash deposit  "CTO"      30000     # lands on the broker — the buys then spend it down to ~0
 ```
 
 Two gotchas:
 
 - **Never use `cash set` for this.** `set` records an *observed balance*, so dropping
-  Revolut from 300k to 0 with `set` would be booked as a −300,000 € loss. `withdraw` is
-  the neutral move.
-- That money-market fund ("Fonds Monétaires Flexibles") is treated here as **cash**. If
-  you'd rather track it as a real holding (to capture its yield), `asset sell` it
-  instead of `cash withdraw`.
+  the savings account from 30k to 0 with `set` would be booked as a −30,000 € loss.
+  `withdraw` is the neutral move.
+- A money-market fund can be treated as **cash** (`cash withdraw` as above), or as a
+  **real holding** if you want to capture its yield — then declare it as an asset and
+  `asset sell` it instead.
 
 On the **web and mobile**, the same move is: add the two buy transactions from the
 *Transactions* screen; the cash entries are equally optional.
