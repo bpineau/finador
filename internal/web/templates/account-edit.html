@@ -1,0 +1,27 @@
+{{define "account-edit.html"}}{{template "base" .}}{{end}}
+{{define "title"}}edit account — finador{{end}}
+{{define "main"}}
+<p class="fil-ariane"><a href="/accounts">accounts</a> → edit account [{{.Account.ID}}]</p>
+<section>
+  <h2>edit account [{{.Account.ID}}]</h2>
+  {{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
+  <form method="post" action="/accounts/{{.Account.ID}}/edit">
+    <fieldset>
+      <legend>account</legend>
+      <div class="champs">
+        <div><label for="name">name</label><input id="name" name="name" value="{{.Account.Name}}"></div>
+        <div><label for="ccy">currency</label><input id="ccy" name="ccy" value="{{.Account.Currency}}"></div>
+        <div><label for="tax-mode">tax</label>
+          <select id="tax-mode" name="tax-mode">
+            <option value="none" {{if eq .TaxMode "none"}}selected{{end}}>none</option>
+            <option value="gains" {{if eq .TaxMode "gains"}}selected{{end}}>on gains</option>
+            <option value="value" {{if eq .TaxMode "value"}}selected{{end}}>on full value</option>
+          </select></div>
+        <div><label for="tax-rate">tax rate %</label><input id="tax-rate" name="tax-rate" value="{{.TaxRatePct}}" placeholder="17.2"></div>
+        <div><label for="aliases">aliases</label><input id="aliases" name="aliases" value="{{.AliasesCSV}}" placeholder="comma, separated"></div>
+      </div>
+      <button type="submit">Save changes</button>
+    </fieldset>
+  </form>
+</section>
+{{end}}

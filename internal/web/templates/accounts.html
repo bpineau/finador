@@ -1,0 +1,41 @@
+{{define "accounts.html"}}{{template "base" .}}{{end}}
+{{define "title"}}accounts — finador{{end}}
+{{define "main"}}
+<section>
+  <h2>new account</h2>
+  {{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
+  {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+  <form method="post" action="/accounts">
+    <fieldset>
+      <legend>account</legend>
+      <div class="champs">
+        <div><label for="name">name</label><input id="name" name="name" placeholder="PEA Zephyr"></div>
+        <div><label for="ccy">currency</label><input id="ccy" name="ccy" placeholder="EUR"></div>
+        <div><label for="tax-mode">tax</label>
+          <select id="tax-mode" name="tax-mode">
+            <option value="none">none</option>
+            <option value="gains">on gains</option>
+            <option value="value">on full value</option>
+          </select></div>
+        <div><label for="tax-rate">tax rate %</label><input id="tax-rate" name="tax-rate" placeholder="17.2"></div>
+        <div><label for="aliases">aliases</label><input id="aliases" name="aliases" placeholder="comma, separated"></div>
+      </div>
+      <button type="submit">Save</button>
+    </fieldset>
+  </form>
+</section>
+
+<section>
+  <h2>accounts</h2>
+  <table>
+    <tr><th>id</th><th>name</th><th>currency</th><th>tax</th><th>aliases</th><th></th></tr>
+    {{range .Accounts}}
+    <tr>
+      <td class="nombre">{{.ID}}</td><td>{{.Name}}</td><td>{{.Currency}}</td><td>{{.Tax}}</td>
+      <td>{{range $i, $a := .Aliases}}{{if $i}}, {{end}}{{$a}}{{end}}</td>
+      <td class="actions"><a href="/accounts/{{.ID}}/edit">edit</a> <form method="post" action="/accounts/{{.ID}}/delete"><button class="lien" type="submit">delete</button></form></td>
+    </tr>
+    {{end}}
+  </table>
+</section>
+{{end}}
