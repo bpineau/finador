@@ -82,7 +82,7 @@ func chartCmd(a *app) *cobra.Command {
 				pts[i] = perf.Point{Date: p.Date, Value: v}
 			}
 			last := pts[len(pts)-1]
-			fmt.Fprintf(cmd.OutOrStdout(), "%s (%s, %s) — last point: %s\n",
+			fmt.Fprintf(cmd.OutOrStdout(), "%s (%s, %s) - last point: %s\n",
 				scope.Label, label, display, money(last.Value, display))
 			fmt.Fprint(cmd.OutOrStdout(), chart.Braille(pts, width, height))
 			return nil

@@ -38,14 +38,14 @@ type Row struct {
 // spans the report exposes the cumulative since-inception return instead, and
 // the Has* flags tell the renderer to hide the annualized cells.
 const (
-	MinDaysForRisk = 90  // vol/Sharpe/Sortino — about a quarter of daily returns
+	MinDaysForRisk = 90  // vol/Sharpe/Sortino - about a quarter of daily returns
 	MinDaysForCAGR = 365 // CAGR is a *compound annual* rate: needs at least a year
 )
 
 // Metrics holds the summary statistics computed over the full origin window.
 // InceptionTWR/Since/Days always describe the track record; the annualized
-// figures (CAGR, Vol, Sharpe, Sortino) are only set — and HasCAGR/HasRisk only
-// true — once enough history backs them.
+// figures (CAGR, Vol, Sharpe, Sortino) are only set - and HasCAGR/HasRisk only
+// true - once enough history backs them.
 type Metrics struct {
 	InceptionTWR                         float64 // cumulative TWR since the first point
 	Since                                domain.Date
@@ -72,7 +72,7 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 			continue
 		}
 		if pf.Before(origin) {
-			continue // window predates the track record — the inception row covers it
+			continue // window predates the track record - the inception row covers it
 		}
 		rows = append(rows, periodRow(name, points, flows, pf, pt))
 	}

@@ -6,7 +6,7 @@
 
 **Architecture:** New `Morningstar` struct in `internal/market/morningstar.go` that resolves an ISIN to a Morningstar `0P…` ID via Boursorama's AJAX search, then fetches daily NAV COMPACTJSON from Morningstar. Added as the third entry in `Multi.Default()`. Tests use httptest, no network, no new dependencies.
 
-**Tech Stack:** Go stdlib only — `net/http`, `encoding/json`, `regexp`, `net/url`.
+**Tech Stack:** Go stdlib only - `net/http`, `encoding/json`, `regexp`, `net/url`.
 
 ---
 
@@ -34,7 +34,7 @@ import (
 )
 
 // morningstarIDRe extracts the Morningstar fund id (0P…) from a Boursorama
-// search result page — stable across minor layout changes.
+// search result page - stable across minor layout changes.
 var morningstarIDRe = regexp.MustCompile(`/bourse/(?:opcvm|trackers)/cours/(0P[0-9A-Za-z]+)/`)
 
 // morningstarToken is the view id embedded in Morningstar's public chart
@@ -115,7 +115,7 @@ func (m *Morningstar) fetchNAV(ctx context.Context, msID string, from domain.Dat
 	if len(rows) == 0 {
 		return DailyData{}, ErrNotCovered // empty → let the chain fall through
 	}
-	out := DailyData{} // Currency intentionally empty — Morningstar doesn't disclose it
+	out := DailyData{} // Currency intentionally empty - Morningstar doesn't disclose it
 	var prevDate domain.Date
 	for _, row := range rows {
 		if len(row) < 2 || row[1] <= 0 {
@@ -139,7 +139,7 @@ func (m *Morningstar) fetchNAV(ctx context.Context, msID string, from domain.Dat
 }
 
 // do performs a GET with a browser User-Agent, the given extra headers, and
-// one retry on 429/5xx — matching yahoo.go/ft.go's politeness convention.
+// one retry on 429/5xx - matching yahoo.go/ft.go's politeness convention.
 func (m *Morningstar) do(ctx context.Context, rawURL string, extraHeaders map[string]string) ([]byte, error) {
 	for attempt := 0; ; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -265,7 +265,7 @@ func TestMorningstarDailyOK(t *testing.T) {
 	if got.Closes[1].Close != 12.4 {
 		t.Errorf("close[1] = %+v", got.Closes[1])
 	}
-	// Currency must be empty — Morningstar doesn't disclose it.
+	// Currency must be empty - Morningstar doesn't disclose it.
 	if got.Currency != domain.Currency("") {
 		t.Errorf("currency = %q, want empty", got.Currency)
 	}
@@ -354,27 +354,27 @@ Content to insert (after the last line of the Quotes section and before `### Web
 ```markdown
 ### Atypical assets (funds by ISIN)
 
-Yahoo Finance is the primary quote source (ticker-based). When Yahoo doesn't cover an asset, finador automatically falls back — **by ISIN** — to two additional providers on every `finador refresh`:
+Yahoo Finance is the primary quote source (ticker-based). When Yahoo doesn't cover an asset, finador automatically falls back - **by ISIN** - to two additional providers on every `finador refresh`:
 
-1. **Financial Times** (`markets.ft.com`) — covers a wide range of European funds (SICAV/OPCVM).
-2. **Morningstar via Boursorama** — resolves the ISIN to a Morningstar `0P…` id through Boursorama's fund search, then fetches the daily NAV from `tools.morningstar.fr`.
+1. **Financial Times** (`markets.ft.com`) - covers a wide range of European funds (SICAV/OPCVM).
+2. **Morningstar via Boursorama** - resolves the ISIN to a Morningstar `0P…` id through Boursorama's fund search, then fetches the daily NAV from `tools.morningstar.fr`.
 
 The chain is: Yahoo → FT → Morningstar. The first provider that returns data wins; a provider that can't find the asset signals `ErrNotCovered` and the chain falls through transparently.
 
-**Typical usage — a French/Luxembourg fund:**
+**Typical usage - a French/Luxembourg fund:**
 
 ```sh
 finador asset add "Convex AM Europe Small" --isin LU1111111111
 finador refresh    # priced via FT or Morningstar automatically
 ```
 
-**Honest limitation — French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an Selia Sélection fund) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain (Yahoo, FT, Morningstar, or portfodor's equivalent) covers them. Value them manually:
+**Honest limitation - French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an Selia Sélection fund) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain (Yahoo, FT, Morningstar, or portfodor's equivalent) covers them. Value them manually:
 
 ```sh
 finador asset set "Selia Sélection Équilibre" 4250.00 --account "PEE Entreprise"
 ```
 
-All three providers are implemented with no extra dependency — stdlib HTTP and `regexp` only.
+All three providers are implemented with no extra dependency - stdlib HTTP and `regexp` only.
 ```
 
 - [ ] **Step 2: Verify**

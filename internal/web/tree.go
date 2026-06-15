@@ -231,9 +231,9 @@ func buildPie(lines []portfolio.PositionLine) (template.HTML, []pieSlice) {
 	colors := make([]string, len(out))
 	for i := range out {
 		color := chart.PiePalette[i%len(chart.PiePalette)]
-		out[i].Color = template.CSS(color) // constant palette — no user data
+		out[i].Color = template.CSS(color) // constant palette - no user data
 		out[i].Percent = int(math.Round(out[i].Amount / total * 100))
 		values[i], colors[i] = out[i].Amount, color
 	}
-	return template.HTML(chart.Pie(values, colors, 190)), out // #nosec G203 — our own SVG
+	return template.HTML(chart.Pie(values, colors, 190)), out // #nosec G203 - our own SVG
 }

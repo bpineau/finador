@@ -2,7 +2,7 @@ package portfolio
 
 import "finador/internal/domain"
 
-// PositionLine is one valued position — or one envelope's cash when Asset is
+// PositionLine is one valued position - or one envelope's cash when Asset is
 // nil. The raw material of the web's hierarchical allocation trees.
 type PositionLine struct {
 	Account *domain.Account

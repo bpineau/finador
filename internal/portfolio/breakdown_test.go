@@ -51,7 +51,7 @@ func TestIntersectScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// only the PEA's cw8 position: 12 × 560 — neither the cash, nor the CTO's cw8
+	// only the PEA's cw8 position: 12 × 560 - neither the cash, nor the CTO's cw8
 	approx(t, "gross pea∩actions", v.Gross, 6720)
 	// series work on the same scope (perf/curves of cross views)
 	res, err := Series(b, s, mustDate("2026-01-01"), at, domain.EUR, fxStub{})

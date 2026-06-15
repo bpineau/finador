@@ -2,7 +2,7 @@ package domain
 
 import "slices"
 
-// PricePoint is one daily close. Closes are analytics data: float64 is fine —
+// PricePoint is one daily close. Closes are analytics data: float64 is fine -
 // decimal exactness lives in the ledger, not in market quotes.
 type PricePoint struct {
 	Date  Date    `json:"d"`
@@ -11,7 +11,7 @@ type PricePoint struct {
 
 // PriceSeries is a date-sorted daily close series with forward-fill lookup.
 // FetchedAt records the last refresh day, even when no new point appeared
-// (week-ends) — staleness is judged on it, not on the last point.
+// (week-ends) - staleness is judged on it, not on the last point.
 type PriceSeries struct {
 	Points    []PricePoint `json:"points"`
 	FetchedAt Date         `json:"fetchedAt"`
@@ -64,7 +64,7 @@ type DividendEvent struct {
 
 // MarketData is the cached public market state. It lives inside the encrypted
 // Book: the list of held tickers is sensitive metadata. Everything here is
-// refetchable — losing it costs one refresh, never user data.
+// refetchable - losing it costs one refresh, never user data.
 type MarketData struct {
 	Prices    map[AssetID]*PriceSeries    `json:"prices,omitempty"`
 	FX        map[Currency]*PriceSeries   `json:"fx,omitempty"` // value of 1 unit in USD

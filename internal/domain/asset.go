@@ -49,7 +49,7 @@ func (k *AssetKind) UnmarshalText(b []byte) error {
 type AssetID string
 
 // Asset is anything owned: a quoted security or a free-form property.
-// Cash is not an asset — it belongs to each Account.
+// Cash is not an asset - it belongs to each Account.
 type Asset struct {
 	ID       AssetID   `json:"id"`
 	Kind     AssetKind `json:"kind"`

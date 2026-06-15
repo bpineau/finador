@@ -100,7 +100,7 @@ func TestConfigDirEnvOverride(t *testing.T) {
 	}
 }
 
-func TestValidateBranchDefaultsToMain(t *testing.T) {
+func TestValidateBranchDefaultsToMaster(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("FINADOR_CONFIG_DIR", dir)
 
@@ -120,8 +120,8 @@ func TestValidateBranchDefaultsToMain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got.GitHub.Branch != "main" {
-		t.Errorf("Branch: got %q, want \"main\"", got.GitHub.Branch)
+	if got.GitHub.Branch != "master" {
+		t.Errorf("Branch: got %q, want \"master\"", got.GitHub.Branch)
 	}
 }
 

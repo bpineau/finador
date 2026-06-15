@@ -20,7 +20,7 @@ import (
 
 const defaultTTL = 12 * time.Hour
 
-// Option configures the CLI — tests inject a fake market source.
+// Option configures the CLI - tests inject a fake market source.
 type Option func(*app)
 
 // WithSource replaces the default Yahoo market source.
@@ -54,9 +54,9 @@ func New(opts ...Option) *cobra.Command {
 	}
 	root := &cobra.Command{
 		Use:   "finador",
-		Short: "Encrypted personal wealth tracker — CLI and web, single binary",
+		Short: "Encrypted personal wealth tracker - CLI and web, single binary",
 		Long: "finador tracks your wealth in one encrypted file.\n" +
-			"Pick a noun — account, asset, cash, tx — and its subcommands guide you from there.",
+			"Pick a noun - account, asset, cash, tx - and its subcommands guide you from there.",
 		SilenceUsage:  true,
 		SilenceErrors: true, // main prints them, once
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -220,7 +220,7 @@ func tokenKey(cfg remote.Config) string {
 }
 
 // githubToken resolves the PAT: GITHUB_TOKEN env → keychain → interactive prompt
-// (then stored). A missing token is tolerated — the backend surfaces
+// (then stored). A missing token is tolerated - the backend surfaces
 // remote.ErrRemoteAuth on the first request.
 func (a *app) githubToken(cfg remote.Config) string {
 	if t := os.Getenv("GITHUB_TOKEN"); t != "" {
@@ -256,7 +256,7 @@ func staticPW(pw string) func() (string, error) {
 // walletPassword returns a lazy resolver for the wallet password, keyed on path.
 // It consults env/keychain/prompt at most once and caches a freshly typed one,
 // so a command that may not need it (a conflict-free `sync`) prompts only when a
-// merge actually has to decrypt — and never prompts twice.
+// merge actually has to decrypt - and never prompts twice.
 func (a *app) walletPassword(path string) func() (string, error) {
 	var (
 		pw   string
@@ -306,7 +306,7 @@ func (a *app) remoteMerge(getPW func() (string, error)) remote.MergeFunc {
 }
 
 // open decrypts the database; a freshly typed password is cached only after a
-// successful open — never cache a password that didn't decrypt anything.
+// successful open - never cache a password that didn't decrypt anything.
 // Remote mode reads through the sync layer first, then opens the working copy.
 func (a *app) open() (*store.File, error) {
 	s, isRemote, err := a.dataSource()
@@ -340,7 +340,7 @@ func (a *app) open() (*store.File, error) {
 
 // mutate opens, applies fn to the book, then saves atomically.
 // If fn fails, nothing is written. fn is assumed to mutate: a no-op fn still
-// rewrites the file and rotates .bak — read-only commands use open() instead.
+// rewrites the file and rotates .bak - read-only commands use open() instead.
 // Remote mode pulls a fresh base, mutates the working copy, then pushes it.
 func (a *app) mutate(fn func(*domain.Book) error) error {
 	return a.mutateFile(func(f *store.File) error {
@@ -355,7 +355,7 @@ func (a *app) mutate(fn func(*domain.Book) error) error {
 // the whole File rather than just the Book (e.g. compact, which rewrites the
 // ledger). fn is responsible for persisting its change (f.Save() / f.Compact()).
 // Local mode: open, apply. Remote mode: pull a fresh base (ForWrite), apply,
-// push (AfterWrite) — so EVERY write fetches-before and pushes-after.
+// push (AfterWrite) - so EVERY write fetches-before and pushes-after.
 func (a *app) mutateFile(fn func(*store.File) error) error {
 	s, isRemote, err := a.dataSource()
 	if err != nil {
@@ -413,13 +413,13 @@ func printWarnings(warnings []string) {
 func remoteError(err error) error {
 	switch {
 	case errors.Is(err, remote.ErrRemoteAuth):
-		return fmt.Errorf("GitHub rejected the token — it may be expired or lack Contents access to the repo; regenerate it and run `finador remote login`")
+		return fmt.Errorf("GitHub rejected the token - it may be expired or lack Contents access to the repo; regenerate it and run `finador remote login`")
 	case errors.Is(err, remote.ErrOffline):
-		return fmt.Errorf("offline and no local copy available — connect and retry: %w", err)
+		return fmt.Errorf("offline and no local copy available - connect and retry: %w", err)
 	case errors.Is(err, remote.ErrRemoteConflict):
-		return fmt.Errorf("the remote changed and couldn't be reconciled automatically — run `finador sync` and retry")
+		return fmt.Errorf("the remote changed and couldn't be reconciled automatically - run `finador sync` and retry")
 	case errors.Is(err, remote.ErrRemoteMissing):
-		return fmt.Errorf("no file found at the configured remote path/branch — check `finador remote show` (a wrong --path/--branch, a missing repo, or a token without access are the usual causes); for a genuinely new repo, run `finador init` or `finador remote adopt`")
+		return fmt.Errorf("no file found at the configured remote path/branch - check `finador remote show` (a wrong --path/--branch, a missing repo, or a token without access are the usual causes); for a genuinely new repo, run `finador init` or `finador remote adopt`")
 	default:
 		return err
 	}

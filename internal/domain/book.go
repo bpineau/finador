@@ -38,7 +38,7 @@ func CurrencyOr(s string, fallback Currency) (Currency, error) {
 }
 
 // CheckAccountRefs verifies that none of a's references (ID, Name, Aliases)
-// collides exactly (case-insensitive) with another account — adding or
+// collides exactly (case-insensitive) with another account - adding or
 // editing must not poison resolution. When called for an edit, a must
 // already be a pointer into b.Accounts so that the account is skipped
 // when comparing against itself.
@@ -72,7 +72,7 @@ func refsCollide(refs, others []string) (string, bool) {
 }
 
 // AddAccount rejects an ID or name that collides exactly (case-insensitive)
-// with an existing account — delegates to CheckAccountRefs.
+// with an existing account - delegates to CheckAccountRefs.
 func (b *Book) AddAccount(a *Account) error {
 	if a.ID == "" {
 		return fmt.Errorf("account %q: empty identifier", a.Name)
@@ -84,7 +84,7 @@ func (b *Book) AddAccount(a *Account) error {
 	return nil
 }
 
-// Account resolves a reference: ID first, then aliases, then free-form name —
+// Account resolves a reference: ID first, then aliases, then free-form name -
 // all case-insensitive. Alias tier deliberately outranks name so that
 // user-chosen short names always win.
 func (b *Book) Account(ref string) (*Account, error) {
@@ -96,7 +96,7 @@ func (b *Book) Account(ref string) (*Account, error) {
 }
 
 // AddAsset rejects any reference (ID, ticker, ISIN, alias, name) that already
-// collides exactly (case-insensitive) with another asset — exact field
+// collides exactly (case-insensitive) with another asset - exact field
 // comparison avoids false duplicates from the prefix tier.
 func (b *Book) AddAsset(a *Asset) error {
 	if a.ID == "" {
@@ -110,7 +110,7 @@ func (b *Book) AddAsset(a *Asset) error {
 }
 
 // CheckAssetRefs verifies that none of a's references collides exactly with
-// another asset — adding or editing must not poison resolution.
+// another asset - adding or editing must not poison resolution.
 func (b *Book) CheckAssetRefs(a *Asset) error {
 	refs := append([]string{string(a.ID), a.Ticker, a.ISIN, a.Name}, a.Aliases...)
 	for _, other := range b.Assets {
@@ -126,7 +126,7 @@ func (b *Book) CheckAssetRefs(a *Asset) error {
 }
 
 // Asset resolves a reference, trying tiers in order:
-// ID, ticker, ISIN, alias, then name — all case-insensitive.
+// ID, ticker, ISIN, alias, then name - all case-insensitive.
 func (b *Book) Asset(ref string) (*Asset, error) {
 	return resolve(ref, "asset", b.Assets,
 		func(a *Asset) []string { return []string{string(a.ID)} },
@@ -139,7 +139,7 @@ func (b *Book) Asset(ref string) (*Asset, error) {
 
 // resolve returns the single item matching ref on the first tier that yields
 // any match; several matches on the same tier is an ambiguity. When every
-// exact tier fails, a unique case-insensitive PREFIX of any reference wins —
+// exact tier fails, a unique case-insensitive PREFIX of any reference wins -
 // "add cw8" without remembering the full id.
 func resolve[T any](ref, what string, items []*T, tiers ...func(*T) []string) (*T, error) {
 	if ref == "" {
@@ -194,7 +194,7 @@ func (b *Book) RemoveAccount(ref string) error {
 	}
 	for _, t := range b.Transactions {
 		if t.Account == acc.ID {
-			return fmt.Errorf("account %s is referenced by transaction %s — delete its transactions first", acc.ID, t.ID)
+			return fmt.Errorf("account %s is referenced by transaction %s - delete its transactions first", acc.ID, t.ID)
 		}
 	}
 	b.Accounts = lo.Reject(b.Accounts, func(a *Account, _ int) bool { return a.ID == acc.ID })
@@ -209,7 +209,7 @@ func (b *Book) RemoveAsset(ref string) error {
 	}
 	for _, t := range b.Transactions {
 		if t.Asset == asset.ID {
-			return fmt.Errorf("asset %s is referenced by transaction %s — delete its transactions first (finador tx list --asset %s)",
+			return fmt.Errorf("asset %s is referenced by transaction %s - delete its transactions first (finador tx list --asset %s)",
 				asset.ID, t.ID, asset.ID)
 		}
 	}
@@ -236,8 +236,8 @@ func (b *Book) Tx(id TxID) (*Transaction, error) {
 	return tx, nil
 }
 
-// ResolveTx returns the transaction whose id equals ref exactly, or — failing
-// that — the single transaction whose id has ref as a prefix (like git's short
+// ResolveTx returns the transaction whose id equals ref exactly, or - failing
+// that - the single transaction whose id has ref as a prefix (like git's short
 // SHAs). No match is ErrNotFound; several prefix matches is ErrAmbiguous.
 func (b *Book) ResolveTx(ref string) (*Transaction, error) {
 	if ref == "" {
@@ -275,8 +275,8 @@ func (b *Book) HasImportHash(h string) bool {
 	return h != "" && lo.SomeBy(b.Transactions, func(t *Transaction) bool { return t.ImportHash == h })
 }
 
-// AddLabel appends a label assignment, rejecting an exact duplicate — same
-// Account and Asset, and same Name case-insensitively — with ErrDuplicate.
+// AddLabel appends a label assignment, rejecting an exact duplicate - same
+// Account and Asset, and same Name case-insensitively - with ErrDuplicate.
 // The caller assigns a fresh NewID().
 func (b *Book) AddLabel(l *Label) error {
 	if l.ID == "" {
@@ -300,8 +300,8 @@ func (b *Book) RemoveLabel(id LabelID) error {
 	return nil
 }
 
-// ResolveLabel returns the label whose id equals ref exactly, or — failing that
-// — the single label whose id has ref as a prefix (like ResolveTx). No match is
+// ResolveLabel returns the label whose id equals ref exactly, or - failing that
+// - the single label whose id has ref as a prefix (like ResolveTx). No match is
 // ErrNotFound; several prefix matches is ErrAmbiguous.
 func (b *Book) ResolveLabel(ref string) (*Label, error) {
 	if ref == "" {

@@ -45,7 +45,7 @@ func parseExclusions(b *domain.Book, refs []string) (map[domain.AssetID]bool, er
 
 // accountFor picks the envelope of a new transaction: the --account flag, the
 // account of the asset's latest transaction, the config default-account, or
-// the sole existing account — in that order.
+// the sole existing account - in that order.
 func accountFor(b *domain.Book, flag string, asset *domain.Asset) (*domain.Account, error) {
 	if flag != "" {
 		return b.Account(flag)
@@ -67,7 +67,7 @@ func accountFor(b *domain.Book, flag string, asset *domain.Asset) (*domain.Accou
 }
 
 // applyAliasEdits adds then removes aliases, case-insensitively and without
-// duplicates — shared by asset edit and account edit.
+// duplicates - shared by asset edit and account edit.
 func applyAliasEdits(aliases, add, rm []string) []string {
 	for _, al := range add {
 		if !slices.ContainsFunc(aliases, func(x string) bool { return strings.EqualFold(x, al) }) {

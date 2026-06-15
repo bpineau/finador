@@ -19,7 +19,7 @@ func rejectResolve(t *testing.T) func(Conflict) (int, error) {
 }
 
 // sealRecords builds a fresh chained log of recs (with their own Ts) under f's
-// header and persists it, then re-opens — giving a File whose entries carry the
+// header and persists it, then re-opens - giving a File whose entries carry the
 // exact Ts we chose. This is the test seam around Save stamping time.Now().
 func sealRecords(t *testing.T, f *File, recs []record) {
 	t.Helper()
@@ -392,7 +392,7 @@ func labelRec(id, ts, name string) record {
 
 // TestMergeUnionsLabels: two copies each tag the SAME (account, asset) pair with
 // a different label name. The labels are distinct random-id entities, so the
-// merge unions them through the generic id machinery — both must survive, with
+// merge unions them through the generic id machinery - both must survive, with
 // no conflict.
 func TestMergeUnionsLabels(t *testing.T) {
 	f1, f2 := twoCopies(t, "pw")

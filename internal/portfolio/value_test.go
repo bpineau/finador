@@ -44,7 +44,7 @@ func valuationBook(t *testing.T) *domain.Book {
 	immo, _ := b.Account("immo")
 	immo.Tax, _ = domain.ParseTaxRule("gains:30%")
 	if err := b.AddAsset(&domain.Asset{ID: "maison", Kind: domain.Property,
-		Name: "Maison à Achères", Currency: domain.EUR, Group: "immo"}); err != nil {
+		Name: "Maison à Rénover", Currency: domain.EUR, Group: "immo"}); err != nil {
 		t.Fatal(err)
 	}
 	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "immo", Asset: "maison",

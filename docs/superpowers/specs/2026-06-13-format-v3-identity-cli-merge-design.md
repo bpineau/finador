@@ -1,6 +1,6 @@
-# Finador — format v3 : identité random + timestamps, discipline comptes, CLI noun-first, format ouvert, merge
+# Finador - format v3 : identité random + timestamps, discipline comptes, CLI noun-first, format ouvert, merge
 
-*2026-06-13 — spec validée en brainstorming. Run autonome : pas de relecture demandée.*
+*2026-06-13 - spec validée en brainstorming. Run autonome : pas de relecture demandée.*
 
 Étend le format append-only v2 (`2026-06-13-format-append-log-design.md`). **Pré-release, aucun
 utilisateur réel** → le format évolue librement, **aucune migration**, `demo.fin` régénéré. La
@@ -77,13 +77,13 @@ de clé d'ordre pour le merge.
 ## 3. Discipline comptes / actifs
 
 - `portfolio.EnsureAccount` devient un **resolve strict** : compte inconnu ⇒ erreur explicite
-  « unknown account "X" — declare it first with `finador account add` ». Concerne le formulaire
+  « unknown account "X" - declare it first with `finador account add` ». Concerne le formulaire
   web (`web/tx.go`) **et** l'import CSV (`portfolio/import.go`).
 - `EnsureAsset` **inchangé** (création à la volée conservée pour les actifs).
 - **`account rm <ref>`** (+ `domain.RemoveAccount`) : refuse si des transactions référencent le
   compte (symétrie avec `asset rm`).
 - **`account add --alias`** (répétable), comme `asset add`.
-- Les alias illimités existent déjà (`account edit --add-alias/--rm-alias`) — conservés.
+- Les alias illimités existent déjà (`account edit --add-alias/--rm-alias`) - conservés.
 
 ## 4. CLI noun-first
 
@@ -179,7 +179,7 @@ une commande qui **re-scelle** un journal unifié :
    chaîne) ; `.bak` conservé.
 
 Cas non concurrents (ajouts/suppressions/éditions d'entités **différentes**) : union triviale,
-sans perte — c'est le bénéfice principal des ids random.
+sans perte - c'est le bénéfice principal des ids random.
 
 ## 8. Phasage
 

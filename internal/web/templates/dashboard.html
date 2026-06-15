@@ -1,5 +1,5 @@
 {{define "dashboard.html"}}{{template "base" .}}{{end}}
-{{define "title"}}overview — finador{{end}}
+{{define "title"}}overview - finador{{end}}
 {{define "main"}}
 {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
 {{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
@@ -57,9 +57,9 @@
     {{range .Rows}}
     <tr>
       <td>{{.Name}}</td>
-      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{fmtPct .TWR}}{{else}}—{{end}}</td>
-      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{fmtPct .XIRR}}{{else}}—{{end}}</td>
-      <td class="nombre delta {{if .HasGain}}{{signe .Gain}}{{end}}">{{if .HasGain}}{{fmtMoney .Gain $.Val.Currency}}{{else}}—{{end}}</td>
+      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{fmtPct .TWR}}{{else}}-{{end}}</td>
+      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{fmtPct .XIRR}}{{else}}-{{end}}</td>
+      <td class="nombre delta {{if .HasGain}}{{signe .Gain}}{{end}}">{{if .HasGain}}{{fmtMoney .Gain $.Val.Currency}}{{else}}-{{end}}</td>
     </tr>
     {{end}}
   </table>

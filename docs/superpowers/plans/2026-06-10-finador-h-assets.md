@@ -1,10 +1,10 @@
-# Finador phase H — v0.5 : onglet Assets avec sparklines
+# Finador phase H - v0.5 : onglet Assets avec sparklines
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Demande utilisateur : un onglet web « Assets » — la vue groupes→actifs
+**Goal:** Demande utilisateur : un onglet web « Assets » - la vue groupes→actifs
 DÉPLOYÉE (pas de pliage), une ligne par actif sans retour à la ligne, trois
-sparklines de valorisation de la position (1W, 1M, 1Y — « day » impossible avec des
+sparklines de valorisation de la position (1W, 1M, 1Y - « day » impossible avec des
 clôtures quotidiennes, décision D13), et en bout de ligne le montant BRUT puis NET
 détenu. Esthétique inchangée : tableau ledger dense du thème, sparklines SVG inline
 aux couleurs du thème (vert si la fenêtre monte, garance si elle baisse, encre si
@@ -16,20 +16,20 @@ réutilise le moteur existant : par actif, `ParseScope(id)` → `portfolio.Value
 les fenêtres 1W/1M/1Y. Sections = chemins de groupe COMPLETS (pas seulement le
 segment de tête), triées par valeur décroissante, en-tête cliquable vers
 `/group/...` avec sous-totaux. Le cash n'apparaît pas (pas un actif). Onglet
-« Assets » dans la manchette (base.html — toutes les pages).
+« Assets » dans la manchette (base.html - toutes les pages).
 
 **Conventions inchangées** (TDD, gofmt/vet, anglais, zéro JS, pas de binaire,
 tests sans réseau, RLock en lecture).
 
-**Performance acceptée :** N actifs × (1 Value + 1 Series 365j) sous RLock —
+**Performance acceptée :** N actifs × (1 Value + 1 Series 365j) sous RLock -
 échelle personnelle (<40 actifs, <quelques milliers de tx) : dizaines de ms.
 
 ---
 
-### Task H1: chart — Sparkline
+### Task H1: chart - Sparkline
 
 **Files:**
-- Create: rien (ajout à `internal/chart/svg.go` ou nouveau `internal/chart/spark.go` — préférer `spark.go`)
+- Create: rien (ajout à `internal/chart/svg.go` ou nouveau `internal/chart/spark.go` - préférer `spark.go`)
 - Test: `internal/chart/spark_test.go`
 
 - [ ] **Step 1: tests qui échouent**
@@ -86,7 +86,7 @@ func TestSparklineDeterministic(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: vérifier l'échec** — FAIL (Sparkline inconnu).
+- [ ] **Step 2: vérifier l'échec** - FAIL (Sparkline inconnu).
 
 - [ ] **Step 3: implémenter**
 
@@ -135,13 +135,13 @@ func Sparkline(points []perf.Point, w, h int, color string) string {
 }
 ```
 
-- [ ] **Step 4: vérifier** — `go test ./internal/chart/ -count=1 && go test ./... -count=1` vert ; gofmt/vet silencieux.
+- [ ] **Step 4: vérifier** - `go test ./internal/chart/ -count=1 && go test ./... -count=1` vert ; gofmt/vet silencieux.
 
-- [ ] **Step 5: commit** — `git add internal/chart && git commit -m "feat(chart): bare inline sparklines"`
+- [ ] **Step 5: commit** - `git add internal/chart && git commit -m "feat(chart): bare inline sparklines"`
 
 ---
 
-### Task H2: web — page /assets
+### Task H2: web - page /assets
 
 **Files:**
 - Create: `internal/web/assets.go`, `internal/web/templates/assets.html`
@@ -149,7 +149,7 @@ func Sparkline(points []perf.Point, w, h int, color string) string {
   `internal/web/static/style.css` (table dense nowrap + cellules sparkline)
 - Test: `internal/web/server_test.go` (ajout)
 
-Couleur des sparklines : comparer premier et dernier point de la TRANCHE — montée
+Couleur des sparklines : comparer premier et dernier point de la TRANCHE - montée
 → `#1e6e4e` (vert), baisse → `#a3332e` (garance), plat/indéterminé → `#1c1914`.
 Fenêtres : 1W = les 8 derniers points (7 jours), 1M = 31 derniers, 1Y = toute la
 série (365 j). Actifs à valeur nulle aujourd'hui : omis. Sections = chemin de
@@ -203,10 +203,10 @@ suivi ; la position vaut 10×560=5600 au dernier close (2026-06-05) **valorisée
 AUJOURD'HUI par report**. La base fiscale POSITION (coût moyen) est 5500 → gain
 100 → impôt 17.20 → net 5582.80. Si les montants réels diffèrent (forward-fill,
 arrondi), DÉRIVER la vérité à la main depuis la fixture avant d'ajuster quoi que
-ce soit, et n'ajuster le test QUE si la dérivation montre l'attendu erroné —
+ce soit, et n'ajuster le test QUE si la dérivation montre l'attendu erroné -
 expliquer dans le rapport.
 
-- [ ] **Step 2: vérifier l'échec** — FAIL (404).
+- [ ] **Step 2: vérifier l'échec** - FAIL (404).
 
 - [ ] **Step 3: implémenter**
 
@@ -356,15 +356,15 @@ func spark(pts []perf.Point) template.HTML {
 }
 ```
 
-NOTE : `escapeGroup` vit dans tree.go (même package) — réutiliser. Les Warnings
+NOTE : `escapeGroup` vit dans tree.go (même package) - réutiliser. Les Warnings
 sont dédupliqués par construction côté Series ; un même avertissement peut revenir
-par actif — dédupliquer ici avec une map avant rendu (petit helper), ordre stable.
+par actif - dédupliquer ici avec une map avant rendu (petit helper), ordre stable.
 
 `internal/web/templates/assets.html`:
 
 ```html
 {{define "assets.html"}}{{template "base" .}}{{end}}
-{{define "title"}}assets — finador{{end}}
+{{define "title"}}assets - finador{{end}}
 {{define "main"}}
 <section>
   <h2>assets</h2>
@@ -396,7 +396,7 @@ par actif — dédupliquer ici avec une map avant rendu (petit helper), ordre st
 `base.html` : la nav devient `Overview · Assets · Transactions · Import`
 (lien `<a href="/assets">Assets</a>` en 2e position).
 
-`style.css` — ajouter :
+`style.css` - ajouter :
 
 ```css
 /* ---- assets : lignes denses, pas de retour à la ligne ---- */
@@ -415,13 +415,13 @@ par actif — dédupliquer ici avec une map avant rendu (petit helper), ordre st
 .assets-table .section-row:hover td { background: none; }
 ```
 
-- [ ] **Step 4: vérifier** — `go test ./internal/web/ -count=1 -v -run TestAssetsPage`,
+- [ ] **Step 4: vérifier** - `go test ./internal/web/ -count=1 -v -run TestAssetsPage`,
   puis `go test ./... -count=1` + `-race ./internal/web/`. Lancer le vrai serveur
   3 s sur un livre de démo et curl /assets : structure table + 3 sparklines par
   ligne + montants ; vérifier visuellement le nowrap (pas de <br>, une <tr> par
   actif).
 
-- [ ] **Step 5: commit** — `git add internal/web && git commit -m "feat(web): assets tab — dense rows, 1W/1M/1Y sparklines, gross and net"`
+- [ ] **Step 5: commit** - `git add internal/web && git commit -m "feat(web): assets tab - dense rows, 1W/1M/1Y sparklines, gross and net"`
 
 ---
 
@@ -431,7 +431,7 @@ par actif — dédupliquer ici avec une map avant rendu (petit helper), ordre st
   dense row with 1W/1M/1Y sparklines and gross/net amounts »). DECISIONS.md D13 :
 
 ```markdown
-## D13 — Sparklines 1W/1M/1Y (pas de « day »)
+## D13 - Sparklines 1W/1M/1Y (pas de « day »)
 
 **Contexte :** la demande était day/week/month, mais le cache ne contient que des
 clôtures QUOTIDIENNES (interval=1d) : une sparkline « day » n'aurait qu'un point.
@@ -441,5 +441,5 @@ dérive de la fenêtre. **Alternative si refusé :** récupérer de l'intraday Y
 ```
 
 - [ ] Portillons : gofmt/vet/test + -race web. Smoke binaire : serve sur le demo.fin
-  (lecture seule, --offline) et curl /assets — coller un extrait.
-- [ ] commit `docs: D13 and README note — v0.5 complete` + `git tag phase-h`.
+  (lecture seule, --offline) et curl /assets - coller un extrait.
+- [ ] commit `docs: D13 and README note - v0.5 complete` + `git tag phase-h`.

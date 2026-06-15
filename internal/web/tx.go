@@ -211,7 +211,7 @@ func (s *Server) txEditSubmit(w http.ResponseWriter, r *http.Request) {
 
 // assetRename changes an asset's display name globally. It renames by the
 // asset's stable ID, so every transaction, ranking and chart that references it
-// just shows the new label — nothing is reclassified and no second asset is
+// just shows the new label - nothing is reclassified and no second asset is
 // created. (Retyping the name in a transaction's "asset" field does the
 // opposite: it reassigns that one entry, creating a new asset on the fly.)
 func (s *Server) assetRename(w http.ResponseWriter, r *http.Request) {

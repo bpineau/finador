@@ -157,7 +157,7 @@ func TestImportPropagatesAmbiguity(t *testing.T) {
 	// Pre-declare the account so the asset ambiguity is what we're testing.
 	addAccount(t, b, "PEA", domain.EUR)
 	// Inject both assets directly to simulate a legacy/corrupted book
-	// with colliding aliases — AddAsset would now reject them.
+	// with colliding aliases - AddAsset would now reject them.
 	b.Assets = append(b.Assets,
 		&domain.Asset{ID: "a1", Kind: domain.Security, Name: "Un", Aliases: []string{"dup"}, Currency: domain.EUR},
 		&domain.Asset{ID: "a2", Kind: domain.Security, Name: "Deux", Aliases: []string{"dup"}, Currency: domain.EUR},

@@ -56,7 +56,7 @@ func fakeRunHexOnNonPrintable(entries map[string]string) func(args ...string) (s
 }
 
 // TestKeychainSurvivesSecurityHexDump: with security's real behavior
-// (hex as soon as there's a \n), the round-trip must work — that's what
+// (hex as soon as there's a \n), the round-trip must work - that's what
 // base64 storage guarantees (the old "expiry\npassword" format failed here).
 func TestKeychainSurvivesSecurityHexDump(t *testing.T) {
 	entries := map[string]string{}

@@ -87,7 +87,7 @@ func (f *File) sameLedger(other *File) bool {
 // atomically; f.Book/entries/snap/disk are updated like Save/Compact.
 func (f *File) Merge(other *File, resolve func(Conflict) (int, error)) (MergeStats, error) {
 	if !f.sameLedger(other) {
-		return MergeStats{}, fmt.Errorf("refusing to merge: different ledgers (file id mismatch) — merge expects copies of the same ledger")
+		return MergeStats{}, fmt.Errorf("refusing to merge: different ledgers (file id mismatch) - merge expects copies of the same ledger")
 	}
 
 	// Group every record from both files by entity key, tagging provenance.

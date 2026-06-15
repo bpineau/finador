@@ -16,7 +16,7 @@ type GitHub struct {
 	Owner  string `json:"owner"`
 	Repo   string `json:"repo"`
 	Path   string `json:"path"`   // e.g. "finador.fin"
-	Branch string `json:"branch"` // e.g. "main"
+	Branch string `json:"branch"` // e.g. "master"
 }
 
 // Config is stored in configDir()/config.json. It is read before the
@@ -150,7 +150,7 @@ func validate(c Config) (Config, error) {
 			return Config{}, fmt.Errorf("config: github.path is required")
 		}
 		if c.GitHub.Branch == "" {
-			c.GitHub.Branch = "main"
+			c.GitHub.Branch = "master"
 		}
 	default:
 		return Config{}, fmt.Errorf("config: unknown source %q (want \"local\" or \"github\")", c.Source)

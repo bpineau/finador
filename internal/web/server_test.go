@@ -236,7 +236,7 @@ func cw8TxID(t *testing.T, f *store.File) domain.TxID {
 	return ""
 }
 
-// The transaction-edit page offers a dedicated, ID-based rename — distinct from
+// The transaction-edit page offers a dedicated, ID-based rename - distinct from
 // the "asset" field, which reassigns the entry.
 func TestTxEditOffersAssetRename(t *testing.T) {
 	srv, f := testServer(t)
@@ -553,12 +553,16 @@ func TestAssetsCSV(t *testing.T) {
 		t.Errorf("Content-Disposition = %q", cd)
 	}
 	body := rec.Body.String()
-	if !strings.HasPrefix(body, "ticker,name,isin,gross,net,currency\n") {
+	if !strings.HasPrefix(body, "kind,ticker,name,isin,gross,net,currency\n") {
 		t.Errorf("missing CSV header:\n%s", body)
 	}
 	// cw8: 10 × 560 = 5600 gross ; base 5500 → gain 100 → tax 17.20 → net 5582.80.
-	if !strings.Contains(body, "CW8.PA,Amundi MSCI World,,5600.00,5582.80,EUR") {
+	if !strings.Contains(body, "security,CW8.PA,Amundi MSCI World,,5600.00,5582.80,EUR") {
 		t.Errorf("asset row missing/incorrect:\n%s", body)
+	}
+	// cash is exported too: the PEA's tracked balance must appear as a cash row.
+	if !strings.Contains(body, "cash,,PEA Zephyr,") {
+		t.Errorf("cash row missing from CSV:\n%s", body)
 	}
 	// the assets page offers the download.
 	if _, page := get(t, srv, "/assets"); !strings.Contains(page, `href="/assets.csv"`) {
@@ -584,7 +588,7 @@ func TestChartRanges(t *testing.T) {
 	// SVG points: a shorter curve produces fewer "x,y" coordinates.
 	// If the test series is too short for the difference to be visible via
 	// commas (e.g. same period), we can still check for the presence of the
-	// selector — the comma assertion is commented out and replaced by an
+	// selector - the comma assertion is commented out and replaced by an
 	// assertion that full contains at least as many commas.
 	if strings.Count(m1, ",") >= strings.Count(full, ",") {
 		t.Error("1m curve should carry fewer svg points than the full curve")
@@ -615,7 +619,7 @@ func TestTxCreateOnTheFly(t *testing.T) {
 		t.Fatalf("unknown account should be rejected: got %d", code)
 	}
 	if _, err := f.Book.Account("Brand New Bank"); err == nil {
-		t.Fatal("account was created on the fly — should not be")
+		t.Fatal("account was created on the fly - should not be")
 	}
 
 	// Assets still auto-create on the fly.

@@ -122,13 +122,13 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 	s.render(w, status, "assets.html", data)
 }
 
-// assetsCSV serves the same per-asset valuation as the assets page, as a CSV
-// download (ticker, name, ISIN, gross, net, currency).
+// assetsCSV serves every holding as a CSV download (kind, ticker, name, ISIN,
+// gross, net, currency), cash included.
 func (s *Server) assetsCSV(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	b := s.file.Book
-	rows, err := portfolio.AssetRows(b, domain.Today(), b.DisplayCurrency(),
+	rows, err := portfolio.AllRows(b, domain.Today(), b.DisplayCurrency(),
 		market.Converter{FX: b.Market.FX})
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())

@@ -169,7 +169,7 @@ func TestRemoteShowHidesToken(t *testing.T) {
 	configureRemote(t, fake)
 
 	out := mustRunRemote(t, fake, "remote", "show")
-	for _, want := range []string{"github", "owner/repo", "finador.fin", "main"} {
+	for _, want := range []string{"github", "owner/repo", "finador.fin", "master"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("remote show missing %q:\n%s", want, out)
 		}

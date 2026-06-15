@@ -20,7 +20,7 @@ func remoteCmd(a *app) *cobra.Command {
 		Long: "Keep the encrypted ledger in a private GitHub repo, synced automatically. " +
 			"Local file mode stays the default and the fallback; GitHub is opt-in.\n\n" +
 			"The repo only ever holds the encrypted .fin file; the market cache stays local.",
-		Example: "  finador remote set bpineau/finador-data\n" +
+		Example: "  finador remote set you/finador-data\n" +
 			"  finador remote login\n" +
 			"  finador remote show",
 	}
@@ -28,7 +28,7 @@ func remoteCmd(a *app) *cobra.Command {
 	return cmd
 }
 
-// remoteAdopt uploads an existing local .fin to the remote — a one-time
+// remoteAdopt uploads an existing local .fin to the remote - a one-time
 // migration into GitHub mode for a portfolio you already built locally.
 func remoteAdopt(a *app) *cobra.Command {
 	var from string
@@ -49,7 +49,7 @@ func remoteAdopt(a *app) *cobra.Command {
 				return err
 			}
 			if !isRemote {
-				return fmt.Errorf("no remote configured — run `finador remote set <owner>/<repo>` first")
+				return fmt.Errorf("no remote configured - run `finador remote set <owner>/<repo>` first")
 			}
 			src := from
 			if src == "" {
@@ -63,7 +63,7 @@ func remoteAdopt(a *app) *cobra.Command {
 				return remoteError(err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(),
-				"Uploaded %s to %s — your existing portfolio is now in GitHub mode\n", src, s.Describe())
+				"Uploaded %s to %s - your existing portfolio is now in GitHub mode\n", src, s.Describe())
 			return nil
 		},
 	}
@@ -80,7 +80,7 @@ func remoteSet(a *app) *cobra.Command {
 		Long: "Write the config so finador stores the ledger in the given GitHub repo. " +
 			"Run `finador remote login` once to store the token, then any command syncs " +
 			"transparently. Use `--db` or FINADOR_DB to force local mode for a single run.",
-		Example: "  finador remote set bpineau/finador-data --path finador.fin --branch main",
+		Example: "  finador remote set you/finador-data --path finador.fin --branch master",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			owner, repo, ok := strings.Cut(args[0], "/")
@@ -100,13 +100,13 @@ func remoteSet(a *app) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(),
-				"Remote set to github:%s/%s/%s@%s — run `finador remote login` to store the token\n",
+				"Remote set to github:%s/%s/%s@%s - run `finador remote login` to store the token\n",
 				owner, repo, path, branch)
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&path, "path", "finador.fin", "path of the .fin file inside the repo")
-	cmd.Flags().StringVar(&branch, "branch", "main", "branch to read and write")
+	cmd.Flags().StringVar(&branch, "branch", "master", "branch to read and write")
 	return cmd
 }
 
@@ -191,7 +191,7 @@ func remoteLogin(a *app) *cobra.Command {
 				return err
 			}
 			if cfg.Source != "github" || cfg.GitHub == nil {
-				return fmt.Errorf("no remote configured — run `finador remote set <owner>/<repo>` first")
+				return fmt.Errorf("no remote configured - run `finador remote set <owner>/<repo>` first")
 			}
 			token, err := keyring.Prompt("GitHub token: ")
 			if err != nil {
@@ -216,7 +216,7 @@ func remoteLogin(a *app) *cobra.Command {
 			case errors.Is(err, remote.ErrOffline):
 				fmt.Fprintln(cmd.OutOrStdout(), "Saved, but couldn't verify right now (offline).")
 			case errors.Is(err, remote.ErrRemoteAuth):
-				return fmt.Errorf("token saved, but GitHub rejected it for %s/%s — check it isn't expired and has Contents access to that exact repo",
+				return fmt.Errorf("token saved, but GitHub rejected it for %s/%s - check it isn't expired and has Contents access to that exact repo",
 					cfg.GitHub.Owner, cfg.GitHub.Repo)
 			default:
 				return err

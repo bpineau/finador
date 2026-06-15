@@ -15,7 +15,7 @@ import (
 )
 
 // ImportCSV reads header-mapped transactions: date, kind, account, asset,
-// quantity, price, amount, currency, group, note — in any column order.
+// quantity, price, amount, currency, group, note - in any column order.
 // Unknown accounts and assets are created on the fly; lines whose content
 // hash is already in the book are skipped.
 func ImportCSV(b *domain.Book, r io.Reader) (added, skipped int, err error) {
@@ -138,7 +138,7 @@ func ResolveAccount(b *domain.Book, ref string) (*domain.Account, error) {
 	if !errors.Is(err, domain.ErrNotFound) {
 		return nil, err // ambiguity: don't mask it
 	}
-	return nil, fmt.Errorf("unknown account %q — declare it first with `finador account add %q`", ref, ref)
+	return nil, fmt.Errorf("unknown account %q - declare it first with `finador account add %q`", ref, ref)
 }
 
 // EnsureAsset resolves an asset reference or creates a security with the

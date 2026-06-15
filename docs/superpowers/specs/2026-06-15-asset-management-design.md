@@ -1,4 +1,4 @@
-# Asset management (web + mobile) — design
+# Asset management (web + mobile) - design
 
 **Goal:** Expose asset create/list/edit/delete in the web UI and the Android app, matching the
 CLI's `asset add/edit/list/rm`. Mirrors the just-shipped account-management feature.
@@ -13,7 +13,7 @@ An asset is `Kind` (`security` | `property`), `Name`, `Ticker`, `ISIN`, `Aliases
 `Group`, `Withholding` (a source-tax fraction on automatic dividends) plus a generated id. The
 editor surfaces every field; the id is generated, never edited.
 
-## Web (Go) — full CRUD on the existing Assets tab
+## Web (Go) - full CRUD on the existing Assets tab
 
 Server-rendered, zero-JS, mirroring the Accounts page.
 
@@ -27,10 +27,10 @@ Server-rendered, zero-JS, mirroring the Accounts page.
 - Reuses the domain guards: `Book.AddAsset` / `CheckAssetRefs` (collision) and `Book.RemoveAsset`
   (refuses to orphan a transaction AND purges the asset's market cache). Edit applies onto the live
   pointer and restores it on validation/save failure, like `assetRename`.
-- The existing per-transaction `POST /asset/{id}/rename` (`assetRename`) is kept — it's the
+- The existing per-transaction `POST /asset/{id}/rename` (`assetRename`) is kept - it's the
   ID-based rename reached from the transaction-edit page.
 
-## Mobile (Android) — under Settings, next to "Manage accounts"
+## Mobile (Android) - under Settings, next to "Manage accounts"
 
 - **Format-write** (the layer could read `asset`/`asset-del` but not write them):
   `Ledger.putAsset(asset)` (upsert → `asset` record, create and edit) and `Ledger.deleteAsset(id)`
@@ -41,13 +41,13 @@ Server-rendered, zero-JS, mirroring the Accounts page.
 - **Screens:** `AssetListScreen` (cards; tap to edit; + to add; delete with confirmation) and
   `AssetEditorScreen` (name, kind dropdown, ticker, ISIN, currency, group, aliases, withholding %
   shown for securities). Reuses the shared `DropdownField`.
-- The mobile market cache (sidecar) is regenerable, so delete only emits `asset-del` — no purge.
+- The mobile market cache (sidecar) is regenerable, so delete only emits `asset-del` - no purge.
 
 ## Testing
 
-- Web: `internal/web/assets_test.go` — list/create (isin + aliases + group + withholding), edit
+- Web: `internal/web/assets_test.go` - list/create (isin + aliases + group + withholding), edit
   pre-fill + update, collision rejection, and the delete guard (referenced vs clean).
-- Android: `LedgerAssetTest` — write/edit/delete round-trips, collision, delete-guard.
+- Android: `LedgerAssetTest` - write/edit/delete round-trips, collision, delete-guard.
 - Byte-compat: `CrossImplProducerTest` now also writes an asset; `scripts/crossimpl.sh` asserts the
   Go CLI lists that Android-written asset.
 
@@ -55,5 +55,5 @@ Server-rendered, zero-JS, mirroring the Accounts page.
 
 - CRUD lives under the plural `/assets/...` namespace to avoid the singular `/asset/{ref}` view.
 - One create/edit ledger primitive (`putAsset`, upsert by id) since the format reconciles by id.
-- Web edit replaces aliases wholesale (vs the CLI's add/remove flags) — simpler, same result.
+- Web edit replaces aliases wholesale (vs the CLI's add/remove flags) - simpler, same result.
 - Mobile asset management lives under Settings, not as a bottom-bar destination.

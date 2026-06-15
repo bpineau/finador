@@ -21,11 +21,11 @@ func assetCmd(a *app) *cobra.Command {
 		Long: `Manage assets (securities and properties) and record all activity on them.
 
 Which subcommand to use:
-  buy/sell      — quoted security you trade: requires a quantity and a price.
-  dividend/fee  — income or cost on a security (no quantity, just an amount).
-  set           — observed value of a property or unlisted holding; the gap
+  buy/sell      - quoted security you trade: requires a quantity and a price.
+  dividend/fee  - income or cost on a security (no quantity, just an amount).
+  set           - observed value of a property or unlisted holding; the gap
                   since the previous statement counts as performance.
-  add/edit/rm   — declare, update or remove an asset definition.`,
+  add/edit/rm   - declare, update or remove an asset definition.`,
 		Example: "  finador asset buy CW8 20 @450 2024-01-20",
 	}
 	cmd.AddCommand(
@@ -312,14 +312,14 @@ func assetRm(a *app) *cobra.Command {
 	}
 }
 
-// resolveOrCreateSecurity resolves ref in the book, or — when it is unknown —
+// resolveOrCreateSecurity resolves ref in the book, or - when it is unknown -
 // creates a security (ticker = ref), enriching from Yahoo when online, like
 // `asset add`. Ambiguous refs propagate (never auto-create over an ambiguity).
 func resolveOrCreateSecurity(cmd *cobra.Command, a *app, b *domain.Book, ref, group, ccy string, aliases []string) (*domain.Asset, error) {
 	if as, err := b.Asset(ref); err == nil {
 		return as, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {
-		return nil, err // ambiguity — never mask it
+		return nil, err // ambiguity - never mask it
 	}
 	ccyParsed, err := currencyOr(ccy, domain.EUR)
 	if err != nil {

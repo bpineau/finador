@@ -269,7 +269,7 @@ func snapshotOf(b *domain.Book) snapshot {
 
 // diff returns the records to append so the log materializes b, given prev as
 // the last-persisted state. Order: config, accounts (+deletes), assets
-// (+deletes), then transactions (+deletes) — definitions before references.
+// (+deletes), then transactions (+deletes) - definitions before references.
 func diff(prev snapshot, b *domain.Book) []record {
 	var recs []record
 
