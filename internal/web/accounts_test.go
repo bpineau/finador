@@ -25,8 +25,8 @@ func TestAccountsListAndCreate(t *testing.T) {
 
 	// create a CTO with a gains tax and two aliases.
 	code, body, loc := postForm(t, srv, "/accounts", url.Values{
-		"name": {"CTO IBKR"}, "ccy": {"USD"},
-		"tax-mode": {"gains"}, "tax-rate": {"30"}, "aliases": {"cto, ibkr"},
+		"name": {"CTO Meridia"}, "ccy": {"USD"},
+		"tax-mode": {"gains"}, "tax-rate": {"30"}, "aliases": {"cto, meridia"},
 	})
 	if code != 303 || !strings.HasPrefix(loc, "/accounts") {
 		t.Fatalf("POST /accounts = %d → %q\n%s", code, loc, excerpt(body))
@@ -35,11 +35,11 @@ func TestAccountsListAndCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("created account not found by alias: %v", err)
 	}
-	if acc.Name != "CTO IBKR" || acc.Currency != "USD" || acc.Tax.String() != "gains:30%" {
+	if acc.Name != "CTO Meridia" || acc.Currency != "USD" || acc.Tax.String() != "gains:30%" {
 		t.Errorf("created account = %+v, tax %s", acc, acc.Tax)
 	}
-	if len(acc.Aliases) != 2 || acc.Aliases[0] != "cto" || acc.Aliases[1] != "ibkr" {
-		t.Errorf("aliases = %v, want [cto ibkr]", acc.Aliases)
+	if len(acc.Aliases) != 2 || acc.Aliases[0] != "cto" || acc.Aliases[1] != "meridia" {
+		t.Errorf("aliases = %v, want [cto meridia]", acc.Aliases)
 	}
 
 	// empty name → 400, nothing added.
