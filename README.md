@@ -240,6 +240,15 @@ finador asset set "Appart Lyon" 270000 --at 2024-01-01                          
 Once the asset is attached to an account, later `asset set` calls don't need
 `--account` again.
 
+- **The acquisition basis is everything you put in** — not just the purchase price. Fold
+  the **renovation works and the notaire/acquisition fees** into that first `asset set`,
+  so the gain is measured against your true cost. A buy-renovate-resell (a *marchand de
+  biens*-style flip) records the **same way**: first `set` = purchase + works, a later
+  `set` = the revalued / market price (the gap is the operation's gain), and on resale you
+  close it to 0 and book the cash (see the next recipe). Only the **tax regime** differs —
+  a one-off private capital gain vs a habitual professional flip taxed as BIC — so set the
+  envelope's `--tax` to match yours; the recording is identical either way.
+
 ### Sell a property (cash decoupled — the real-life flow)
 
 In real life the sale and the money landing on your bank account happen weeks apart,
