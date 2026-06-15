@@ -15,7 +15,7 @@ import (
 )
 
 // Yahoo is the default Source: the unofficial but stable Yahoo Finance API.
-// No key, no auth — just a browser-looking User-Agent and polite retries.
+// No key, no auth - just a browser-looking User-Agent and polite retries.
 type Yahoo struct {
 	BaseURL   string
 	Client    *http.Client

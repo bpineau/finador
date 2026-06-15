@@ -86,7 +86,7 @@ func (s *Syncer) WorkingCopy() string { return s.copyPath }
 // HasWorkingCopy reports whether a local working copy exists on disk.
 func (s *Syncer) HasWorkingCopy() bool { return s.copyExists() }
 
-// Adopt seeds the remote from bytes you already have locally — a one-time
+// Adopt seeds the remote from bytes you already have locally - a one-time
 // migration into GitHub mode. It pushes them as the file (no decryption) and
 // installs them as the working copy + state, so the next read uses them. It
 // refuses to overwrite an existing remote file unless force is set.
@@ -99,7 +99,7 @@ func (s *Syncer) Adopt(ctx context.Context, data []byte, message string, force b
 	switch _, v, ferr := s.backend.Fetch(ctx); {
 	case ferr == nil:
 		if !force {
-			return fmt.Errorf("the remote already holds a file — refusing to overwrite; pass --force, or use `finador sync` to reconcile")
+			return fmt.Errorf("the remote already holds a file - refusing to overwrite; pass --force, or use `finador sync` to reconcile")
 		}
 		base = v
 	case errors.Is(ferr, ErrRemoteMissing):
@@ -216,7 +216,7 @@ func atomicWrite(path string, data []byte) error {
 }
 
 // pull refreshes the working copy from the remote. INVARIANT: only call this
-// when the working copy is clean (!Dirty) — it overwrites the copy bytes.
+// when the working copy is clean (!Dirty) - it overwrites the copy bytes.
 //
 //   - success           → write remote bytes to the copy, SHA=new,
 //     LastPull=now, Dirty=false.
@@ -306,7 +306,7 @@ func (s *Syncer) reconcile(ctx context.Context, merge MergeFunc) (Version, error
 	}
 	remoteData, remoteSHA, ferr := s.backend.Fetch(ctx)
 	if ferr != nil {
-		// Offline mid-conflict, auth, missing, etc. — surface it; the caller's
+		// Offline mid-conflict, auth, missing, etc. - surface it; the caller's
 		// pushCopy turns ErrOffline into dirty only on the Push path, so here we
 		// translate offline into a conflict-time error to avoid a silent loss.
 		return "", fmt.Errorf("fetch remote for merge: %w", ferr)
@@ -373,7 +373,7 @@ func (s *Syncer) ForRead(ctx context.Context) (warnings []string, err error) {
 		return []string{"offline: using local copy"}, nil
 	}
 	// Online pull succeeded but the remote has no file yet (ErrRemoteMissing
-	// left the copy absent): there is nothing to read — the caller must
+	// left the copy absent): there is nothing to read - the caller must
 	// init or adopt. Surfacing it here beats a cryptic "file does not exist".
 	if !s.copyExists() {
 		return nil, ErrRemoteMissing

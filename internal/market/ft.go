@@ -41,7 +41,7 @@ type ftResolution struct {
 
 // Daily resolves the instrument through FT search, then downloads its NAV
 // series. FT search accepts an ISIN, a ticker or a name; we try the ISIN first
-// (most precise), then the ticker — so a fund Yahoo lists only by ticker (e.g. a
+// (most precise), then the ticker - so a fund Yahoo lists only by ticker (e.g. a
 // US mutual fund like SPICX) still resolves here when Yahoo is unavailable.
 // ErrNotCovered when neither identifier is given or FT doesn't list it.
 func (f *FT) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {

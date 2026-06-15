@@ -1,23 +1,23 @@
-# Finador — format de stockage v2 : journal append-only + cache sidecar
+# Finador - format de stockage v2 : journal append-only + cache sidecar
 
-*2026-06-13 — spec validée en brainstorming. Run autonome : pas de relecture demandée.*
+*2026-06-13 - spec validée en brainstorming. Run autonome : pas de relecture demandée.*
 
 ## 0. Objectif et contexte
 
 Le fichier de données doit pouvoir **vivre dans un dépôt git synchronisé** (GitHub),
 utilisé séquentiellement depuis plusieurs machines. Trois propriétés visées :
 
-1. **Diff minimal** — un petit changement logique (un versement de liquide) ne change
+1. **Diff minimal** - un petit changement logique (un versement de liquide) ne change
    qu'une **petite partie** du fichier, pas tout. Git ne doit pas regrossir d'un blob
    complet à chaque commit.
-2. **Text-like** — le fichier est du texte (base64), un enregistrement par ligne :
+2. **Text-like** - le fichier est du texte (base64), un enregistrement par ligne :
    `git diff` montre « +1 ligne », et git delta-compresse parfaitement l'append-only.
-3. **Sécurité intacte** — confidentialité équivalente au format actuel ; il est acceptable
+3. **Sécurité intacte** - confidentialité équivalente au format actuel ; il est acceptable
    que les **tailles** des sections soient visibles (un observateur voit que certaines
    parties sont plus grosses que d'autres).
 
 Contrainte utilisateur : **un seul fichier physique** à transporter (le cache marché,
-régénérable, est local et ne voyage donc pas — il ne compte pas comme « un fichier de
+régénérable, est local et ne voyage donc pas - il ne compte pas comme « un fichier de
 plus à transporter »).
 
 **Pas d'utilisateurs réels encore : on ABANDONNE totalement le format `FINADOR1`.
@@ -63,7 +63,7 @@ il dominerait la croissance git (~70–150 Mo/an). Étant **régénérable** (re
 
 Fichier UTF-8, lignes terminées par `\n`. Trois parties.
 
-### Ligne 1 — en-tête (clair, lisible, JSON)
+### Ligne 1 - en-tête (clair, lisible, JSON)
 
 ```json
 {"fmt":"finador-ledger","v":2,"kdf":"argon2id","t":3,"m":65536,"p":4,"salt":"<base64>","id":"<base64-128bits>"}
@@ -77,7 +77,7 @@ Fichier UTF-8, lignes terminées par `\n`. Trois parties.
   records à ce fichier précis (anti-greffe d'un autre fichier). L'en-tête est en clair mais
   **authentifié** : son hash entre dans l'AAD de chaque record.
 
-### Lignes 2..N+1 — enregistrements (un par ligne)
+### Lignes 2..N+1 - enregistrements (un par ligne)
 
 ```
 base64( nonce[12] ‖ AES-256-GCM-Seal(plaintext, AAD) )
@@ -92,7 +92,7 @@ base64( nonce[12] ‖ AES-256-GCM-Seal(plaintext, AAD) )
     → **chaînage** : réordonner ou supprimer un record du milieu casse la chaîne au rejeu.
 - Clé : **sous-clé `log`** (cf. §4).
 
-### Dernière ligne — tête authentifiée (anti-troncature)
+### Dernière ligne - tête authentifiée (anti-troncature)
 
 ```
 base64( nonce[12] ‖ AES-256-GCM-Seal({"count":N,"head":"<base64 tag du record N>"}, AAD_head) )
@@ -106,20 +106,20 @@ falsifié.
 
 ### Lecture (Open)
 
-1. Parser la ligne 1 ; dériver la clé (Argon2id + HKDF) — nécessite le mot de passe.
+1. Parser la ligne 1 ; dériver la clé (Argon2id + HKDF) - nécessite le mot de passe.
 2. Pour chaque ligne de record, en maintenant `seq` et `prevTag`, reconstruire l'AAD et
    `GCM-Open`. **Tout échec d'ouverture → `domain.ErrBadPassword`** (mot de passe faux et
    altération indistinguables, comme aujourd'hui). Décoder le JSON du record.
 3. Vérifier la ligne de tête (count + head). Échec → erreur d'intégrité explicite.
 4. **Rejouer** les records en ordre pour matérialiser le `Book` (cf. §3).
 
-### Écriture (Save) — diff-on-save, préfixe byte-stable
+### Écriture (Save) - diff-on-save, préfixe byte-stable
 
 Le store retient, depuis l'ouverture : la **liste ordonnée des lignes de records**
 (chaînes verbatim + record décodé) et un **instantané** de l'état matérialisé. À chaque
 `Save()` :
 
-1. Lock sidecar + contrôle de concurrence optimiste (`diskStamp`) — **réutilisés tels quels**.
+1. Lock sidecar + contrôle de concurrence optimiste (`diskStamp`) - **réutilisés tels quels**.
 2. **Diff** `Book` courant vs instantané, par identité stable (Account.ID, Asset.ID,
    TxID, clés de Config) :
    - présent maintenant, absent avant → record **create** (`acct`/`asset`/`config`/`tx`) ;
@@ -130,7 +130,7 @@ Le store retient, depuis l'ouverture : la **liste ordonnée des lignes de record
    avant les transactions qui les référencent).
 3. Sceller **uniquement** les nouveaux records (nonce frais, chaînés sur le dernier tag).
 4. Écrire `ligne1 ‖ lignes records (anciennes verbatim + nouvelles) ‖ ligne de tête` via
-   **tmp + fsync + rename**, `.bak` rotation — **réutilisés tels quels**.
+   **tmp + fsync + rename**, `.bak` rotation - **réutilisés tels quels**.
 5. Mettre à jour instantané + liste de lignes.
 
 Comme les lignes anciennes sont ré-émises **à l'octet près**, le préfixe du fichier est
@@ -143,7 +143,7 @@ inchangé : git ne voit que les lignes ajoutées + la ligne de tête modifiée.
 ## 3. Records et rejeu
 
 Le `Book` (domain) **perd le champ `Market`** côté persistance log (il reste en mémoire,
-peuplé depuis le sidecar — cf. §5). Le rejeu fold les records :
+peuplé depuis le sidecar - cf. §5). Le rejeu fold les records :
 
 | Record | Effet au rejeu |
 |---|---|
@@ -174,7 +174,7 @@ inter-fichiers). Le coût Argon2 (64 MiB) n'est payé qu'**une fois** par ouvert
 - **Emplacement** : `os.UserCacheDir()/finador/<id>.cache`, où `<id>` vient de l'en-tête du
   grand-livre → même nom logique sur toutes les machines, **physiquement hors du dépôt git**
   (donc rien à gitignorer). Si `UserCacheDir` échoue : repli à côté du `.fin` en `.<nom>.cache`.
-- **Format** : simple (non synchronisé, le churn n'a pas d'importance) — petit en-tête
+- **Format** : simple (non synchronisé, le churn n'a pas d'importance) - petit en-tête
   `{"fmt":"finador-cache","v":2}` ‖ `nonce[12]` ‖ `GCM-Seal(gzip(JSON(MarketData)), keyCache)`.
   Chiffré (le commentaire de `MarketData` rappelle que la liste des tickers est sensible).
 - **Source-agnostique** : structure inchangée si un jour les points viennent de Stooq.
@@ -184,7 +184,7 @@ inter-fichiers). Le coût Argon2 (64 MiB) n'est payé qu'**une fois** par ouvert
   les chemins qui touchent `Book.Market` (`refresh`, `RemoveAsset` qui purge le cache d'un
   actif). `Save()` (log) et `SaveCache()` (sidecar) sont **indépendants**.
 
-## 6. Édition du passé — interface
+## 6. Édition du passé - interface
 
 **Déjà fonctionnelle**, à conserver et documenter, jamais restreinte à une fenêtre récente :
 
@@ -194,13 +194,13 @@ inter-fichiers). Le coût Argon2 (64 MiB) n'est payé qu'**une fois** par ouvert
   changer d'enveloppe, supprimer un doublon, avec exemples), et help cobra à jour.
 - **Web** : `txEditSubmit` / `txDelete` existent ; vérifier que la liste des transactions
   expose **édition et suppression pour chaque ligne** (parité CLI/web).
-- **Compaction** : nouvelle commande de maintenance `finador compact` — réécrit un log
+- **Compaction** : nouvelle commande de maintenance `finador compact` - réécrit un log
   minimal propre (drop des superséd­és/tombstones, renumérotation `seq`, nouveaux nonces et
   chaîne). Réécrit tout le fichier (un gros commit ponctuel) ; **optionnelle et rare** (vu
   le faible volume de corrections, souvent jamais nécessaire).
 
 **Conflits** : usage séquentiel assumé. Si deux machines divergent sans s'être
-synchronisées, la réconciliation git est manuelle (on garde un fichier) — accepté car rare.
+synchronisées, la réconciliation git est manuelle (on garde un fichier) - accepté car rare.
 
 ## 7. Impacts sur le code
 

@@ -44,7 +44,7 @@ func Prompt(label string) (string, error) {
 
 // PasswordFor finds the password for db: $FINADOR_PASSWORD, then cache, then
 // prompt. fresh reports that the user just typed it (worth caching after a
-// successful open — not before, we don't want to cache a wrong password).
+// successful open - not before, we don't want to cache a wrong password).
 func PasswordFor(db string, cache Cache, prompt func(string) (string, error)) (pw string, fresh bool, err error) {
 	if pw := os.Getenv("FINADOR_PASSWORD"); pw != "" {
 		return pw, false, nil

@@ -19,7 +19,7 @@ func ttyID() string {
 		return "notty"
 	}
 	// Device numbers can be recycled across terminals: at worst another
-	// terminal of the same user inherits the cache — the same trust boundary
+	// terminal of the same user inherits the cache - the same trust boundary
 	// as the Keychain itself.
 	return fmt.Sprintf("tty%d", st.Rdev)
 }

@@ -74,7 +74,7 @@ func sealLine(g cipher.AEAD, hdrHash []byte, seq uint64, prevTag []byte, rec rec
 }
 
 // openLine opens one record line. Any failure (malformed, wrong key, broken
-// chain, tampering) is reported as domain.ErrBadPassword — indistinguishable.
+// chain, tampering) is reported as domain.ErrBadPassword - indistinguishable.
 func openLine(g cipher.AEAD, hdrHash []byte, seq uint64, prevTag []byte, line string) (record, []byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(line)
 	if err != nil || len(raw) < nonceSize+tagSize {
@@ -89,7 +89,7 @@ func openLine(g cipher.AEAD, hdrHash []byte, seq uint64, prevTag []byte, line st
 	if err := json.Unmarshal(pt, &rec); err != nil {
 		// Reachable only AFTER a valid GCM tag (correct key, untampered bytes):
 		// a malformed payload here means an internal encoding bug, never an
-		// attacker-distinguishable path — so it stays distinct from ErrBadPassword.
+		// attacker-distinguishable path - so it stays distinct from ErrBadPassword.
 		return record{}, nil, fmt.Errorf("unreadable record: %w", err)
 	}
 	return rec, ct[len(ct)-tagSize:], nil

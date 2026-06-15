@@ -58,15 +58,15 @@ func TestAssetAddSetList(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "Patrimoine")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--name", "Amundi MSCI World", "--group", "actions/monde")
-	run(t, db, "asset", "add", "Maison à Achères", "--kind", "property", "--group", "immo")
+	run(t, db, "asset", "add", "Maison à Rénover", "--kind", "property", "--group", "immo")
 	out := run(t, db, "asset", "list")
-	for _, want := range []string{"cw8", "CW8.PA", "actions/monde", "Maison à Achères", "property"} {
+	for _, want := range []string{"cw8", "CW8.PA", "actions/monde", "Maison à Rénover", "property"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("asset list: %q manquant dans:\n%s", want, out)
 		}
 	}
 	// dated estimate; the default envelope is the only existing account
-	out = run(t, db, "asset", "set", "Maison à Achères", "450000", "--at", "2026-06-01")
+	out = run(t, db, "asset", "set", "Maison à Rénover", "450000", "--at", "2026-06-01")
 	for _, want := range []string{"450000 EUR", "2026-06-01"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("asset set: %q manquant dans %q", want, out)
@@ -346,7 +346,7 @@ func TestPerfEndToEnd(t *testing.T) {
 		t.Errorf("CAGR ne devrait pas apparaître sous 1 an d'historique:\n%s", out)
 	}
 	// XIRR of short windows: dash
-	if !strings.Contains(out, "—") {
+	if !strings.Contains(out, "-") {
 		t.Errorf("tiret XIRR absent:\n%s", out)
 	}
 
@@ -833,7 +833,7 @@ func TestBuyAutoCreatesAsset(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr")
 
-	// NEWT does not exist yet — buy should create it and record the transaction.
+	// NEWT does not exist yet - buy should create it and record the transaction.
 	out := run(t, db, "asset", "buy", "NEWT", "50", "5000",
 		"--account", "PEA Zephyr", "--group", "equities/test")
 	if !strings.Contains(out, "created") {
@@ -864,7 +864,7 @@ func TestBuyWithAlias(t *testing.T) {
 	// The alias resolves: a second buy by "cw8" must hit the same asset, not create another.
 	out := run(t, db, "asset", "buy", "cw8", "5", "2800", "--account", "PEA Zephyr")
 	if strings.Contains(out, "created") {
-		t.Errorf("alias cw8 did not resolve — a duplicate asset was created:\n%s", out)
+		t.Errorf("alias cw8 did not resolve - a duplicate asset was created:\n%s", out)
 	}
 	list := run(t, db, "asset", "list")
 	if strings.Count(list, "security") != 1 {
@@ -956,10 +956,10 @@ func TestExportCSV(t *testing.T) {
 	out := run(t, db, "export", "--at", "2026-06-05")
 	// header, then the held position: 10 × 560 = 5600 gross ; base 5500 →
 	// gain 100 → tax 17.20 → net 5582.80.
-	if !strings.HasPrefix(out, "ticker,name,isin,gross,net,currency\n") {
+	if !strings.HasPrefix(out, "kind,ticker,name,isin,gross,net,currency\n") {
 		t.Errorf("missing CSV header:\n%s", out)
 	}
-	if !strings.Contains(out, "CW8.PA,Amundi MSCI World,LU1681043599,5600.00,5582.80,EUR") {
+	if !strings.Contains(out, "security,CW8.PA,Amundi MSCI World,LU1681043599,5600.00,5582.80,EUR") {
 		t.Errorf("asset row missing/incorrect:\n%s", out)
 	}
 }

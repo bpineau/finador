@@ -41,7 +41,7 @@ func serveCmd(a *app) *cobra.Command {
 			httpSrv := &http.Server{Addr: addr, Handler: web.NewServer(f, a.marketSource(), a.offline).Handler()}
 			errc := make(chan error, 1)
 			go func() { errc <- httpSrv.ListenAndServe() }()
-			fmt.Fprintf(cmd.OutOrStdout(), "finador on http://%s — Ctrl-C to stop\n", addr)
+			fmt.Fprintf(cmd.OutOrStdout(), "finador on http://%s - Ctrl-C to stop\n", addr)
 			select {
 			case err := <-errc:
 				return err

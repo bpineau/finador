@@ -1,11 +1,11 @@
-# Finador phase I — v0.6 : densité Assets + périodes de courbes
+# Finador phase I - v0.6 : densité Assets + périodes de courbes
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development.
 
-**Goal:** Retours utilisateur : (1) onglet Assets — sparklines trop espacées qui
+**Goal:** Retours utilisateur : (1) onglet Assets - sparklines trop espacées qui
 tronquent les noms, noms d'actifs à indenter légèrement (les distinguer des groupes),
 sections 100 % immobilier en bas (suivre leur valorisation a peu d'intérêt) ;
-(2) partout où une courbe s'affiche (dashboard, vues de portée), la durée est fixe —
+(2) partout où une courbe s'affiche (dashboard, vues de portée), la durée est fixe -
 ajouter un sélecteur DISCRET : liens `1m · 3m · 1y · all` en petites capitales fines
 au-dessus de la figure (param `?range=`), défaut `all`. Pas de second calcul : on
 TRANCHE la série déjà construite (le tableau de perfs reste sur la série complète).
@@ -14,7 +14,7 @@ TRANCHE la série déjà construite (le tableau de perfs reste sur la série com
 
 ---
 
-### Task I1: web — densité de l'onglet Assets et sections property en bas
+### Task I1: web - densité de l'onglet Assets et sections property en bas
 
 **Files:**
 - Modify: `internal/web/assets.go`, `internal/web/static/style.css`
@@ -28,7 +28,7 @@ Changements :
    `max-width: 0` + ellipsis pour le nowrap).
 2. Indentation des noms d'actifs : `.assets-table .asset-name { padding-left: 1.1rem; }`
    (les en-têtes de section restent au ras).
-3. Tri des sections : extraire un helper `sortSections([]assetSection)` — les
+3. Tri des sections : extraire un helper `sortSections([]assetSection)` - les
    sections dont TOUTES les lignes sont des biens (`assetSection.PropertyOnly bool`,
    calculé pendant l'assemblage : initialisé à true, `&& asset.Kind == domain.Property`
    à chaque ligne) passent APRÈS toutes les autres ; à l'intérieur de chaque bloc,
@@ -62,7 +62,7 @@ func TestSortSectionsPropertyLast(t *testing.T) {
 			t.Fatalf("order = %v, want %v", got, want)
 		}
 	}
-	_ = domain.Today() // garde l'import si inutilisé ailleurs — retirer si superflu
+	_ = domain.Today() // garde l'import si inutilisé ailleurs - retirer si superflu
 }
 ```
 
@@ -83,7 +83,7 @@ Ajouter à `internal/web/server_test.go`, dans TestAssetsPage, les assertions CS
 	}
 ```
 
-NOTE : adapter les chaînes exactes du CSS si le formatage diffère — l'intention
+NOTE : adapter les chaînes exactes du CSS si le formatage diffère - l'intention
 compte (indentation présente, cellule 78px).
 
 - [ ] **Step 2: échec vérifié** ; **Step 3:** implémenter (assets.go : Sparkline(pts, 72, 20, color),
@@ -94,7 +94,7 @@ compte (indentation présente, cellule 78px).
 
 ---
 
-### Task I2: web — périodes de courbes discrètes (?range=)
+### Task I2: web - périodes de courbes discrètes (?range=)
 
 **Files:**
 - Modify: `internal/web/handlers.go`, `internal/web/scope.go`,
@@ -108,7 +108,7 @@ Sémantique :
   trace `slicePoints(points, from)` (points dont la date ≥ from) ; le tableau de
   perfs et les métriques restent calculés sur la série complète (inchangé).
 - from : `1m` = today −1 mois (AddDate), `3m` −3 mois, `1y` −1 an, `all` = zéro.
-- Liens : rangée `.ranges` DANS la section history, au-dessus de la figure —
+- Liens : rangée `.ranges` DANS la section history, au-dessus de la figure -
   `1m · 3m · 1y · all`, lien pour les inactifs, `<span class="active-range">` pour
   l'actif. Sur le dashboard, les liens DOIVENT préserver `?by=` et réciproquement
   (les onglets de répartition préservent `?range=`) : construire les URLs avec
@@ -151,14 +151,14 @@ func TestChartRanges(t *testing.T) {
 }
 ```
 
-NOTE : le compte de virgules est un proxy du nombre de points SVG — si trop fragile,
+NOTE : le compte de virgules est un proxy du nombre de points SVG - si trop fragile,
 comparer la PREMIÈRE date affichée dans le SVG (coin gauche) : full commence à la
 première transaction, 1m commence ~il y a un mois. Choisir l'assertion robuste et
 l'expliquer.
 
 - [ ] **Step 2: échec vérifié** ; **Step 3:** implémenter :
 
-`handlers.go` / `scope.go` — helpers communs :
+`handlers.go` / `scope.go` - helpers communs :
 
 ```go
 // chartRange resolves ?range= into a start date (zero = inception) and its name.
@@ -195,7 +195,7 @@ Construction des URLs du dashboard avec url.Values{"by":…, "range":…} en ome
 les valeurs par défaut (by=group, range=all) pour des URLs propres. Les onglets de
 répartition existants reçoivent eux aussi le range courant.
 
-Templates — dans la section history, au-dessus de la figure :
+Templates - dans la section history, au-dessus de la figure :
 
 ```html
     <div class="ranges">
@@ -214,7 +214,7 @@ CSS :
 - [ ] **Step 4:** `go test ./... -count=1` + `-race ./internal/web/` verts ; serveur
   réel : curl `/?range=3m`, une vue de portée avec range, vérifier la préservation
   croisée by/range dans les hrefs.
-- [ ] **Step 5:** commit `feat(web): quiet chart range links — 1m, 3m, 1y, all`
+- [ ] **Step 5:** commit `feat(web): quiet chart range links - 1m, 3m, 1y, all`
 
 ---
 

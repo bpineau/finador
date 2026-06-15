@@ -1,16 +1,16 @@
-# Finador phase D — application web : plan d'implémentation
+# Finador phase D - application web : plan d'implémentation
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `finador serve` — l'application web complète, zéro JavaScript : dashboard (valeur nette en manchette, courbe SVG, répartition, perfs par périodes), vues de portée, transactions (saisie/édition/suppression), import CSV, refresh. Single binary via go:embed.
+**Goal:** `finador serve` - l'application web complète, zéro JavaScript : dashboard (valeur nette en manchette, courbe SVG, répartition, perfs par périodes), vues de portée, transactions (saisie/édition/suppression), import CSV, refresh. Single binary via go:embed.
 
 **Architecture:** `internal/web` = `Server` (http.ServeMux Go 1.22, `sync.RWMutex` autour du `store.File`, save atomique après chaque mutation, redirect 303), templates `html/template` + CSS embarqués, rendu des courbes par `chart.SVG`, données par `portfolio.Value/Series/ParseScope` et `perf.Report`. La CLI gagne `serve`. Les handlers sont minces : parse → moteur → render.
 
-**Tech Stack:** Go 1.26 stdlib (net/http, html/template, embed). Aucune ressource externe (pas de fonts distantes, pas de CDN — app de patrimoine privée).
+**Tech Stack:** Go 1.26 stdlib (net/http, html/template, embed). Aucune ressource externe (pas de fonts distantes, pas de CDN - app de patrimoine privée).
 
-## Direction artistique (issue du skill frontend-design — à respecter à la lettre)
+## Direction artistique (issue du skill frontend-design - à respecter à la lettre)
 
-**Concept : « le journal confidentiel de votre patrimoine »** — une feuille financière
+**Concept : « le journal confidentiel de votre patrimoine »** - une feuille financière
 à l'ancienne, composée comme un rapport annuel des années 70 : papier crème, encre
 quasi-noire, manchette en petites capitales espacées, filets doubles, chiffres en
 monospace tabulaire, pointillés de sommaire entre libellé et montant.
@@ -30,12 +30,12 @@ monospace tabulaire, pointillés de sommaire entre libellé et montant.
   texte papier) : « FINADOR » petites caps espacées à gauche, la date française du jour
   au centre (« mercredi 10 juin 2026 »), nav à droite (Patrimoine · Transactions ·
   Import) en petites caps soulignées au survol.
-- **Le héros** : la valeur nette du patrimoine composée comme un titre de une —
+- **Le héros** : la valeur nette du patrimoine composée comme un titre de une -
   serif, `font-size:clamp(2.6rem,6vw,4.2rem)`, chiffres français (« 1 234 567,89 € »),
   surmontée d'un double filet (`border-top:3px double var(--encre)`) et du libellé
   petites caps « patrimoine net d'impôt latent », flanquée du brut et de l'impôt
   latent en petite ligne dessous, avec note de bas de page † quand TaxNote existe.
-- **Typographie française des nombres** : fonctions de template dédiées — milliers
+- **Typographie française des nombres** : fonctions de template dédiées - milliers
   séparés par espace fine insécable U+202F, virgule décimale, symbole € précédé
   d'espace insécable U+00A0 ; pourcentages « +2,00 % » (espace fine avant %) ;
   négatifs en `--garance`, positifs des deltas en `--vert`.
@@ -47,12 +47,12 @@ monospace tabulaire, pointillés de sommaire entre libellé et montant.
 - **Courbe** : le SVG de chart.SVG encadré d'un simple filet (`border:1px solid
   var(--filet); background:#fffdf6`), légende « brut » encre / « net » vert.
   Couleurs passées au renderer : brut `#1c1914`, net `#1e6e4e`.
-- **Formulaires** : fieldsets « bordereaux » — `border:1px solid var(--encre)`,
+- **Formulaires** : fieldsets « bordereaux » - `border:1px solid var(--encre)`,
   legend petites caps ; inputs monospace sur fond `#fffdf6`, focus
   `outline:2px solid var(--encre)` ; bouton submit « tampon » : bloc encre, texte
   papier petites caps espacées, hover inversé (papier/encre, filet encre).
 - **Motion (CSS uniquement, sobre)** : à l'arrivée, sections en
-  `animation:apparait .5s ease both` avec `animation-delay` étagé (0/.06/.12s…) —
+  `animation:apparait .5s ease both` avec `animation-delay` étagé (0/.06/.12s…) -
   fondu + translation 6px ; respect de `prefers-reduced-motion:reduce` (désactivée).
 - **Avertissements** : lignes « ≈ … » en `--ocre`, italique, petites tailles ;
   flash de succès (import) en bandeau `--vert` pâle avec filet vert.
@@ -61,12 +61,12 @@ monospace tabulaire, pointillés de sommaire entre libellé et montant.
 messages français, commits exacts, pas de binaire committé, tests sans réseau (Source
 factice injectée). Sécurité : bind 127.0.0.1 par défaut, avertissement explicite sinon ;
 tout POST mutateur suivi de `Save()` sous verrou puis redirect 303 ; `html/template`
-échappe tout par défaut (ne JAMAIS utiliser template.HTML sur une donnée utilisateur —
+échappe tout par défaut (ne JAMAIS utiliser template.HTML sur une donnée utilisateur -
 seule exception : le SVG produit par chart.SVG, généré par nous et étiqueté échappé).
 
 ---
 
-### Task D1: web — squelette (Server, rendu, base + CSS, dashboard minimal, serve)
+### Task D1: web - squelette (Server, rendu, base + CSS, dashboard minimal, serve)
 
 **Files:**
 - Create: `internal/web/server.go`, `internal/web/render.go`,
@@ -226,7 +226,7 @@ func TestServeRefusesOfflineBindWarning(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/web/ ./internal/cli/` → FAIL — undefined: NewServer / unknown command "serve".
+Run: `go test ./internal/web/ ./internal/cli/` → FAIL - undefined: NewServer / unknown command "serve".
 
 - [ ] **Step 3: implémenter**
 
@@ -389,7 +389,7 @@ func frDate(d domain.Date) string {
 var _ = time.Now // (gardé si besoin d'horodatage ultérieur)
 ```
 
-`internal/web/templates/base.html` — le squelette commun (header défini une fois,
+`internal/web/templates/base.html` - le squelette commun (header défini une fois,
 chaque page définit `title` et `main`) :
 
 ```html
@@ -414,17 +414,17 @@ chaque page définit `title` et `main`) :
 <main>
 {{block "main" .}}{{end}}
 </main>
-<footer class="pied">finador — vos données restent dans votre fichier chiffré.</footer>
+<footer class="pied">finador - vos données restent dans votre fichier chiffré.</footer>
 </body>
 </html>{{end}}
 ```
 
-`internal/web/templates/dashboard.html` (version D1 minimale — la courbe, la
+`internal/web/templates/dashboard.html` (version D1 minimale - la courbe, la
 répartition et les perfs arrivent en D2) :
 
 ```html
 {{define "dashboard.html"}}{{template "base" .}}{{end}}
-{{define "title"}}patrimoine — finador{{end}}
+{{define "title"}}patrimoine - finador{{end}}
 {{define "main"}}
 <section class="heros">
   <p class="libelle">patrimoine net d'impôt latent</p>
@@ -440,7 +440,7 @@ répartition et les perfs arrivent en D2) :
 
 NOTE base/page : avec `ParseFS`, tous les fichiers partagent un espace de noms ;
 `base.html` ne définit que "base" et des blocks ; CHAQUE page redéfinit "title" et
-"main". html/template écrase les blocks au fil du parse — pour que chaque page ait
+"main". html/template écrase les blocks au fil du parse - pour que chaque page ait
 SES blocks, parser chaque page dans son PROPRE clone : remplacer la variable
 `templates` par une map construite dans un init :
 
@@ -514,10 +514,10 @@ func displayCurrency(b *domain.Book) domain.Currency {
 }
 ```
 
-`internal/web/static/style.css` — LE design (complet, ~260 lignes) :
+`internal/web/static/style.css` - LE design (complet, ~260 lignes) :
 
 ```css
-/* finador — le journal confidentiel de votre patrimoine.
+/* finador - le journal confidentiel de votre patrimoine.
    Papier crème, encre, filets : une feuille financière à l'ancienne. */
 :root {
   --papier: #f7f3ea;
@@ -648,7 +648,7 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 
 ```html
 {{define "error.html"}}{{template "base" .}}{{end}}
-{{define "title"}}erreur — finador{{end}}
+{{define "title"}}erreur - finador{{end}}
 {{define "main"}}
 <section class="heros">
   <p class="libelle">erreur</p>
@@ -658,10 +658,10 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 {{end}}
 ```
 
-NOTE : error.html passe par `render` qui attend les champs de pageData — donner à
+NOTE : error.html passe par `render` qui attend les champs de pageData - donner à
 renderError un struct dédié comprenant `Aujourdhui` (frDate en a besoin dans base) :
 `map[string]any{"Message": msg, "Aujourdhui": domain.Today()}` et dans base.html
-utiliser `{{frDate .Aujourdhui}}` — avec une map ça fonctionne aussi. Vérifier que
+utiliser `{{frDate .Aujourdhui}}` - avec une map ça fonctionne aussi. Vérifier que
 TOUTES les pages passent un champ Aujourdhui.
 
 `internal/cli/serve.go`:
@@ -721,12 +721,12 @@ silencieux. Lancer une fois le vrai serveur ~3 s pour vérifier le rendu :
 
 ```bash
 git add internal/web internal/cli
-git commit -m "feat(web): squelette — serveur, rendu, design « journal du patrimoine », serve"
+git commit -m "feat(web): squelette - serveur, rendu, design « journal du patrimoine », serve"
 ```
 
 ---
 
-### Task D2: web — dashboard complet (courbe, répartition, perfs)
+### Task D2: web - dashboard complet (courbe, répartition, perfs)
 
 **Files:**
 - Modify: `internal/web/handlers.go`, `internal/web/templates/dashboard.html`
@@ -770,7 +770,7 @@ Run: `go test ./internal/web/ -run TestDashboardComplete` → FAIL.
 
 - [ ] **Step 3: implémenter**
 
-`internal/web/handlers.go` — le dashboard devient complet :
+`internal/web/handlers.go` - le dashboard devient complet :
 
 ```go
 package web
@@ -803,7 +803,7 @@ type part struct {
 type dashData struct {
 	Aujourdhui domain.Date
 	Val        portfolio.Valuation
-	Curve      template.HTML // SVG généré par chart.SVG — jamais de donnée brute utilisateur
+	Curve      template.HTML // SVG généré par chart.SVG - jamais de donnée brute utilisateur
 	Rows       []perf.Row
 	Met        perf.Metrics
 	Parts      []part
@@ -862,9 +862,9 @@ func riskFreeWeb(b *domain.Book) float64 {
 }
 ```
 
-NOTE : `fmtSscan` n'existe pas — utiliser `strconv.ParseFloat(s, 64)` comme dans
+NOTE : `fmtSscan` n'existe pas - utiliser `strconv.ParseFloat(s, 64)` comme dans
 cli/perf.go (importer strconv, gérer l'erreur en retournant 0). Mieux : NE PAS
-dupliquer — la logique existe déjà dans cli/perf.go (riskFree) ; comme cli ne peut
+dupliquer - la logique existe déjà dans cli/perf.go (riskFree) ; comme cli ne peut
 pas être importé par web, déplacer `riskFree` dans `internal/perf` en tant que
 `perf.RiskFreeFromConfig(map[string]string) float64` avec un petit test, et faire
 pointer cli/perf.go ET web dessus. Faire ce déplacement proprement (supprimer la
@@ -874,7 +874,7 @@ copie de cli).
 
 ```html
 {{define "dashboard.html"}}{{template "base" .}}{{end}}
-{{define "title"}}patrimoine — finador{{end}}
+{{define "title"}}patrimoine - finador{{end}}
 {{define "main"}}
 <section class="heros">
   <p class="libelle">patrimoine net d'impôt latent</p>
@@ -915,8 +915,8 @@ copie de cli).
     {{range .Rows}}
     <tr>
       <td>{{.Name}}</td>
-      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{frPct .TWR}}{{else}}—{{end}}</td>
-      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{frPct .XIRR}}{{else}}—{{end}}</td>
+      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{frPct .TWR}}{{else}}-{{end}}</td>
+      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{frPct .XIRR}}{{else}}-{{end}}</td>
     </tr>
     {{end}}
   </table>
@@ -929,7 +929,7 @@ copie de cli).
 {{end}}
 ```
 
-NOTE template : `<div class="part">` à l'intérieur d'un `<ul>` n'est pas valide —
+NOTE template : `<div class="part">` à l'intérieur d'un `<ul>` n'est pas valide -
 mettre la barre DANS le `<li>` (wrapper le contenu) :
 
 ```html
@@ -945,9 +945,9 @@ mettre la barre DANS le `<li>` (wrapper le contenu) :
       </li>
 ```
 et alléger `.repartition li` (le flex passe dans le div interne). Adapter le CSS si
-nécessaire — le rendu doit rester : libellé, pointillés, montant, fine barre de part.
+nécessaire - le rendu doit rester : libellé, pointillés, montant, fine barre de part.
 ATTENTION html/template : `style="width: {{.Percent}}%"` avec un int est accepté
-(CSS context) — vérifier qu'aucun warning d'échappement n'apparaît dans le rendu.
+(CSS context) - vérifier qu'aucun warning d'échappement n'apparaît dans le rendu.
 
 - [ ] **Step 4: vérifier le succès**
 
@@ -957,12 +957,12 @@ Run: `go test ./internal/web/ && go test ./...` → PASS. gofmt/vet silencieux.
 
 ```bash
 git add internal/web internal/perf internal/cli
-git commit -m "feat(web): dashboard complet — courbe brut/net, répartition, perfs par périodes"
+git commit -m "feat(web): dashboard complet - courbe brut/net, répartition, perfs par périodes"
 ```
 
 ---
 
-### Task D3: web — vues de portée (/group, /account, /asset)
+### Task D3: web - vues de portée (/group, /account, /asset)
 
 **Files:**
 - Create: `internal/web/scope.go`, `internal/web/templates/scope.html`
@@ -1138,7 +1138,7 @@ func accountName(b *domain.Book, id domain.AccountID) string {
 }
 ```
 
-NOTE : `scope.hasAsset` est non exporté dans portfolio — EXPORTER proprement :
+NOTE : `scope.hasAsset` est non exporté dans portfolio - EXPORTER proprement :
 ajouter dans `internal/portfolio/scope.go` :
 
 ```go
@@ -1156,11 +1156,11 @@ et utiliser `scope.HasAsset(...)` dans web (supprimer le hack `cmp.Or`). Les cha
 
 ```html
 {{define "scope.html"}}{{template "base" .}}{{end}}
-{{define "title"}}{{.Label}} — finador{{end}}
+{{define "title"}}{{.Label}} - finador{{end}}
 {{define "main"}}
 <p class="fil-ariane"><a href="/">patrimoine</a> → {{.Label}}</p>
 <section class="heros">
-  <p class="libelle">{{.Label}} — net d'impôt latent</p>
+  <p class="libelle">{{.Label}} - net d'impôt latent</p>
   <p class="chiffre-une">{{frMoney .Val.Net .Val.Currency}}</p>
   <p class="sous-titre">brut {{frMoney .Val.Gross .Val.Currency}} · impôt latent {{frMoney .Val.Tax .Val.Currency}}</p>
   {{range .Val.Stale}}<p class="approx">≈ {{.}}</p>{{end}}
@@ -1190,8 +1190,8 @@ et utiliser `scope.HasAsset(...)` dans web (supprimer le hack `cmp.Or`). Les cha
     <tr><th>période</th><th class="nombre">TWR</th><th class="nombre">XIRR</th></tr>
     {{range .Rows}}
     <tr><td>{{.Name}}</td>
-      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{frPct .TWR}}{{else}}—{{end}}</td>
-      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{frPct .XIRR}}{{else}}—{{end}}</td></tr>
+      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{frPct .TWR}}{{else}}-{{end}}</td>
+      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{frPct .XIRR}}{{else}}-{{end}}</td></tr>
     {{end}}
   </table>
   <p class="sous-titre">CAGR {{frPct .Met.CAGR}} · vol {{frPct .Met.Vol}} · Sharpe {{printf "%.2f" .Met.Sharpe}} · Sortino {{printf "%.2f" .Met.Sortino}}</p>
@@ -1219,12 +1219,12 @@ Run: `go test ./internal/web/ && go test ./...` → PASS. gofmt/vet silencieux.
 
 ```bash
 git add internal/web internal/portfolio
-git commit -m "feat(web): vues de portée — groupe, enveloppe, actif"
+git commit -m "feat(web): vues de portée - groupe, enveloppe, actif"
 ```
 
 ---
 
-### Task D4: web — transactions (liste, saisie, suppression)
+### Task D4: web - transactions (liste, saisie, suppression)
 
 **Files:**
 - Create: `internal/web/tx.go`, `internal/web/templates/tx.html`
@@ -1457,13 +1457,13 @@ var _ = slices.Clone[[]int] // (supprimer si slices devient inutilisé)
 ```
 
 NOTE : retirer les bricolages `var _ =` si l'import n'est pas nécessaire. scopeTxs
-accepte déjà un scope All — élargir sa limite à 200 ici.
+accepte déjà un scope All - élargir sa limite à 200 ici.
 
 `internal/web/templates/tx.html`:
 
 ```html
 {{define "tx.html"}}{{template "base" .}}{{end}}
-{{define "title"}}transactions — finador{{end}}
+{{define "title"}}transactions - finador{{end}}
 {{define "main"}}
 <section>
   <h2>nouvelle écriture</h2>
@@ -1515,12 +1515,12 @@ Run: `go test ./internal/web/ && go test ./...` → PASS. gofmt/vet silencieux.
 
 ```bash
 git add internal/web
-git commit -m "feat(web): transactions — ledger, bordereau de saisie, suppression"
+git commit -m "feat(web): transactions - ledger, bordereau de saisie, suppression"
 ```
 
 ---
 
-### Task D5: web — import CSV et refresh
+### Task D5: web - import CSV et refresh
 
 **Files:**
 - Create: `internal/web/import.go`, `internal/web/templates/import.html`,
@@ -1531,13 +1531,13 @@ git commit -m "feat(web): transactions — ledger, bordereau de saisie, suppress
 - Test: `internal/web/server_test.go` (ajout)
 
 REFACTOR PRÉALABLE (sans changement de comportement) : `importCSV`, `rowToTx`,
-`hashTx`, `ensureAccount`, `ensureAsset` vivent dans internal/cli — le web en a
+`hashTx`, `ensureAccount`, `ensureAsset` vivent dans internal/cli - le web en a
 besoin. Les DÉPLACER verbatim dans `internal/portfolio/import.go` en exportant
 `func ImportCSV(b *domain.Book, r io.Reader) (added, skipped int, err error)` (les
 autres restent non exportés). Déplacer les tests white-box (import_test.go) dans
 internal/portfolio en adaptant le nom de package. cli/import.go appelle
 `portfolio.ImportCSV`. `currencyOr` est utilisé par rowToTx : la version cli reste,
-copier la petite fonction dans portfolio/import.go (non exportée) — pas de cycle.
+copier la petite fonction dans portfolio/import.go (non exportée) - pas de cycle.
 
 - [ ] **Step 1: tests qui échouent**
 
@@ -1667,7 +1667,7 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 ```
 
 (import domain manquant : l'ajouter ; le dashboard lit `flash`/`erreur` de la query
-et les affiche — ajouter au dashData `Flash, Erreur string` remplis depuis
+et les affiche - ajouter au dashData `Flash, Erreur string` remplis depuis
 `r.URL.Query()`, et dans dashboard.html, au-dessus du héros :
 `{{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}{{if .Erreur}}<p class="flash erreur">{{.Erreur}}</p>{{end}}` ;
 ajouter aussi le bouton : `<form method="post" action="/refresh"><button type="submit">Rafraîchir les cours</button></form>`
@@ -1677,7 +1677,7 @@ dans la section évolution.)
 
 ```html
 {{define "import.html"}}{{template "base" .}}{{end}}
-{{define "title"}}import — finador{{end}}
+{{define "title"}}import - finador{{end}}
 {{define "main"}}
 <section>
   <h2>import CSV</h2>
@@ -1711,7 +1711,7 @@ git commit -m "feat(web): import CSV et refresh ; ImportCSV déplacé dans portf
 
 ---
 
-### Task D6: web — finition de phase (arrêt propre, smoke e2e, tag)
+### Task D6: web - finition de phase (arrêt propre, smoke e2e, tag)
 
 **Files:**
 - Modify: `internal/cli/serve.go` (arrêt gracieux)
@@ -1741,7 +1741,7 @@ serveCmd utilise un http.Server avec arrêt sur Ctrl-C :
 			httpSrv := &http.Server{Addr: addr, Handler: web.NewServer(f, a.marketSource(), a.offline).Handler()}
 			errc := make(chan error, 1)
 			go func() { errc <- httpSrv.ListenAndServe() }()
-			fmt.Fprintf(cmd.OutOrStdout(), "finador sur http://%s — Ctrl-C pour arrêter\n", addr)
+			fmt.Fprintf(cmd.OutOrStdout(), "finador sur http://%s - Ctrl-C pour arrêter\n", addr)
 			select {
 			case err := <-errc:
 				return err
@@ -1770,9 +1770,9 @@ $B account add "PEA Zephyr" --tax gains:17.2%
 $B account add "Livret"
 $B cash set Livret 12000 --at 2026-01-05
 $B deposit "PEA Zephyr" 5000 2026-01-10
-$B asset add "Maison à Achères" --kind property --group immo
-$B asset set maison-a-acheres 450000 --at 2026-06-01 --account "PEA Zephyr" 2>/dev/null || \
-  $B asset set maison-a-acheres 450000 --at 2026-06-01 --account Livret
+$B asset add "Maison à Rénover" --kind property --group immo
+$B asset set maison-a-renover 450000 --at 2026-06-01 --account "PEA Zephyr" 2>/dev/null || \
+  $B asset set maison-a-renover 450000 --at 2026-06-01 --account Livret
 ./bin/finador --db /tmp/demo-d.fin --no-keychain --offline serve --addr 127.0.0.1:8459 &
 SRV=$!; sleep 1
 curl -fsS http://127.0.0.1:8459/ | grep -q "patrimoine" || echo "ÉCHEC dashboard"
@@ -1793,13 +1793,13 @@ le rapport.
 Ajouter à DECISIONS.md :
 
 ```markdown
-## D9 — Web sans authentification, lié à 127.0.0.1
+## D9 - Web sans authentification, lié à 127.0.0.1
 
 **Contexte :** la spec §8 prévoit un serveur local sans auth web (le déverrouillage
 se fait au lancement, dans le terminal). **Choix :** bind par défaut 127.0.0.1:8451,
 avertissement très visible pour tout autre bind, aucun cookie/session. Pas de verrou
 inter-processus CLI/serve (D6 backlog) : dernière écriture gagnante, sauvegardes
-atomiques — acceptable mono-utilisateur. **Alternative si refusé :** basic auth
+atomiques - acceptable mono-utilisateur. **Alternative si refusé :** basic auth
 optionnelle (--auth user:pass) ou socket Unix.
 ```
 
@@ -1807,7 +1807,7 @@ optionnelle (--auth user:pass) ou socket Unix.
 
 ```bash
 git add internal/cli docs/superpowers/DECISIONS.md
-git commit -m "feat(web): arrêt gracieux de serve — la phase D est complète"
+git commit -m "feat(web): arrêt gracieux de serve - la phase D est complète"
 git tag phase-d
 ```
 

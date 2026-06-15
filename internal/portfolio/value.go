@@ -16,7 +16,7 @@ type FX interface {
 
 // Valuation is the value of a scope at a date, in one display currency.
 // Line taxes are position-by-position (documented approximation); the total
-// of All/Account scopes uses the exact envelope rule — TaxNote is set when
+// of All/Account scopes uses the exact envelope rule - TaxNote is set when
 // the two visibly diverge.
 type Valuation struct {
 	Currency        domain.Currency
@@ -33,7 +33,7 @@ type Line struct {
 
 const staleAfterDays = 5
 
-// ValueOption adjusts a single valuation — nothing is ever persisted.
+// ValueOption adjusts a single valuation - nothing is ever persisted.
 type ValueOption func(*valuer)
 
 // WithLinesByAccount breaks lines down by envelope instead of group; an
@@ -41,7 +41,7 @@ type ValueOption func(*valuer)
 func WithLinesByAccount() ValueOption { return func(v *valuer) { v.byAccount = true } }
 
 // WithPriceOverrides forces the price of given assets, in their quote
-// currency — the throwaway hypotheses of « value --what-if vizr=280 ».
+// currency - the throwaway hypotheses of « value --what-if vizr=280 ».
 // For a property, the override replaces the whole estimate.
 func WithPriceOverrides(p map[domain.AssetID]float64) ValueOption {
 	return func(v *valuer) { v.overrides = p }
@@ -162,7 +162,7 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 
 // dedupe removes repeated notes (preserving first-seen order): an asset held in
 // several accounts is valued once per position, so a single asset-level note
-// — a what-if override, a stale-quote flag — would otherwise appear N times.
+// - a what-if override, a stale-quote flag - would otherwise appear N times.
 func dedupe(notes []string) []string {
 	if len(notes) < 2 {
 		return notes
@@ -201,7 +201,7 @@ func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (
 }
 
 // positionValue: market close if a series exists, else last statement of the
-// (account, asset) pair, else zero — each fallback flagged.
+// (account, asset) pair, else zero - each fallback flagged.
 func (v *valuer) positionValue(h Holding) (float64, error) {
 	if ov, ok := v.overrides[h.Asset.ID]; ok {
 		v.stale = append(v.stale, fmt.Sprintf("what-if: %s at %s %s",
@@ -218,7 +218,7 @@ func (v *valuer) positionValue(h Holding) (float64, error) {
 		v.stale = append(v.stale, fmt.Sprintf("%s: valued from its %s statement", h.Asset.Name, tx.Date))
 		return v.convertAt(tx.Amount, v.ccy, v.at)
 	}
-	v.stale = append(v.stale, fmt.Sprintf("%s: no quote nor statement — counted as 0", h.Asset.Name))
+	v.stale = append(v.stale, fmt.Sprintf("%s: no quote nor statement - counted as 0", h.Asset.Name))
 	return 0, nil
 }
 
@@ -258,7 +258,7 @@ func (v *valuer) firstStatement(acc domain.AccountID, asset domain.AssetID) (*do
 	return nil, false
 }
 
-// positionTax: per-position rule — TaxOnValue: value × rate; TaxOnGains:
+// positionTax: per-position rule - TaxOnValue: value × rate; TaxOnGains:
 // max(0, value − average-cost basis, flows converted at their date) × rate.
 func (v *valuer) positionTax(acc *domain.Account, asset *domain.Asset, gross float64) (float64, error) {
 	switch acc.Tax.Mode {
@@ -363,7 +363,7 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		basis += sign * amt
 	}
 	// Statement-valued properties enter the basis through their first known
-	// estimate — otherwise a real-estate envelope would be taxed on the total
+	// estimate - otherwise a real-estate envelope would be taxed on the total
 	// value rather than the gain. Documented approximation: if a tracked
 	// contribution funded the property AND the property has an initial
 	// statement, the basis counts both (an unusual case, to be fixed by hand
@@ -382,7 +382,7 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		}
 		basis += amt
 	}
-	// Negative basis (withdrawals > contributions): clamped to 0 — a v1
+	// Negative basis (withdrawals > contributions): clamped to 0 - a v1
 	// approximation; real taxation handles over-withdrawals proportionally.
 	return max(0, basis), nil
 }

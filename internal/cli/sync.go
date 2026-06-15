@@ -22,7 +22,7 @@ func syncCmd(a *app) *cobra.Command {
 				return err
 			}
 			if !isRemote {
-				return fmt.Errorf("no remote configured — run `finador remote set <owner>/<repo>`")
+				return fmt.Errorf("no remote configured - run `finador remote set <owner>/<repo>`")
 			}
 
 			// The wallet password is needed only to merge on conflict; resolve it
@@ -35,7 +35,7 @@ func syncCmd(a *app) *cobra.Command {
 			printWarnings(warnings)
 			if !s.HasWorkingCopy() {
 				fmt.Fprintf(cmd.OutOrStdout(),
-					"no file found at %s — check the --path and --branch above (a mismatch is the usual cause); "+
+					"no file found at %s - check the --path and --branch above (a mismatch is the usual cause); "+
 						"for a genuinely new repo, run `finador init` or `finador remote adopt`\n",
 					s.Describe())
 				return nil

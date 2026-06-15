@@ -14,7 +14,7 @@ import (
 )
 
 // morningstarIDRe extracts the Morningstar fund id (0P…) from a Boursorama
-// search result page — stable across minor layout changes.
+// search result page - stable across minor layout changes.
 // Ported from portfodor's boursorama.go.
 var morningstarIDRe = regexp.MustCompile(`/bourse/(?:opcvm|trackers)/cours/(0P[0-9A-Za-z]+)/`)
 
@@ -97,7 +97,7 @@ func (m *Morningstar) fetchNAV(ctx context.Context, msID string, from domain.Dat
 	if len(rows) == 0 {
 		return DailyData{}, ErrNotCovered // empty → let the chain fall through
 	}
-	// Currency is intentionally empty — Morningstar doesn't disclose it.
+	// Currency is intentionally empty - Morningstar doesn't disclose it.
 	var out DailyData
 	var prevDate domain.Date
 	for _, row := range rows {
@@ -122,7 +122,7 @@ func (m *Morningstar) fetchNAV(ctx context.Context, msID string, from domain.Dat
 }
 
 // do performs a GET with a browser User-Agent, the given extra headers, and
-// one retry on 429/5xx — matching yahoo.go/ft.go's politeness convention.
+// one retry on 429/5xx - matching yahoo.go/ft.go's politeness convention.
 func (m *Morningstar) do(ctx context.Context, rawURL string, extraHeaders map[string]string) ([]byte, error) {
 	for attempt := 0; ; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)

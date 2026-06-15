@@ -21,7 +21,7 @@ func System() Cache {
 const service = "finador"
 
 // keychain stores "expiry-unix\npassword" as a Keychain generic password,
-// via /usr/bin/security — no CGo. The expiry is fixed at Put time.
+// via /usr/bin/security - no CGo. The expiry is fixed at Put time.
 type keychain struct {
 	now func() time.Time
 	run func(args ...string) (string, error)
@@ -53,12 +53,12 @@ func (k *keychain) Put(key, password string, ttl time.Duration) {
 	// Encode the "expiry\npassword" payload in base64 so the stored value is
 	// always printable (no \n). Without this, `security find-generic-password -w`
 	// returns a HEX DUMP as soon as the value contains a non-printable byte (the \n),
-	// which broke reading it back — and thus the password cache.
+	// which broke reading it back - and thus the password cache.
 	payload := fmt.Sprintf("%d\n%s", k.now().Add(ttl).Unix(), password)
 	enc := base64.StdEncoding.EncodeToString([]byte(payload))
 	// -U updates the entry if it exists; failure is benign (we'll retype).
 	// The payload (base64) goes through argv (a brief window in ps): an accepted
-	// trade-off of a CGo-free design — security(1) has no clean stdin read.
+	// trade-off of a CGo-free design - security(1) has no clean stdin read.
 	_, _ = k.run("add-generic-password", "-U", "-s", service, "-a", key, "-w", enc)
 }
 

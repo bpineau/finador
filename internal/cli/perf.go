@@ -105,7 +105,7 @@ func perfCmd(a *app) *cobra.Command {
 				return s
 			}
 
-			fmt.Fprintf(out, "%s — performance (%s), as of %s\n", scope.Label, display, evalTo)
+			fmt.Fprintf(out, "%s - performance (%s), as of %s\n", scope.Label, display, evalTo)
 			fmt.Fprintf(out, "%-9s %14s %14s %16s\n", "PERIOD", "TWR", "XIRR", "GAIN ("+string(display)+")")
 			printRow := func(name, twrStr, xirrStr, gainStr string, ts, xs, gs float64) {
 				fmt.Fprintf(out, "%-9s %s %s %s\n",
@@ -116,7 +116,7 @@ func perfCmd(a *app) *cobra.Command {
 				)
 			}
 			for _, row := range rows {
-				twrStr, xirrStr, gainStr := "—", "—", "—"
+				twrStr, xirrStr, gainStr := "-", "-", "-"
 				var ts, xs, gs float64
 				if row.HasTWR {
 					twrStr = pctSigned(row.TWR)
@@ -159,7 +159,7 @@ func perfCmd(a *app) *cobra.Command {
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "max drawdown %s (%s → %s, %s)\n", pct(dd.Depth), dd.Peak, dd.Trough, rec)
 			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), "max drawdown — none")
+				fmt.Fprintln(cmd.OutOrStdout(), "max drawdown - none")
 			}
 			return nil
 		},
@@ -194,16 +194,16 @@ func window(res portfolio.SeriesResult, from, to domain.Date) ([]perf.Point, []p
 func twrCell(res portfolio.SeriesResult, from, to domain.Date) string {
 	pts, flows := window(res, from, to)
 	if len(pts) < 2 {
-		return "—"
+		return "-"
 	}
 	return pctSigned(perf.TWR(pts, flows))
 }
 
-// gainCell: money P&L over [from, to], net of contributions; "—" if too short.
+// gainCell: money P&L over [from, to], net of contributions; "-" if too short.
 func gainCell(res portfolio.SeriesResult, from, to domain.Date) (string, float64) {
 	pts, flows := window(res, from, to)
 	if len(pts) < 2 {
-		return "—", 0
+		return "-", 0
 	}
 	var nf float64
 	for _, f := range flows {
@@ -213,15 +213,15 @@ func gainCell(res portfolio.SeriesResult, from, to domain.Date) (string, float64
 	return fmt.Sprintf("%+.2f", g), g
 }
 
-// xirrCell: windows shorter than 30 days print "—" (annualizing a daily move
+// xirrCell: windows shorter than 30 days print "-" (annualizing a daily move
 // is meaningless).
 func xirrCell(res portfolio.SeriesResult, from, to domain.Date) string {
 	if to.Time().Sub(from.Time()).Hours() < 30*24 {
-		return "—"
+		return "-"
 	}
 	pts, flows := window(res, from, to)
 	if len(pts) < 2 || pts[0].Value <= 0 {
-		return "—"
+		return "-"
 	}
 	cfs := []perf.Flow{{Date: pts[0].Date, Amount: -pts[0].Value}}
 	for _, fl := range flows {
@@ -230,7 +230,7 @@ func xirrCell(res portfolio.SeriesResult, from, to domain.Date) string {
 	cfs = append(cfs, perf.Flow{Date: pts[len(pts)-1].Date, Amount: pts[len(pts)-1].Value})
 	r, err := perf.XIRR(cfs)
 	if err != nil {
-		return "—"
+		return "-"
 	}
 	return pctSigned(r)
 }

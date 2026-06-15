@@ -16,7 +16,7 @@ var PiePalette = []string{
 }
 
 // Pie renders a donut: one path per positive value, colors supplied by the
-// caller (cycled by the handler from PiePalette). No labels — the legend is
+// caller (cycled by the handler from PiePalette). No labels - the legend is
 // HTML. Returns "" when nothing is positive.
 func Pie(values []float64, colors []string, size int) string {
 	total := 0.0

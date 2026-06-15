@@ -79,7 +79,7 @@ func TestMorningstarDailyOK(t *testing.T) {
 	if got.Closes[1].Close != 12.4 {
 		t.Errorf("close[1].Close = %v, want 12.4", got.Closes[1].Close)
 	}
-	// Currency must be empty — Morningstar doesn't disclose it.
+	// Currency must be empty - Morningstar doesn't disclose it.
 	if got.Currency != domain.Currency("") {
 		t.Errorf("currency = %q, want empty string", got.Currency)
 	}

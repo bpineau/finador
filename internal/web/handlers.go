@@ -25,14 +25,14 @@ type tab struct {
 type dashData struct {
 	Today      domain.Date
 	Val        portfolio.Valuation
-	Curve      template.HTML // SVG from chart.SVG — never raw user data
+	Curve      template.HTML // SVG from chart.SVG - never raw user data
 	Rows       []perf.Row
 	Met        perf.Metrics
 	Tabs       []tab
 	RangeLinks []tab
 	Range      string
 	Tree       []node
-	Pie        template.HTML // SVG donut — generated server-side, safe
+	Pie        template.HTML // SVG donut - generated server-side, safe
 	PieSlices  []pieSlice
 	Warnings   []string
 	Flash      string

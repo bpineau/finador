@@ -1,14 +1,14 @@
-# Format v2 — journal append-only + cache sidecar — Implementation Plan
+# Format v2 - journal append-only + cache sidecar - Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remplacer le format de stockage `FINADOR1` (blob AES-GCM unique réécrit en entier) par un journal append-only chiffré, texte base64, un enregistrement par ligne, plus un cache marché en sidecar local — propice à la synchro git multi-machines.
+**Goal:** Remplacer le format de stockage `FINADOR1` (blob AES-GCM unique réécrit en entier) par un journal append-only chiffré, texte base64, un enregistrement par ligne, plus un cache marché en sidecar local - propice à la synchro git multi-machines.
 
 **Architecture:** Le grand-livre devient une suite de lignes : en-tête JSON clair, puis un enregistrement scellé (AES-256-GCM, nonce propre, AAD = `hash(en-tête) ‖ seq ‖ tag-précédent`) par ligne base64, puis une ligne de tête authentifiée (compte + tag de fin). Le `Book` est rejoué depuis le log à l'ouverture. L'écriture est **diff-on-save** : l'API de mutation existante (`b.Add`, `b.RemoveTx`, `tx edit`) reste intacte ; le store calcule le diff vs l'état persisté et n'ajoute que les records utiles, ré-émettant les lignes inchangées byte-identiques. Le cache marché (`MarketData`) sort vers `os.UserCacheDir()/finador/<id>.cache`, chiffré avec une sous-clé HKDF distincte. **Abandon total de FINADOR1, aucune migration.**
 
 **Tech Stack:** Go 1.26, stdlib (`crypto/aes`, `crypto/cipher`, `crypto/sha256`, `crypto/rand`, `encoding/base64`, `encoding/binary`, `encoding/json`, `compress/gzip`), `golang.org/x/crypto/argon2` + `golang.org/x/crypto/hkdf` (déjà dans l'arbre de deps), `shopspring/decimal`, `spf13/cobra`.
 
-**Spec:** `docs/superpowers/specs/2026-06-13-format-append-log-design.md` — décision `DECISIONS.md` D15.
+**Spec:** `docs/superpowers/specs/2026-06-13-format-append-log-design.md` - décision `DECISIONS.md` D15.
 
 ---
 
@@ -16,18 +16,18 @@
 
 Paquet `internal/store` réorganisé (l'actuel `store.go` est entièrement remplacé) :
 
-- `internal/store/header.go` — type `header`, encode/parse de la ligne 1 (JSON clair), dérivation de clés (Argon2id master + sous-clés HKDF).
-- `internal/store/record.go` — types de records (union taguée), scellement/ouverture d'**une** ligne (base64, nonce, AAD, chaînage), ligne de tête (scellement/vérif).
-- `internal/store/log.go` — lecture du log entier (parse + vérif chaîne + tête), rejeu → `Book`, sérialisation du log, snapshot + diff-on-save.
-- `internal/store/store.go` — type `File`, `Create`/`Open`/`Save`/`Compact`, helper `atomicWrite`, glue (réutilise flock + diskStamp).
-- `internal/store/cache.go` — sidecar marché : chemin (`os.UserCacheDir`/id, override `FINADOR_CACHE_DIR`), `SaveCache`/`loadCache`.
-- `internal/store/flock_unix.go`, `flock_other.go` — **inchangés**.
-- `internal/store/store_test.go`, `record_test.go`, `cache_test.go` — tests (l'ancien `store_test.go` format-spécifique est remplacé).
+- `internal/store/header.go` - type `header`, encode/parse de la ligne 1 (JSON clair), dérivation de clés (Argon2id master + sous-clés HKDF).
+- `internal/store/record.go` - types de records (union taguée), scellement/ouverture d'**une** ligne (base64, nonce, AAD, chaînage), ligne de tête (scellement/vérif).
+- `internal/store/log.go` - lecture du log entier (parse + vérif chaîne + tête), rejeu → `Book`, sérialisation du log, snapshot + diff-on-save.
+- `internal/store/store.go` - type `File`, `Create`/`Open`/`Save`/`Compact`, helper `atomicWrite`, glue (réutilise flock + diskStamp).
+- `internal/store/cache.go` - sidecar marché : chemin (`os.UserCacheDir`/id, override `FINADOR_CACHE_DIR`), `SaveCache`/`loadCache`.
+- `internal/store/flock_unix.go`, `flock_other.go` - **inchangés**.
+- `internal/store/store_test.go`, `record_test.go`, `cache_test.go` - tests (l'ancien `store_test.go` format-spécifique est remplacé).
 
 Wiring (hors `store`) :
-- `internal/cli/cli.go` (`ensureFresh`), `internal/cli/refresh.go`, `internal/web/import.go` (`refresh`) — `f.Save()` du cache → `f.SaveCache()`.
-- `internal/cli/compact.go` (nouveau) — commande `finador compact`.
-- `README.md` — section édition du passé.
+- `internal/cli/cli.go` (`ensureFresh`), `internal/cli/refresh.go`, `internal/web/import.go` (`refresh`) - `f.Save()` du cache → `f.SaveCache()`.
+- `internal/cli/compact.go` (nouveau) - commande `finador compact`.
+- `README.md` - section édition du passé.
 
 ---
 
@@ -83,7 +83,7 @@ func TestHeaderRejectsBadParams(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestHeader -v`
-Expected: FAIL — `undefined: defaultHeader` etc.
+Expected: FAIL - `undefined: defaultHeader` etc.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -267,7 +267,7 @@ Delete the `testGCMs` placeholder line before running (it exists only to show it
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestSealOpen -v`
-Expected: FAIL — `undefined: gcmOf, record, sealLine, openLine, kTx, mustJSON`
+Expected: FAIL - `undefined: gcmOf, record, sealLine, openLine, kTx, mustJSON`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -344,7 +344,7 @@ func sealLine(g cipher.AEAD, hdrHash []byte, seq uint64, prevTag []byte, rec rec
 }
 
 // openLine opens one record line. Any failure (malformed, wrong key, broken
-// chain, tampering) is reported as domain.ErrBadPassword — indistinguishable.
+// chain, tampering) is reported as domain.ErrBadPassword - indistinguishable.
 func openLine(g cipher.AEAD, hdrHash []byte, seq uint64, prevTag []byte, line string) (record, []byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(line)
 	if err != nil || len(raw) < nonceSize+tagSize {
@@ -413,7 +413,7 @@ func TestHeadSealVerify(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestHeadSealVerify -v`
-Expected: FAIL — `undefined: sealHead, openHead`
+Expected: FAIL - `undefined: sealHead, openHead`
 
 - [ ] **Step 3: Write the implementation (append to record.go)**
 
@@ -559,7 +559,7 @@ func TestReadLogDetectsTamper(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestReadLog -v`
-Expected: FAIL — `undefined: entry, lastTagOrZero, writeLog, readLog, replay, txRef`
+Expected: FAIL - `undefined: entry, lastTagOrZero, writeLog, readLog, replay, txRef`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -840,7 +840,7 @@ func TestDiffDetectsChanges(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestDiffDetectsChanges -v`
-Expected: FAIL — `undefined: snapshotOf, diff`
+Expected: FAIL - `undefined: snapshotOf, diff`
 
 - [ ] **Step 3: Write the implementation (append to log.go)**
 
@@ -878,7 +878,7 @@ func snapshotOf(b *domain.Book) snapshot {
 
 // diff returns the records to append so the log materializes b, given prev as
 // the last-persisted state. Order: config, accounts (+deletes), assets
-// (+deletes), then transactions (+deletes) — definitions before references.
+// (+deletes), then transactions (+deletes) - definitions before references.
 func diff(prev snapshot, b *domain.Book) []record {
 	var recs []record
 
@@ -971,10 +971,10 @@ git commit -m "feat(store): snapshot + diff-on-save record computation"
 
 ---
 
-## Task 6: Type File — Create/Open/Save (glue + écriture atomique)
+## Task 6: Type File - Create/Open/Save (glue + écriture atomique)
 
 **Files:**
-- Create: `internal/store/store.go` (replaces the old file entirely — delete old contents first)
+- Create: `internal/store/store.go` (replaces the old file entirely - delete old contents first)
 - Test: `internal/store/store_test.go` (replaces the old format-specific tests)
 
 - [ ] **Step 1: Replace the test file**
@@ -1106,7 +1106,7 @@ func TestConcurrentWriteRejected(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestCreateOpenRoundTrip -v`
-Expected: FAIL — the old `store.go` still defines a conflicting `File`/`Create`/`Open`; compilation error or behavior mismatch. (We replace `store.go` next.)
+Expected: FAIL - the old `store.go` still defines a conflicting `File`/`Create`/`Open`; compilation error or behavior mismatch. (We replace `store.go` next.)
 
 - [ ] **Step 3: Replace `internal/store/store.go` entirely**
 
@@ -1135,7 +1135,7 @@ import (
 )
 
 // ErrConcurrent signals another process wrote the file since it was opened.
-var ErrConcurrent = errors.New("file modified by another process since it was opened — retry the command")
+var ErrConcurrent = errors.New("file modified by another process since it was opened - retry the command")
 
 type diskStamp struct {
 	size  int64
@@ -1189,7 +1189,7 @@ func Open(path, password string) (*File, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("%s does not exist — run 'finador init' to create it", path)
+			return nil, fmt.Errorf("%s does not exist - run 'finador init' to create it", path)
 		}
 		return nil, err
 	}
@@ -1285,7 +1285,7 @@ func atomicWrite(path string, data []byte, backup bool) error {
 - [ ] **Step 4: Run the store tests**
 
 Run: `go test ./internal/store/ -v`
-Expected: PASS (all tasks 1–6 tests). `cache.go` does not exist yet, so `loadCache` must be added — if compilation fails on `loadCache`, proceed to Task 7 which defines it, then re-run. (To keep this task self-contained, add a temporary `func (f *File) loadCache() {}` stub in `store.go`, replaced in Task 7.)
+Expected: PASS (all tasks 1–6 tests). `cache.go` does not exist yet, so `loadCache` must be added - if compilation fails on `loadCache`, proceed to Task 7 which defines it, then re-run. (To keep this task self-contained, add a temporary `func (f *File) loadCache() {}` stub in `store.go`, replaced in Task 7.)
 
 - [ ] **Step 5: Commit**
 
@@ -1354,7 +1354,7 @@ func TestMissingSidecarIsEmptyMarketNoError(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestMarketCache -v`
-Expected: FAIL — `undefined: (*File).SaveCache` (and remove the Task 6 stub `loadCache`).
+Expected: FAIL - `undefined: (*File).SaveCache` (and remove the Task 6 stub `loadCache`).
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1472,7 +1472,7 @@ git commit -m "feat(store): market cache sidecar (HKDF cache subkey)"
 **Files:**
 - Modify: `internal/cli/cli.go:74-78` (`ensureFresh`)
 - Modify: `internal/cli/refresh.go:28-30`
-- Modify: `internal/web/import.go` (`refresh` handler — the `s.file.Save()` after `market.Refresh`)
+- Modify: `internal/web/import.go` (`refresh` handler - the `s.file.Save()` after `market.Refresh`)
 
 - [ ] **Step 1: Update `ensureFresh` in `internal/cli/cli.go`**
 
@@ -1567,13 +1567,13 @@ func TestCompactDropsDeadRecords(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/store/ -run TestCompactDropsDeadRecords -v`
-Expected: FAIL — `undefined: (*File).Compact`
+Expected: FAIL - `undefined: (*File).Compact`
 
 - [ ] **Step 3: Implement `Compact` (append to `store.go`)**
 
 ```go
-// Compact rewrites a minimal log from the current Book — dropping superseded and
-// tombstoned records — with a fresh chain. One full-file rewrite; rare.
+// Compact rewrites a minimal log from the current Book - dropping superseded and
+// tombstoned records - with a fresh chain. One full-file rewrite; rare.
 func (f *File) Compact() error {
 	unlock, err := lockSidecar(f.Path + ".lock")
 	if err != nil {
@@ -1651,7 +1651,7 @@ Expected: PASS
 
 ```bash
 git add internal/store/store.go internal/store/store_test.go internal/cli/compact.go internal/cli/cli.go
-git commit -m "feat(store,cli): finador compact — rewrite a minimal log"
+git commit -m "feat(store,cli): finador compact - rewrite a minimal log"
 ```
 
 ---
@@ -1669,7 +1669,7 @@ Under the CLI commands section of `README.md`, add:
 ```markdown
 ### Correcting the past
 
-The ledger is an append-only journal, but every entry stays editable — a
+The ledger is an append-only journal, but every entry stays editable - a
 correction is just a new record appended to the file (so git syncing stays
 small and conflict-light). Use the same commands whatever the date:
 
@@ -1752,5 +1752,5 @@ git commit -m "chore: vet/lint fixes for v2 store" || echo "nothing to commit"
 
 - **Spec coverage:** header v2 (T1), KDF+HKDF subkeys (T1), per-record seal/AAD chain (T2), head/anti-truncation (T3), read+replay (T4), diff-on-save (T5), File API + byte-stable prefix + concurrency (T6), sidecar cache (T7), refresh→SaveCache wiring (T8), compaction (T9), edit-the-past docs (T10), verification + git check (T11). Abandon of FINADOR1 = old `store.go`/`store_test.go` fully replaced (T6). Future Stooq fallback is explicitly out of scope (noted in spec/memory).
 - **Placeholder scan:** every code step contains complete code; the only deliberate stub (`loadCache` in T6) is introduced and removed within the plan (T6→T7) with explicit instructions.
-- **Type consistency:** `header`, `record`/`recKind` constants, `entry`, `snapshot`, `aad`, `sealLine`/`openLine`, `sealHead`/`openHead`, `readLog`/`writeLog`/`replay`, `diff`/`snapshotOf`, `File` fields, `atomicWrite(path,data,backup)`, `SaveCache`/`loadCache`/`cachePath` — names and signatures are used consistently across tasks. `readLog` returns `(header, []byte, []entry, [32]byte, [32]byte, error)` everywhere it is called (T4 test, T6 `Open`).
+- **Type consistency:** `header`, `record`/`recKind` constants, `entry`, `snapshot`, `aad`, `sealLine`/`openLine`, `sealHead`/`openHead`, `readLog`/`writeLog`/`replay`, `diff`/`snapshotOf`, `File` fields, `atomicWrite(path,data,backup)`, `SaveCache`/`loadCache`/`cachePath` - names and signatures are used consistently across tasks. `readLog` returns `(header, []byte, []entry, [32]byte, [32]byte, error)` everywhere it is called (T4 test, T6 `Open`).
 ```

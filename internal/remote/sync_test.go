@@ -453,7 +453,7 @@ func TestForReadDirtyNotClobbered(t *testing.T) {
 func TestForWriteDirtyRoutesThroughMerge(t *testing.T) {
 	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
 	// Remote has advanced since the dirty copy's base, so the reconcile push
-	// will conflict and must merge — never overwrite the local edit blindly.
+	// will conflict and must merge - never overwrite the local edit blindly.
 	b := &fakeBackend{data: []byte("remote moved on"), sha: "shaR", counter: 9}
 	s := newSyncer(t, b, &now)
 

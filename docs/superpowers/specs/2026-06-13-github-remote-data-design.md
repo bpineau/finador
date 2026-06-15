@@ -1,11 +1,11 @@
-# Finador — données dans un dépôt privé GitHub (modèle remote, optionnel)
+# Finador - données dans un dépôt privé GitHub (modèle remote, optionnel)
 
-*2026-06-13 — spec validée en brainstorming (design approuvé). Run autonome : pas de relecture demandée.*
+*2026-06-13 - spec validée en brainstorming (design approuvé). Run autonome : pas de relecture demandée.*
 
 ## 0. Objectif
 
 Permettre que le fichier `.fin` **vive dans un dépôt privé GitHub**, synchronisé
-automatiquement, utilisable depuis plusieurs machines — l'usage réel visé par l'auteur
+automatiquement, utilisable depuis plusieurs machines - l'usage réel visé par l'auteur
 (cf. `roadmap-and-github-data-model`). Le mode **fichier local reste le défaut et le
 fallback** ; GitHub est **opt-in**. Tout le travail de format précédent (append-log,
 ids random, timestamps, `merge`) était le socle de ce modèle.
@@ -13,7 +13,7 @@ ids random, timestamps, `merge`) était le socle de ce modèle.
 **Sécurité :** le dépôt ne contient que le `.fin` **chiffré** (AES-256-GCM) ; même si le
 repo fuite, le contenu reste opaque. Le token GitHub est un **fine-grained PAT scopé à ce
 seul dépôt** (*Contents: R/W*). Le **cache marché reste local** (sidecar, non synchronisé,
-régénérable) — seul le grand-livre voyage.
+régénérable) - seul le grand-livre voyage.
 
 ## 1. Décisions actées
 
@@ -47,7 +47,7 @@ régénérable) — seul le grand-livre voyage.
   mode remote ; sinon (ou conf absente) → mode local sur `~/.finador.fin`.
 - Commandes : `finador remote set <owner>/<repo> [--path portfolio.fin] [--branch main]`
   (écrit la conf, `source=github`) ; `finador remote off` (`source=local`) ;
-  `finador remote show` (affiche mode, repo, état de sync — jamais le token).
+  `finador remote show` (affiche mode, repo, état de sync - jamais le token).
 
 ## 3. Authentification
 
@@ -58,10 +58,10 @@ régénérable) — seul le grand-livre voyage.
   no-echo (puis stockée au Keychain). Le paquet `keyring` gagne `GetSecret/PutSecret(key)`
   sans expiration, à côté du cache TTL existant.
 - `finador remote login` : (re)saisir le token. `finador lock` : purge aussi le token.
-- Erreur 401/403 → message clair (« token GitHub invalide ou permissions insuffisantes —
+- Erreur 401/403 → message clair (« token GitHub invalide ou permissions insuffisantes -
   `finador remote login` »), jamais confondu avec hors-ligne.
 
-## 4. Transport — `internal/remote`
+## 4. Transport - `internal/remote`
 
 Interface (seam pour d'autres hôtes plus tard ; une seule impl réseau ici) :
 ```go
@@ -88,7 +88,7 @@ type Backend interface {
 - Client HTTP avec timeout + 1 retry sur 5xx/429 (comme le client Yahoo). Erreur réseau/DNS →
   remontée comme « hors-ligne » (distincte des 4xx d'auth).
 
-## 5. Couche de synchronisation — `internal/remote/sync.go`
+## 5. Couche de synchronisation - `internal/remote/sync.go`
 
 Copie de travail locale : `os.UserCacheDir()/finador/checkout/<hash(owner/repo/path)>.fin`,
 plus un **état sidecar** `…<hash>.state.json` : `{ "sha": "<dernier sha distant connu>",
@@ -116,8 +116,8 @@ Intégration dans `cli` (autour de `store.Open`/`Save`) :
 3. Re-`Push` avec le nouveau `sha` distant. Boucle bornée (quelques essais) puis erreur claire.
 
 **Hors-ligne** (souple) : une écriture réussit localement, `dirty=true`, avertissement. Le
-prochain accès en ligne (ou `finador sync`) pousse — avec résolution de conflit si le distant a
-bougé entre-temps. (`merge` exige la **même passphrase** et le **même `id` de fichier** — vrai
+prochain accès en ligne (ou `finador sync`) pousse - avec résolution de conflit si le distant a
+bougé entre-temps. (`merge` exige la **même passphrase** et le **même `id` de fichier** - vrai
 puisque c'est le même grand-livre copié.)
 
 **Premier push** (repo vide / fichier absent) : `Fetch` → `ErrRemoteMissing`. `finador init` en
