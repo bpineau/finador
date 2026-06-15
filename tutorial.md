@@ -1,46 +1,55 @@
-# finador — tutorials
+# finador tutorials
 
-Hands-on walkthroughs. (Names and amounts below are fictional — adapt them to yours.)
+Hands-on walkthroughs. (Names and amounts below are fictional, adapt them to yours.)
 
 ## Initializing your portfolio with existing assets
 
 You already have accounts, funds, shares, some cash and maybe a property. You won't
 replay years of transactions — you'll declare **today's positions** and what you paid for
-them. The model in three ideas:
+them. The model in for ideas:
 
 - Each **account** is a tax envelope: it carries its **tax rule**, and finador shows your
-  wealth **gross, estimated latent tax, and net**.
+  wealth **gross, estimated latent tax, and net**, convert to your default currency.
+- You can pre-declare assets (with "finador asset add ...") to register them with aliases
+  or disambiguate them by providing the associated ISIN.
 - You declare each holding with `asset buy <asset> <quantity> @<average buy price>`. For a
   `gains` envelope (PEA, CTO, PEE…), the **taxable basis is the sum of your buys** — i.e.
   what you contributed — so only the gain above it is taxed. (For a buy-and-hold envelope
   that equals your *versements*.)
-- Quoted holdings are priced live: finador resolves **ETFs and shares via Yahoo (by
-  ticker)**, and **funds via Financial Times then Morningstar (by ISIN)** when Yahoo
-  doesn't list them. Holdings with no public quote (some employee funds, real estate) you
-  value by hand with `asset set`.
+- Quoted holdings are priced live (refreshed once per hour): finador resolves **ETFs and
+  shares via Yahoo (by ticker)**, and **funds via Financial Times then Morningstar (by ISIN)**
+  when Yahoo doesn't list them. Holdings with no public quote (some employee funds, real
+  estate) you value by hand with `asset set`.
 
 ### 0. Create the encrypted file (GitHub-private from the start)
 
-Most people want **GitHub mode** (private repo + auto-sync) from the very first command —
-and yes, it works right at `init`: configure the remote first, then `init` creates the
-file **and** first-pushes it.
+Finador can use a local file as ledger, but most people want **GitHub mode** (private repo +
+auto-sync) from the very first command.
 
-One-time on GitHub (web UI): create an **empty private repo**, and a **fine-grained PAT**
-— Settings → Developer settings → Personal access tokens → Fine-grained; *Repository
+One-time on GitHub (web UI): create an **empty private repo**, and a **fine-grained PAT**:
+Settings → Developer settings → Personal access tokens → Fine-grained; *Repository
 access* = that one repo; *Permissions → Contents: Read and write*.
 
 ```sh
-finador remote set <owner>/<repo> --path finador.fin --branch main   # point at the private repo (these are the defaults)
-finador remote login                                                 # paste the PAT (hidden input; access is verified on the spot)
-finador init                                                         # asks the wallet password (×2) → creates the .fin AND first-pushes it
-finador remote show                                                 # mode, repo, sync state (never the token)
+# point at the private repo (these are the defaults)
+finador remote set <owner>/<repo> --path finador.fin --branch master
+
+# paste the PAT (hidden input; access is verified on the spot)
+finador remote login
+
+# asks the wallet password (×2) → creates the .fin AND first-pushes it
+finador init
+
+# mode, repo, sync state (never the token)
+finador remote show
+
 # from here, every command pulls-before / pushes-after transparently.
 ```
 
 Two distinct secrets: the **wallet password** (asked by `init`) encrypts the file; the
 **PAT** only moves that encrypted file to/from GitHub. The repo never holds either in
 clear. Password cached in the macOS Keychain (`finador lock` to forget; `finador config
-set keychain-ttl 8h` to change the TTL).
+set keychain-ttl 8h` to change the TTL) when available.
 
 ```sh
 # Local-only instead (no GitHub):
@@ -55,13 +64,15 @@ finador remote adopt               # uploads your existing .fin as-is
 Those are off course fictional accounts and assets, should be replaced by your own.
 
 ```sh
-# Flat tax / PFU = 30 % on gains; PEA & PEE social levies = 17.2 %.
-finador account add "CTO Saxo"            --tax gains:30%    --alias saxo
-finador account add "PEA Fortuneo"          --tax gains:17.2%  --alias pea --alias fortuneo
-finador account add "PEA-PME Bourse Direct" --tax gains:17.2%  --alias pea-pme --alias pme
-finador account add "Assurance Vie Linxea"  --tax gains:30%    --alias av --alias linxea
-finador account add "RSU (Morgan Stanley)"  --tax value:30%    --alias rsu     # free shares — see note below
-finador account add "PEE"                   --tax gains:17.2%  --alias pee
+# Flat tax / PFU = 31.4 % on gains; PEA & PEE social levies = 18.6 %.
+finador account add "CTO Saxo"              --tax gains:31.4%  --alias saxo
+finador account add "PEA Fortuneo"          --tax gains:18.6%  --alias pea --alias fortuneo
+finador account add "PEA-PME Bourse Direct" --tax gains:18.6%  --alias pea-pme --alias pme
+finador account add "Assurance Vie Linxea"  --tax gains:31.4%  --alias av --alias linxea
+finador account add "PEE"                   --tax gains:18.6%  --alias pee
+
+# example with free shares (taxes applies to the whole "value" not just "gains").
+finador account add "RSU (Morgan Stanley)"  --tax value:31.4%    --alias rsu
 ```
 
 `--alias` gives an account short, case-insensitive names you can use anywhere; add as many
@@ -79,7 +90,7 @@ finador account add "Wise USD" --ccy USD --alias wiseusd # this one holds dollar
 ### 3. A real-estate envelope (to hold the property)
 
 ```sh
-finador account add "Real Estate" --tax gains:36.2% --alias immo   # 19 % + 17.2 % social, on the gain
+finador account add "Real Estate" --tax gains:36.2% --alias immo   # 19 % + 18.6 % social, on the gain
 ```
 
 ### 4. Declare your assets
@@ -89,6 +100,7 @@ finador account add "Real Estate" --tax gains:36.2% --alias immo   # 19 % + 17.2
 finador asset add CW8.PA --alias world --group equities/world        # an MSCI World ETF
 finador asset add AAPL   --alias apple --group equities/us/tech      # a US share (quoted in USD)
 finador asset add "Euro Small-Cap Fund" --isin LU0131510165 --alias smallcap --group equities/europe-small
+
 #   ^ an actively-managed fund with no Yahoo ticker → finador prices it by ISIN via Financial Times
 finador asset add "Employer Stock Fund" --isin 990000000000 --alias empfund --group equities/us
 #   ^ an employee fund with no public quote → you'll value it by hand (step 7)
@@ -110,9 +122,11 @@ finador asset buy smallcap 5 @900 --account pea
 
 # CTO  Saxo 
 finador asset buy apple 30 @170 --account saxo
-# Free RSUs,  acquired at ~no cost; the value:30% rule taxes the whole value
+
+# Free RSUs,  acquired at ~no cost; the value:31.4% rule taxes the whole value
 # (that's an approximation to simplify), so the buy price is a placeholder.
 finador asset buy apple 50 @0.01 --account rsu
+
 # PEE employee fund — bought 100 units at 50 $currency; value comes from step 7 (no public quote)
 finador asset buy empfund 100 @50 --account pee
 ```
@@ -204,9 +218,9 @@ finador cash set checking 285000 --at 2026-06-10   # proceeds when they land (or
   costs; only the excess (and future growth) is taxed. If internal churn or reinvested
   dividends made your real *versements* differ from that sum, anchor them with
   `finador cash deposit "<envelope>" <amount>` and enter the buys at cost (cash nets to ~0).
-- **Free shares (RSU / ESPP).** Modeled here as `--tax value:30%` (the whole value is
+- **Free shares (RSU / ESPP).** Modeled here as `--tax value:31.4%` (the whole value is
   flat-taxed, basis ≈ 0). If you have a real acquisition basis (the vesting value you were
-  taxed on), use `--tax gains:30%` and `asset buy … @<vesting price>` instead — then only the
+  taxed on), use `--tax gains:31.4%` and `asset buy … @<vesting price>` instead — then only the
   post-vesting gain is flat-taxed.
 - **Funds Yahoo doesn't list** are fetched **by ISIN** from Financial Times, then Morningstar
   — so declare such funds with `--isin`. Employee funds identified by an internal AMF code

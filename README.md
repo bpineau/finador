@@ -17,7 +17,7 @@ TOTAL     486060.00 EUR   9361.20 EUR  476698.80 EUR
 
 - **One encrypted file.** Argon2id + AES-256-GCM, atomic writes with a `.bak`,
   password prompted once and optionally cached in the macOS Keychain per terminal.
-- **Tax envelopes.** Every account carries its tax rule — `gains:17.2%` (only the
+- **Tax envelopes.** Every account carries its tax rule — `gains:18.6%` (only the
   gain beyond your contributions is taxed, à la PEA/CTO) or `value:20%` (the whole
   value is taxed, à la PER). Everything can be shown **gross, estimated tax, net**.
 - **Any asset.** Listed securities (Yahoo quotes, automatic dividends, FX crossed
@@ -39,7 +39,7 @@ go build -trimpath -o bin/finador ./cmd/finador
 
 ```sh
 finador init                                            # creates ~/.finador.fin
-finador account add "PEA BforBank" --tax gains:17.2%
+finador account add "PEA BforBank" --tax gains:18.6%
 finador account add "Savings"
 
 finador asset add CW8.PA --alias cw8 --group equities/world   # resolved via Yahoo
@@ -116,7 +116,7 @@ trade. The cash didn't stay as cash — you bought shares — so declare today's
 **quantity** held and the **amount you invested** (its cost basis / PRU).
 
 ```sh
-finador account add "PEA BforBank" --tax gains:17.2%
+finador account add "PEA BforBank" --tax gains:18.6%
 
 # asset buy <asset> <shares held> <amount you invested> — straight off your statement.
 # For ticker-quoted securities you don't need a separate `asset add`: buy creates them
@@ -294,7 +294,7 @@ ledger, the quote cache — lives in one encrypted `.fin` file (default
 your backup. All derived state (positions, cost bases, series) is recomputed by
 replaying the ledger, so transactions can always be edited or deleted safely.
 
-**Accounts are tax envelopes.** `--tax gains:17.2%` taxes
+**Accounts are tax envelopes.** `--tax gains:18.6%` taxes
 `max(0, value − contribution basis)`; the basis is what you put in
 (`cash deposit` − `cash withdraw`) when the account's cash is tracked, or
 `asset buy − asset sell` when it is not. `--tax value:20%` taxes the whole value.
@@ -561,7 +561,7 @@ finador sync                                                               # for
 
 | Command | What it does |
 |---|---|
-| `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `finador.fin`) is the file's path inside the repo; `--branch` (default **`main`** — pass `--branch master` if that's your repo's default branch, finador doesn't auto-detect it). |
+| `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `finador.fin`) is the file's path inside the repo; `--branch` (default **`master`** — pass `--branch main` if that's your repo's default branch, finador doesn't auto-detect it). |
 | `remote login` | Prompts for the fine-grained PAT, stores it in the macOS Keychain (re-run to rotate), and **verifies it can reach the repo** (a bad/expired token is reported now, not at the next sync). `GITHUB_TOKEN` overrides it. |
 | `remote adopt` | Uploads an existing local `.fin` (`--from`, default `~/.finador.fin`) to the remote as-is — a one-time migration. Refuses to overwrite an existing remote file unless `--force`. |
 | `remote show` | Prints the active mode, the repo/path/branch and the sync state (last pull, unpushed changes). Never prints the token. |
@@ -572,7 +572,7 @@ finador sync                                                               # for
 ```json
 {
   "source": "github",
-  "github": { "owner": "you", "repo": "finador-data", "path": "finador.fin", "branch": "main" },
+  "github": { "owner": "you", "repo": "finador-data", "path": "finador.fin", "branch": "master" },
   "readPullAfter": "1h"
 }
 ```
@@ -599,7 +599,7 @@ local mode for a single invocation, whatever the config says.
   `--path my-wallet.fin`. The one rule: the config `--path` must match the actual file name in
   the repo, or finador won't find it (the usual first-time snag).
 - **No file found at the remote?** Reads and `sync` report it and show the path/branch they
-  looked at — a wrong `--path` or `--branch` (finador defaults to `main`) is the usual cause;
+  looked at — a wrong `--path` or `--branch` (finador defaults to `master`) is the usual cause;
   check `finador remote show`. For a genuinely new repo, run `init` or `remote adopt`.
 
 ## CSV import
@@ -731,8 +731,8 @@ one repo. Local mode stays the default and the fallback.
    finador remote login          # paste the token  (or: export GITHUB_TOKEN=…)
    finador init                  # creates and pushes the encrypted file
    ```
-   **If your repo's default branch isn't `main`** (e.g. `master`), add `--branch master` to
-   `remote set` — finador defaults to `main` and does **not** auto-detect the repo's branch.
+   **If your repo's default branch isn't `master`** (e.g. `main`), add `--branch main` to
+   `remote set` — finador defaults to `master` and does **not** auto-detect the repo's branch.
 
    **Already have a populated `~/.finador.fin`?** Don't run `init` (it would start empty).
    After `remote set` + `remote login`, migrate it in one command:
