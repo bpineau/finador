@@ -1,5 +1,5 @@
 {{define "tx-edit.html"}}{{template "base" .}}{{end}}
-{{define "title"}}edit entry — finador{{end}}
+{{define "title"}}edit entry - finador{{end}}
 {{define "main"}}
 <p class="fil-ariane"><a href="/tx">transactions</a> → edit entry [{{.Tx.ID}}]</p>
 <section>
@@ -34,7 +34,7 @@
     <fieldset>
       <legend>rename asset</legend>
       <p class="note-bas">Changes the label <em>everywhere</em> this asset appears, in one move.
-        Your transactions, rankings and history follow it — they reference the asset itself, not its name.</p>
+        Your transactions, rankings and history follow it - they reference the asset itself, not its name.</p>
       <div class="champs">
         <div><label for="asset-name">name</label>
           <input id="asset-name" name="name" value="{{.AssetName}}"></div>

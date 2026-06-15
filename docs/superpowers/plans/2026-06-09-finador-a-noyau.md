@@ -1,4 +1,4 @@
-# Finador phase A — noyau chiffré & ledger : plan d'implémentation
+# Finador phase A - noyau chiffré & ledger : plan d'implémentation
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -14,7 +14,7 @@
 - Tests : stdlib `testing` seul, pas de framework d'assertion.
 - Après chaque implémentation : `gofmt -l .` doit être vide et `go vet ./...` silencieux.
 - Les tests de `store/` et `cli/` prennent ~2-5 s : Argon2id est volontairement lent, c'est attendu.
-- Décision actée phase A : exit code 1 pour toute erreur (la distinction 1 usage / 2 interne de la spec arrive quand il existera de vrais chemins internes — réseau, rendu).
+- Décision actée phase A : exit code 1 pour toute erreur (la distinction 1 usage / 2 interne de la spec arrive quand il existera de vrais chemins internes - réseau, rendu).
 
 ---
 
@@ -66,7 +66,7 @@ git commit -m "chore: bootstrap du module finador"
 
 ---
 
-### Task 2: domain — Date civile, Currency, Money
+### Task 2: domain - Date civile, Currency, Money
 
 **Files:**
 - Create: `internal/domain/date.go`, `internal/domain/money.go`
@@ -148,7 +148,7 @@ func TestMoneyString(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go get github.com/shopspring/decimal@latest && go test ./internal/domain/`
-Expected: FAIL — `undefined: ParseDate`, `undefined: Money`.
+Expected: FAIL - `undefined: ParseDate`, `undefined: Money`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -162,7 +162,7 @@ import (
 	"time"
 )
 
-// Date is a civil day — no clock, no time zone.
+// Date is a civil day - no clock, no time zone.
 type Date struct {
 	Year  int
 	Month time.Month
@@ -244,7 +244,7 @@ git commit -m "feat(domain): Date civile, Currency et Money"
 
 ---
 
-### Task 3: domain — TaxRule, Slugify, Account
+### Task 3: domain - TaxRule, Slugify, Account
 
 **Files:**
 - Create: `internal/domain/tax.go`, `internal/domain/slug.go`, `internal/domain/account.go`
@@ -313,7 +313,7 @@ func TestSlugify(t *testing.T) {
 	for in, want := range map[string]string{
 		"PEA BforBank":     "pea-bforbank",
 		"CTO Saxo":         "cto-saxo",
-		"Maison à Achères": "maison-a-acheres",
+		"Maison à Rénover": "maison-a-renover",
 		"CW8.PA":           "cw8-pa",
 		"  défi  élevé!  ": "defi-eleve",
 	} {
@@ -327,7 +327,7 @@ func TestSlugify(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go test ./internal/domain/`
-Expected: FAIL — `undefined: ParseTaxRule`, `undefined: Slugify`.
+Expected: FAIL - `undefined: ParseTaxRule`, `undefined: Slugify`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -423,7 +423,7 @@ var accents = strings.NewReplacer(
 )
 
 // Slugify turns a free-form name into a stable identifier:
-// "PEA BforBank" → "pea-bforbank", "Maison à Achères" → "maison-a-acheres".
+// "PEA BforBank" → "pea-bforbank", "Maison à Rénover" → "maison-a-renover".
 func Slugify(name string) string {
 	s := accents.Replace(strings.ToLower(name))
 	var out []rune
@@ -470,7 +470,7 @@ git commit -m "feat(domain): TaxRule par enveloppe, Slugify, Account"
 
 ---
 
-### Task 4: domain — Asset, TxKind, Transaction
+### Task 4: domain - Asset, TxKind, Transaction
 
 **Files:**
 - Create: `internal/domain/asset.go`, `internal/domain/tx.go`
@@ -530,7 +530,7 @@ func TestParseAssetKind(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go get github.com/samber/lo@latest && go test ./internal/domain/`
-Expected: FAIL — `undefined: ParseTxKind`, etc.
+Expected: FAIL - `undefined: ParseTxKind`, etc.
 
 - [ ] **Step 3: Implémenter**
 
@@ -582,7 +582,7 @@ func (k *AssetKind) UnmarshalText(b []byte) error {
 type AssetID string
 
 // Asset is anything owned: a quoted security or a free-form property.
-// Cash is not an asset — it belongs to each Account.
+// Cash is not an asset - it belongs to each Account.
 type Asset struct {
 	ID       AssetID   `json:"id"`
 	Kind     AssetKind `json:"kind"`
@@ -680,7 +680,7 @@ git commit -m "feat(domain): Asset, TxKind et Transaction"
 
 ---
 
-### Task 5: domain — Book (l'état complet, résolution de références)
+### Task 5: domain - Book (l'état complet, résolution de références)
 
 **Files:**
 - Create: `internal/domain/errors.go`, `internal/domain/book.go`
@@ -820,7 +820,7 @@ func TestBookJSONRoundTrip(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go test ./internal/domain/`
-Expected: FAIL — `undefined: NewBook`, `undefined: ErrNotFound`.
+Expected: FAIL - `undefined: NewBook`, `undefined: ErrNotFound`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -872,7 +872,7 @@ func (b *Book) AddAccount(a *Account) error {
 	return nil
 }
 
-// Account resolves a reference: ID first, then free-form name — case-insensitive.
+// Account resolves a reference: ID first, then free-form name - case-insensitive.
 func (b *Book) Account(ref string) (*Account, error) {
 	return resolve(ref, "compte", b.Accounts,
 		func(a *Account) []string { return []string{string(a.ID)} },
@@ -889,7 +889,7 @@ func (b *Book) AddAsset(a *Asset) error {
 }
 
 // Asset resolves a reference, trying tiers in order:
-// ID, ticker, ISIN, alias, then name — all case-insensitive.
+// ID, ticker, ISIN, alias, then name - all case-insensitive.
 func (b *Book) Asset(ref string) (*Asset, error) {
 	return resolve(ref, "actif", b.Assets,
 		func(a *Asset) []string { return []string{string(a.ID)} },
@@ -962,12 +962,12 @@ Expected: PASS.
 
 ```bash
 git add internal/domain
-git commit -m "feat(domain): Book — état complet, résolution de références, ledger"
+git commit -m "feat(domain): Book - état complet, résolution de références, ledger"
 ```
 
 ---
 
-### Task 6: store — le conteneur chiffré
+### Task 6: store - le conteneur chiffré
 
 **Files:**
 - Create: `internal/store/store.go`
@@ -1091,7 +1091,7 @@ func TestSaveKeepsBackup(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go get golang.org/x/crypto@latest && go test ./internal/store/`
-Expected: FAIL — `undefined: Create`, `undefined: Open`.
+Expected: FAIL - `undefined: Create`, `undefined: Open`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -1299,13 +1299,13 @@ git commit -m "feat(store): fichier unique chiffré Argon2id + AES-256-GCM, save
 
 ---
 
-### Task 7: keyring — mot de passe, Keychain macOS par terminal avec TTL
+### Task 7: keyring - mot de passe, Keychain macOS par terminal avec TTL
 
 **Files:**
 - Create: `internal/keyring/keyring.go`, `internal/keyring/keychain.go`, `internal/keyring/tty_unix.go`, `internal/keyring/tty_other.go`
 - Test: `internal/keyring/keyring_test.go`
 
-L'entrée Keychain (service `finador`, account `<db>@<tty>`) stocke `expiry-unix\npassword` : le TTL est figé au moment du Put (il vient de la config du Book, connue après ouverture). Tout passe par `/usr/bin/security` en `os/exec` — zéro CGo — derrière un `run` injectable pour les tests.
+L'entrée Keychain (service `finador`, account `<db>@<tty>`) stocke `expiry-unix\npassword` : le TTL est figé au moment du Put (il vient de la config du Book, connue après ouverture). Tout passe par `/usr/bin/security` en `os/exec` - zéro CGo - derrière un `run` injectable pour les tests.
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
@@ -1412,7 +1412,7 @@ func TestKeyIsPerFileAndTerminal(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go get golang.org/x/term@latest && go test ./internal/keyring/`
-Expected: FAIL — `undefined: keychain`, `undefined: PasswordFor`.
+Expected: FAIL - `undefined: keychain`, `undefined: PasswordFor`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -1461,7 +1461,7 @@ func Prompt(label string) (string, error) {
 
 // PasswordFor finds the password for db: $FINADOR_PASSWORD, then cache, then
 // prompt. fresh reports that the user just typed it (worth caching after a
-// successful open — not before, we don't want to cache a wrong password).
+// successful open - not before, we don't want to cache a wrong password).
 func PasswordFor(db string, cache Cache, prompt func(string) (string, error)) (pw string, fresh bool, err error) {
 	if pw := os.Getenv("FINADOR_PASSWORD"); pw != "" {
 		return pw, false, nil
@@ -1499,7 +1499,7 @@ func System() Cache {
 const service = "finador"
 
 // keychain stores "expiry-unix\npassword" as a Keychain generic password,
-// via /usr/bin/security — no CGo. The expiry is fixed at Put time.
+// via /usr/bin/security - no CGo. The expiry is fixed at Put time.
 type keychain struct {
 	now func() time.Time
 	run func(args ...string) (string, error)
@@ -1590,7 +1590,7 @@ git commit -m "feat(keyring): prompt sans écho + cache Keychain macOS par (fich
 
 ---
 
-### Task 8: cli — racine cobra, init, account, harnais de test
+### Task 8: cli - racine cobra, init, account, harnais de test
 
 **Files:**
 - Create: `internal/cli/cli.go`, `internal/cli/init.go`, `internal/cli/account.go`
@@ -1599,7 +1599,7 @@ git commit -m "feat(keyring): prompt sans écho + cache Keychain macOS par (fich
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
-`internal/cli/cli_test.go` — le harnais sert à tous les tasks CLI suivants :
+`internal/cli/cli_test.go` - le harnais sert à tous les tasks CLI suivants :
 
 ```go
 package cli_test
@@ -1673,7 +1673,7 @@ func TestAccountAddAndList(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go get github.com/spf13/cobra@latest && go test ./internal/cli/`
-Expected: FAIL — `undefined: cli.New`.
+Expected: FAIL - `undefined: cli.New`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -1707,7 +1707,7 @@ func New() *cobra.Command {
 	a := &app{}
 	root := &cobra.Command{
 		Use:           "finador",
-		Short:         "Suivi de patrimoine chiffré — CLI et web, single binary",
+		Short:         "Suivi de patrimoine chiffré - CLI et web, single binary",
 		SilenceUsage:  true,
 		SilenceErrors: true, // main les affiche, une seule fois
 	}
@@ -1733,7 +1733,7 @@ func (a *app) cache() keyring.Cache {
 }
 
 // open decrypts the database; a freshly typed password is cached only after a
-// successful open — never cache a password that didn't decrypt anything.
+// successful open - never cache a password that didn't decrypt anything.
 func (a *app) open() (*store.File, error) {
 	cache := a.cache()
 	pw, fresh, err := keyring.PasswordFor(a.dbPath, cache, keyring.Prompt)
@@ -1856,7 +1856,7 @@ func accountAdd(a *app) *cobra.Command {
 	var tax, ccy, id string
 	cmd := &cobra.Command{
 		Use:   "add <nom>",
-		Short: "Crée une enveloppe — le nom est libre : \"PEA BforBank\", \"CTO Saxo\"…",
+		Short: "Crée une enveloppe - le nom est libre : \"PEA BforBank\", \"CTO Saxo\"…",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rule, err := domain.ParseTaxRule(tax)
@@ -1938,7 +1938,7 @@ git commit -m "feat(cli): racine cobra, init, account add/list"
 
 ---
 
-### Task 9: cli — asset add/set/list, résolution d'enveloppe par défaut
+### Task 9: cli - asset add/set/list, résolution d'enveloppe par défaut
 
 **Files:**
 - Create: `internal/cli/asset.go`, `internal/cli/helpers.go`
@@ -1954,15 +1954,15 @@ func TestAssetAddSetList(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "Patrimoine")
 	run(t, db, "asset", "add", "CW8.PA", "--id", "cw8", "--name", "Amundi MSCI World", "--group", "actions/monde")
-	run(t, db, "asset", "add", "Maison à Achères", "--kind", "property", "--group", "immo")
+	run(t, db, "asset", "add", "Maison à Rénover", "--kind", "property", "--group", "immo")
 	out := run(t, db, "asset", "list")
-	for _, want := range []string{"cw8", "CW8.PA", "actions/monde", "maison-a-acheres", "property"} {
+	for _, want := range []string{"cw8", "CW8.PA", "actions/monde", "maison-a-renover", "property"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("asset list: %q manquant dans:\n%s", want, out)
 		}
 	}
 	// estimation datée ; l'enveloppe par défaut est l'unique compte existant
-	out = run(t, db, "asset", "set", "maison-a-acheres", "450000", "--at", "2026-06-01")
+	out = run(t, db, "asset", "set", "maison-a-renover", "450000", "--at", "2026-06-01")
 	for _, want := range []string{"450000 EUR", "2026-06-01"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("asset set: %q manquant dans %q", want, out)
@@ -1974,7 +1974,7 @@ func TestAssetAddSetList(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go test ./internal/cli/ -run TestAssetAddSetList`
-Expected: FAIL — `unknown command "asset"`.
+Expected: FAIL - `unknown command "asset"`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -2005,7 +2005,7 @@ func dateOrToday(s string) (domain.Date, error) {
 
 // accountFor picks the envelope of a new transaction: the --account flag, the
 // account of the asset's latest transaction, the config default-account, or
-// the sole existing account — in that order.
+// the sole existing account - in that order.
 func accountFor(b *domain.Book, flag string, asset *domain.Asset) (*domain.Account, error) {
 	if flag != "" {
 		return b.Account(flag)
@@ -2165,7 +2165,7 @@ git commit -m "feat(cli): asset add/set/list, enveloppe par défaut"
 
 ---
 
-### Task 10: cli — add (achat/vente), cash set, deposit/withdraw
+### Task 10: cli - add (achat/vente), cash set, deposit/withdraw
 
 **Files:**
 - Create: `internal/cli/add.go`, `internal/cli/cash.go`, `internal/cli/flows.go`
@@ -2219,7 +2219,7 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go test ./internal/cli/ -run TestAddTradeCashAndFlows`
-Expected: FAIL — `unknown command "add"`.
+Expected: FAIL - `unknown command "add"`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -2230,7 +2230,7 @@ Dans `internal/cli/cli.go`, étendre la ligne AddCommand :
 		cashCmd(a), depositCmd(a), withdrawCmd(a))
 ```
 
-`internal/cli/add.go` — `add` et `sell` partagent le même corps ; une quantité négative
+`internal/cli/add.go` - `add` et `sell` partagent le même corps ; une quantité négative
 passée à `add` (derrière `--`, sinon pflag la lit comme un flag) bascule aussi en vente :
 
 ```go
@@ -2456,7 +2456,7 @@ git commit -m "feat(cli): add achat/vente, cash set, deposit/withdraw"
 
 ---
 
-### Task 11: cli — tx list/edit/rm
+### Task 11: cli - tx list/edit/rm
 
 **Files:**
 - Create: `internal/cli/tx.go`
@@ -2501,7 +2501,7 @@ func TestTxListEditRm(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go test ./internal/cli/ -run TestTxListEditRm`
-Expected: FAIL — `unknown command "tx"`.
+Expected: FAIL - `unknown command "tx"`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -2710,12 +2710,12 @@ Expected: PASS.
 
 ```bash
 git add internal/cli
-git commit -m "feat(cli): tx list/edit/rm — ledger éditable"
+git commit -m "feat(cli): tx list/edit/rm - ledger éditable"
 ```
 
 ---
 
-### Task 12: cli — import CSV idempotent
+### Task 12: cli - import CSV idempotent
 
 **Files:**
 - Create: `internal/cli/import.go`
@@ -2814,7 +2814,7 @@ func TestImportCommand(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go test ./internal/cli/ -run TestImport`
-Expected: FAIL — `undefined: importCSV`.
+Expected: FAIL - `undefined: importCSV`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -2873,7 +2873,7 @@ func importCmd(a *app) *cobra.Command {
 }
 
 // importCSV reads header-mapped transactions: date, kind, account, asset,
-// quantity, price, amount, currency, group, note — in any column order.
+// quantity, price, amount, currency, group, note - in any column order.
 // Unknown accounts and assets are created on the fly; lines whose content
 // hash is already in the book are skipped.
 func importCSV(b *domain.Book, r io.Reader) (added, skipped int, err error) {
@@ -3015,7 +3015,7 @@ git commit -m "feat(cli): import CSV idempotent, création des comptes/actifs à
 
 ---
 
-### Task 13: cli — config, lock, finition de la phase
+### Task 13: cli - config, lock, finition de la phase
 
 **Files:**
 - Create: `internal/cli/config.go`, `internal/cli/lock.go`
@@ -3042,7 +3042,7 @@ func TestConfigSetGet(t *testing.T) {
 - [ ] **Step 2: Vérifier l'échec**
 
 Run: `go test ./internal/cli/ -run TestConfigSetGet`
-Expected: FAIL — `unknown command "config"`.
+Expected: FAIL - `unknown command "config"`.
 
 - [ ] **Step 3: Implémenter**
 
@@ -3131,7 +3131,7 @@ func lockCmd(_ *app) *cobra.Command {
 }
 ```
 
-- [ ] **Step 4: Vérifier le succès — toute la phase**
+- [ ] **Step 4: Vérifier le succès - toute la phase**
 
 Run: `gofmt -l . && go vet ./... && go test ./...`
 Expected: gofmt muet, vet muet, tous les packages PASS.
@@ -3143,7 +3143,7 @@ Expected: binaire construit, smoke test manuel OK (création, ajout, listing).
 
 ```bash
 git add internal/cli
-git commit -m "feat(cli): config set/get et lock — la phase A est complète"
+git commit -m "feat(cli): config set/get et lock - la phase A est complète"
 git tag phase-a
 ```
 

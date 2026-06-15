@@ -1,4 +1,4 @@
-# Finador phase G — v0.4 : interface intégralement en anglais
+# Finador phase G - v0.4 : interface intégralement en anglais
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
@@ -34,7 +34,7 @@ Erreurs sentinelles et domaine :
 | référence ambiguë | ambiguous reference |
 | existe déjà | already exists |
 | mot de passe incorrect ou fichier corrompu | wrong password or corrupted file |
-| fichier modifié par un autre processus depuis l'ouverture — relancez la commande | file modified by another process since it was opened — retry the command |
+| fichier modifié par un autre processus depuis l'ouverture - relancez la commande | file modified by another process since it was opened - retry the command |
 | compte / actif / portée | account / asset / scope |
 | (candidats : …) | (candidates: …) |
 | %s (référence vide) | %s (empty reference) |
@@ -50,7 +50,7 @@ Erreurs sentinelles et domaine :
 | TxKind %d non défini / AssetKind %d non défini | undefined TxKind %d / undefined AssetKind %d |
 | pourcentage %q invalide (attendu 0%% à 100%%) | invalid percentage %q (expected 0%% to 100%%) |
 | transaction %d | transaction %d (inchangé) |
-| l'actif %s est référencé par la transaction %d — supprimez d'abord ses transactions (finador tx list --asset %s) | asset %s is referenced by transaction %d — delete its transactions first (finador tx list --asset %s) |
+| l'actif %s est référencé par la transaction %d - supprimez d'abord ses transactions (finador tx list --asset %s) | asset %s is referenced by transaction %d - delete its transactions first (finador tx list --asset %s) |
 
 Store / keyring / market :
 | FR | EN |
@@ -59,7 +59,7 @@ Store / keyring / market :
 | version %d non gérée (finador trop ancien ?) | unsupported version %d (finador too old?) |
 | paramètres Argon2 hors bornes | Argon2 parameters out of bounds |
 | %s existe déjà | %s already exists |
-| %s n'existe pas — lancez 'finador init' pour le créer | %s does not exist — run 'finador init' to create it |
+| %s n'existe pas - lancez 'finador init' pour le créer | %s does not exist - run 'finador init' to create it |
 | contenu illisible | unreadable content |
 | Mot de passe : / Confirmez : | Password: / Confirm: |
 | les mots de passe diffèrent | passwords do not match |
@@ -67,10 +67,10 @@ Store / keyring / market :
 | aucun terminal pour saisir le mot de passe : utilisez FINADOR_PASSWORD | no terminal to type the password: use FINADOR_PASSWORD |
 | symbole pour %q | symbol for %q |
 | cours de %q | quotes for %q |
-| cours de change %s manquant au %s — lancez « finador refresh » | missing %s exchange rate on %s — run 'finador refresh' |
+| cours de change %s manquant au %s - lancez « finador refresh » | missing %s exchange rate on %s - run 'finador refresh' |
 | %s cote en %s mais l'actif est déclaré en %s | %s quotes in %s but the asset is declared in %s |
 
-Portfolio / perf (labels CALCULÉS — jamais les données utilisateur) :
+Portfolio / perf (labels CALCULÉS - jamais les données utilisateur) :
 | FR | EN |
 |---|---|
 | patrimoine (label de la portée All) | portfolio |
@@ -80,9 +80,9 @@ Portfolio / perf (labels CALCULÉS — jamais les données utilisateur) :
 | impôt total calculé par enveloppe ; la ventilation par ligne est approximative | total tax follows the per-account rule; the per-line breakdown is approximate |
 | %s: dernier cours au %s | %s: last quote on %s |
 | %s: valorisé par relevé du %s | %s: valued from its %s statement |
-| %s: aucun cours ni relevé — compté pour 0 | %s: no quote nor statement — counted as 0 |
+| %s: aucun cours ni relevé - compté pour 0 | %s: no quote nor statement - counted as 0 |
 | hypothèse : %s à %s %s | what-if: %s at %s %s |
-| conversion %s→%s impossible — valeur comptée 0 | cannot convert %s→%s — counted as 0 |
+| conversion %s→%s impossible - valeur comptée 0 | cannot convert %s→%s - counted as 0 |
 | aucune transaction : rien à tracer | no transactions: nothing to plot |
 | borne de fin antérieure au début | end date before start date |
 | XIRR non défini pour ces flux… | XIRR undefined for these cashflows (no sign change) |
@@ -90,10 +90,10 @@ Portfolio / perf (labels CALCULÉS — jamais les données utilisateur) :
 | période %q inconnue (…) | unknown period %q (1d, 2d, 5d, 7d, 1m, 3m, ytd, 1y, prev-yr) |
 | **Noms de périodes (entrée CLI ET affichage)** : 1j 2j 5j 7j 1m 3m ytd 1a an-1 origine fenêtre | **1d 2d 5d 7d 1m 3m ytd 1y prev-yr inception window** |
 
-CLI (helps, sorties, en-têtes) — liste non exhaustive, TOUT y passe :
+CLI (helps, sorties, en-têtes) - liste non exhaustive, TOUT y passe :
 | FR | EN |
 |---|---|
-| Suivi de patrimoine chiffré — CLI et web, single binary | Encrypted personal wealth tracker — CLI and web, single binary |
+| Suivi de patrimoine chiffré - CLI et web, single binary | Encrypted personal wealth tracker - CLI and web, single binary |
 | Créé %s | Created %s |
 | Compte %s (%s) créé / Actif %s (%s) créé / Actif %s mis à jour / Actif supprimé | Account %s (%s) created / Asset %s (%s) created / Asset %s updated / Asset deleted |
 | %d importée(s), %d ignorée(s) (doublons) | %d imported, %d skipped (duplicates) |
@@ -112,22 +112,22 @@ CLI (helps, sorties, en-têtes) — liste non exhaustive, TOUT y passe :
 | résolution %q | resolving %q |
 | ≈ borne future ramenée à aujourd'hui | ≈ future date clamped to today |
 | --what-if %q: attendu actif=prix / prix %q invalide | --what-if %q: expected asset=price / invalid price %q |
-| --by %q: attendu groupe ou enveloppe | --by %q: expected group or account — **les VALEURS deviennent `group` / `account`** |
+| --by %q: attendu groupe ou enveloppe | --by %q: expected group or account - **les VALEURS deviennent `group` / `account`** |
 | --exclude %s | --exclude %s (inchangé) |
 | (hors %s) | (excluding %s) |
 | adresse %q invalide | invalid address %q |
 | ATTENTION : %s expose votre patrimoine au-delà de cette machine (aucune authentification web) | WARNING: %s exposes your portfolio beyond this machine (no web authentication) |
-| finador sur http://%s — Ctrl-C pour arrêter / arrêt… | finador on http://%s — Ctrl-C to stop / shutting down… |
+| finador sur http://%s - Ctrl-C pour arrêter / arrêt… | finador on http://%s - Ctrl-C to stop / shutting down… |
 | En-têtes : ID NOM DEVISE FISCALITÉ | ID NAME CURRENCY TAX |
 | ID TYPE NOM TICKER GROUPE DEVISE ALIAS RETENUE | ID TYPE NAME TICKER GROUP CURRENCY ALIASES WITHHOLDING |
 | ID DATE TYPE COMPTE ACTIF QTÉ MONTANT NOTE | ID DATE TYPE ACCOUNT ASSET QTY AMOUNT NOTE |
 | LIGNE BRUT IMPÔT NET / LIGNE VALEUR / TOTAL | LINE GROSS TAX NET / LINE VALUE / TOTAL |
 | PÉRIODE TWR XIRR | PERIOD TWR XIRR |
-| %s — performance (%s), évalué au %s | %s — performance (%s), as of %s |
-| max drawdown %s (%s → %s, récupéré le %s / non récupéré) / max drawdown — aucun | max drawdown %s (%s → %s, recovered on %s / not recovered) / max drawdown — none |
-| (brut, %s) — dernier point : %s | (gross, %s) — last point: %s — idem net |
+| %s - performance (%s), évalué au %s | %s - performance (%s), as of %s |
+| max drawdown %s (%s → %s, récupéré le %s / non récupéré) / max drawdown - aucun | max drawdown %s (%s → %s, recovered on %s / not recovered) / max drawdown - none |
+| (brut, %s) - dernier point : %s | (gross, %s) - last point: %s - idem net |
 | vs réel : brut %+.2f … · net … | vs actual: gross %+.2f … · net … |
-| %s au %s (en-tête value) | %s — %s |
+| %s au %s (en-tête value) | %s - %s |
 | Tous les helps cobra (Short/Long/flags) | anglais, mêmes informations |
 
 Web (templates + render) :
@@ -147,13 +147,13 @@ Web (templates + render) :
 | hors ligne : refresh impossible | offline: cannot refresh quotes |
 | page introuvable / portée introuvable / compte introuvable / transaction introuvable / identifiant invalide / erreur | page not found / unknown scope / unknown account / transaction not found / invalid id / error |
 | ← retour au patrimoine / fil d'ariane « patrimoine » | ← back to overview / breadcrumb "overview" |
-| finador — vos données restent dans votre fichier chiffré. | finador — your data stays in your encrypted file. |
+| finador - vos données restent dans votre fichier chiffré. | finador - your data stays in your encrypted file. |
 | pas encore assez d'historique (pour tracer une courbe). | not enough history yet (to plot a curve). |
 | Formats : frMoney→fmtMoney `1,234.56 €` (séparateur virgule, décimal point, U+00A0+symbole) ; frPct→fmtPct `+2.00%` (sans espace) ; frDate→fmtDate « Wednesday 10 June 2026 » ; frNum→fmtNum `1.26` ; signe inchangé | |
 
 ---
 
-### Task G1: domain, store, keyring, market — erreurs et prompts en anglais
+### Task G1: domain, store, keyring, market - erreurs et prompts en anglais
 
 **Files:** tous les .go de `internal/domain`, `internal/store`, `internal/keyring`,
 `internal/market` (sources ET tests).
@@ -163,16 +163,16 @@ Web (templates + render) :
 - [ ] Step 2 : mettre à jour les assertions de tests qui vérifient ces chaînes
   (`strings.Contains`, `err.Error()`…). Les tests de FORMAT (wire JSON, braille)
   ne changent pas.
-- [ ] Step 3 : `gofmt -l . && go vet ./... && go test ./... -count=1` — vert. Les
+- [ ] Step 3 : `gofmt -l . && go vet ./... && go test ./... -count=1` - vert. Les
   suites cli/web/portfolio peuvent casser si elles assertent ces chaînes : les
   corriger AUSSI dans ce task (le dépôt reste vert à chaque commit).
 - [ ] Step 4 : commit `git commit -m "i18n: domain, store, keyring and market speak English"`
 
-### Task G2: portfolio, perf — labels, marqueurs, périodes en anglais
+### Task G2: portfolio, perf - labels, marqueurs, périodes en anglais
 
 **Files:** `internal/portfolio/*.go`, `internal/perf/*.go` (sources ET tests).
 
-- [ ] Step 1 : glossaire — labels calculés (portfolio→`portfolio`, cash, (ungrouped)),
+- [ ] Step 1 : glossaire - labels calculés (portfolio→`portfolio`, cash, (ungrouped)),
   TaxNote, marqueurs stale/what-if/conversion, erreurs de Series/Scope.
 - [ ] Step 2 : périodes : renommer dans `periods.go` (PeriodRange + Names) :
   `1d 2d 5d 7d 1m 3m ytd 1y prev-yr` ; lignes `inception` et `window` dans
@@ -182,18 +182,18 @@ Web (templates + render) :
 - [ ] Step 4 : portillons verts ; commit
   `git commit -m "i18n: portfolio and perf labels, English period names"`
 
-### Task G3: cli — helps, sorties, en-têtes en anglais
+### Task G3: cli - helps, sorties, en-têtes en anglais
 
 **Files:** `internal/cli/*.go` (sources ET tests), `cmd/finador/main.go` (préfixe
 d'erreur `finador:` inchangé).
 
-- [ ] Step 1 : glossaire — tous les cobra Use/Short/Long/flags, messages imprimés,
+- [ ] Step 1 : glossaire - tous les cobra Use/Short/Long/flags, messages imprimés,
   en-têtes de tableaux, `--by group|account` (valeurs ANGLAISES, erreur adaptée),
   `(excluding …)`, en-têtes value/perf/chart, messages serve/refresh/init/lock.
 - [ ] Step 2 : tests cli réécrits (beaucoup de Contains).
 - [ ] Step 3 : portillons verts ; commit `git commit -m "i18n: the CLI speaks English"`
 
-### Task G4: web — templates, formats et handlers en anglais
+### Task G4: web - templates, formats et handlers en anglais
 
 **Files:** `internal/web/**` (sources, templates, tests).
 
@@ -216,7 +216,7 @@ d'erreur `finador:` inchangé).
   Getting started (commandes vérifiées contre le binaire !), CSV import, web, config,
   data model & security, known limits. SUPPRIMER toute section changelog/«
   Nouveautés ». Pas de section history.
-- [ ] Step 2 : DECISIONS.md — D12 (en français, c'est le journal) : interface
+- [ ] Step 2 : DECISIONS.md - D12 (en français, c'est le journal) : interface
   anglaise, formats anglais, périodes renommées, `--by group|account`, `?by=`,
   commentaires de code et docs inchangés.
 - [ ] Step 3 : contrôle d'exhaustivité : `grep -rn '"[^"]*[éèêàçôûîÉÈÀÇ]' internal/ cmd/ --include='*.go'`
@@ -225,4 +225,4 @@ d'erreur `finador:` inchangé).
   `grep -rn '[éèêàçô]' internal/web/templates/ internal/web/static/`.
 - [ ] Step 4 : portillons + smoke binaire (init/account/asset/add/value/perf/chart
   offline en anglais ; serve + curl : dashboard anglais) ; coller la sortie.
-- [ ] Step 5 : commit `git commit -m "docs: English README without changelog — v0.4 complete"` + `git tag phase-g`
+- [ ] Step 5 : commit `git commit -m "docs: English README without changelog - v0.4 complete"` + `git tag phase-g`

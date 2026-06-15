@@ -17,7 +17,7 @@ func compactCmd(a *app) *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// compact rewrites the ledger, so it must go through the write path
-			// (pull a fresh base, rewrite, push) — not a read. Otherwise, in
+			// (pull a fresh base, rewrite, push) - not a read. Otherwise, in
 			// GitHub mode the compacted copy would never be pushed and the next
 			// pull would silently restore the un-compacted remote.
 			if err := a.mutateFile(func(f *store.File) error {

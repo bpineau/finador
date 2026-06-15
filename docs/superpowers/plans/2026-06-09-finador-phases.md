@@ -1,4 +1,4 @@
-# Finador — découpage en phases
+# Finador - découpage en phases
 
 Spec : `docs/superpowers/specs/2026-06-09-finador-design.md`. Quatre phases, chacune produit
 un logiciel utilisable et testé. Chaque phase a (ou aura) son plan détaillé, écrit juste avant

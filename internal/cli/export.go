@@ -11,7 +11,7 @@ func exportCmd(a *app) *cobra.Command {
 	var ccy, at string
 	cmd := &cobra.Command{
 		Use:   "export",
-		Short: "Export your assets as CSV (ticker, name, ISIN, gross, net) to stdout",
+		Short: "Export every holding as CSV (kind, ticker, name, ISIN, gross, net) to stdout, cash included",
 		Example: "  finador export > assets.csv\n" +
 			"  finador export --ccy USD\n" +
 			"  finador export --at 2024-12-31",
@@ -32,7 +32,7 @@ func exportCmd(a *app) *cobra.Command {
 				return err
 			}
 			ensureDisplayFX(cmd, a, f, display)
-			rows, err := portfolio.AssetRows(b, date, display, market.Converter{FX: b.Market.FX})
+			rows, err := portfolio.AllRows(b, date, display, market.Converter{FX: b.Market.FX})
 			if err != nil {
 				return err
 			}

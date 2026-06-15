@@ -14,7 +14,7 @@ import (
 func labelCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "label",
-		Short:   "Tag a position — an (account, asset) pair — with free-form names",
+		Short:   "Tag a position - an (account, asset) pair - with free-form names",
 		Example: "  finador label add retraite --asset CW8 --account \"PEA BforBank\"",
 	}
 	cmd.AddCommand(labelAdd(a), labelRm(a), labelList(a))

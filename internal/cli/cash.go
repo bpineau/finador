@@ -16,10 +16,10 @@ func cashCmd(a *app) *cobra.Command {
 		Long: `Record cash activity on an account envelope.
 
 Which subcommand to use:
-  deposit/withdraw  — external cash entering or leaving an envelope (an apport
+  deposit/withdraw  - external cash entering or leaving an envelope (an apport
                       or retrait). These are neutral for performance: they feed
                       the tax basis and XIRR but do not count as gains or losses.
-  set               — the observed balance of the account at a point in time.
+  set               - the observed balance of the account at a point in time.
                       The gap between two statements counts as performance
                       (e.g. interest earned on a savings account).`,
 		Example: "  finador cash deposit \"PEA BforBank\" 10000 2024-01-15",
@@ -40,7 +40,7 @@ func cashSet(a *app) *cobra.Command {
 	var at, ccy string
 	cmd := &cobra.Command{
 		Use:     "set <account> <balance>",
-		Short:   "Set the observed balance of an account (gaps between statements count as performance — use deposit for external contributions)",
+		Short:   "Set the observed balance of an account (gaps between statements count as performance - use deposit for external contributions)",
 		Example: "  finador cash set \"Livret A\" 15000 --at 2026-06-01",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {

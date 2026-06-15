@@ -1,27 +1,27 @@
-# Finador phase C — performance & courbes : plan d'implémentation
+# Finador phase C - performance & courbes : plan d'implémentation
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Les rendements (TWR par périodes, XIRR), les métriques (CAGR, volatilité, Sharpe, Sortino, max drawdown) et les courbes d'évolution (braille en terminal, SVG pour le web de la phase D), sur toute portée.
 
-**Architecture:** `perf` = maths pures sur séries de points et flux (zéro dépendance hors domain pour les dates). `portfolio` gagne un constructeur de séries journalières (marche jour par jour avec état incrémental — PAS un appel à Value() par date, trop coûteux). `chart` = modèle Series + deux renderers golden-testés. CLI : `perf` et `chart`.
+**Architecture:** `perf` = maths pures sur séries de points et flux (zéro dépendance hors domain pour les dates). `portfolio` gagne un constructeur de séries journalières (marche jour par jour avec état incrémental - PAS un appel à Value() par date, trop coûteux). `chart` = modèle Series + deux renderers golden-testés. CLI : `perf` et `chart`.
 
 **Tech Stack:** Go 1.26 pur, stdlib uniquement (math, strings).
 
 **Référence:** spec §6/§7 ; conventions des plans A/B (TDD strict, gofmt/vet silencieux, messages français, commits exacts, pas de binaire committé).
 
 **Décisions actées phase C :**
-- La série de valeur est **journalière calendaire** (nécessaire aux courbes et aux flux datés), avec report des dernières clôtures. Les **rendements pour les métriques ne gardent que les jours de semaine** (le forward-fill des week-ends fabriquerait ~28 % de rendements nuls et écraserait la volatilité) ; annualisation √252 — approximation standard, documentée.
+- La série de valeur est **journalière calendaire** (nécessaire aux courbes et aux flux datés), avec report des dernières clôtures. Les **rendements pour les métriques ne gardent que les jours de semaine** (le forward-fill des week-ends fabriquerait ~28 % de rendements nuls et écraserait la volatilité) ; annualisation √252 - approximation standard, documentée.
 - Convention de flux TWR : flux en **début de jour**, `r_t = (V_t − F_t)/V_{t−1}`, ignoré si `V_{t−1} ≤ 0`.
 - Convention XIRR : flux du point de vue de l'investisseur (apport = négatif, valeur finale = positive), résolu par **bissection** sur [−0.9999, 100], erreur claire si pas de changement de signe.
 - Flux externes relatifs à la portée (spec §6) : All → Deposit/Withdraw, plus Buy/Sell **des comptes au cash non suivi** ; Account → idem restreint au compte ; Group/Asset → Buy/Sell des actifs de la portée (l'argent entre/sort de la poche), dividendes sortants. Les dividendes automatiques d'un compte non suivi sont un flux sortant (revenu encaissé hors scope).
-- Jours sans données (avant la première clôture / FX manquant) : la position contribue **0** à la série, sans erreur — la courbe démarre avec l'historique disponible. (Différent de Value() qui, lui, échoue sur FX manquant : une courbe doit rester traçable.)
-- Courbe `--net` : impôt latent recalculé chaque jour avec l'état incrémental (règle d'enveloppe pour All/Account, position par position pour Group/Asset — mêmes règles que Value()).
+- Jours sans données (avant la première clôture / FX manquant) : la position contribue **0** à la série, sans erreur - la courbe démarre avec l'historique disponible. (Différent de Value() qui, lui, échoue sur FX manquant : une courbe doit rester traçable.)
+- Courbe `--net` : impôt latent recalculé chaque jour avec l'état incrémental (règle d'enveloppe pour All/Account, position par position pour Group/Asset - mêmes règles que Value()).
 - CAGR = TWR annualisé en jours calendaires : `(1+TWR)^(365.25/jours) − 1`. Sharpe = `(moyenne(r)×252 − rf) / vol` (annualisation arithmétique, documentée) ; Sortino pareil avec écart-type des seuls rendements sous `rf/252`.
 
 ---
 
-### Task C1: perf — maths pures (TWR, XIRR, CAGR, vol, Sharpe, Sortino, maxDD)
+### Task C1: perf - maths pures (TWR, XIRR, CAGR, vol, Sharpe, Sortino, maxDD)
 
 **Files:**
 - Create: `internal/perf/perf.go`, `internal/perf/periods.go`
@@ -244,7 +244,7 @@ func TestPeriodRange(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/perf/` → FAIL — undefined: Point, TWR, etc.
+Run: `go test ./internal/perf/` → FAIL - undefined: Point, TWR, etc.
 
 - [ ] **Step 3: implémenter**
 
@@ -373,7 +373,7 @@ func Vol(returns []float64) float64 {
 	return math.Sqrt(ss/float64(len(returns)-1)) * math.Sqrt(252)
 }
 
-// Sharpe uses arithmetic annualization of the mean daily excess return —
+// Sharpe uses arithmetic annualization of the mean daily excess return -
 // the usual simple convention, documented in the plan.
 func Sharpe(returns []float64, rfAnnual float64) float64 {
 	v := Vol(returns)
@@ -510,18 +510,18 @@ func Names() []string {
 
 - [ ] **Step 4: vérifier le succès**
 
-Run: `go test ./internal/perf/ -v && go test ./...` → PASS. gofmt/vet silencieux. Les valeurs attendues des tests sont dérivées dans les tests eux-mêmes (vérité indépendante) — ne pas les modifier pour faire passer.
+Run: `go test ./internal/perf/ -v && go test ./...` → PASS. gofmt/vet silencieux. Les valeurs attendues des tests sont dérivées dans les tests eux-mêmes (vérité indépendante) - ne pas les modifier pour faire passer.
 
 - [ ] **Step 5: commit**
 
 ```bash
 git add internal/perf
-git commit -m "feat(perf): TWR, XIRR, CAGR, volatilité, Sharpe, Sortino, max drawdown — maths pures"
+git commit -m "feat(perf): TWR, XIRR, CAGR, volatilité, Sharpe, Sortino, max drawdown - maths pures"
 ```
 
 ---
 
-### Task C2: portfolio — séries journalières (marche incrémentale)
+### Task C2: portfolio - séries journalières (marche incrémentale)
 
 **Files:**
 - Create: `internal/portfolio/series.go`
@@ -530,20 +530,20 @@ git commit -m "feat(perf): TWR, XIRR, CAGR, volatilité, Sharpe, Sortino, max dr
 La série NE rappelle PAS Value() par date (O(jours × ledger) intenable) : une seule passe
 sur le ledger trié, état incrémental (quantités, coût moyen, cash, bases), valeur calculée
 chaque jour par lookups binaires dans les séries de prix/FX. Les règles fiscales et de cash
-sont CELLES de Value() — le test d'or vérifie l'égalité aux extrémités.
+sont CELLES de Value() - le test d'or vérifie l'égalité aux extrémités.
 
 Conventions de flux externes (cf. tête de plan) :
 - All/Account : Deposit/Withdraw (+/−) ; Buy/Sell des comptes **non suivis** (+/−) ;
   Dividend (manuel ou auto) d'un compte non suivi → flux **sortant** (revenu encaissé hors
   portée). Comptes suivis : trades et dividendes restent internes (le cash est dans la
   portée).
-- Group/Asset : Buy = +montant, Sell = −montant, Dividend (manuel/auto) = −montant —
+- Group/Asset : Buy = +montant, Sell = −montant, Dividend (manuel/auto) = −montant -
   l'argent entre/sort de la poche, quel que soit le suivi du cash (le cash n'est jamais
   dans une portée groupe/actif).
 - Fee : jamais un flux (c'est un coût) ; ignoré si le compte n'a pas de cash suivi
   (documenté).
 - FX ou cours manquant un jour donné : contribution **0** ce jour-là (la courbe démarre
-  avec l'historique disponible) — contrairement à Value() qui échoue, une courbe doit
+  avec l'historique disponible) - contrairement à Value() qui échoue, une courbe doit
   rester traçable.
 
 - [ ] **Step 1: tests qui échouent**
@@ -687,7 +687,7 @@ func TestSeriesAutoDividendFlows(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/portfolio/` → FAIL — undefined: Series.
+Run: `go test ./internal/portfolio/` → FAIL - undefined: Series.
 
 - [ ] **Step 3: implémenter**
 
@@ -709,7 +709,7 @@ type SeriesPoint struct {
 }
 
 // ExternalFlow is money entering (>0) or leaving (<0) the scope, in display
-// currency — what TWR neutralizes and XIRR consumes.
+// currency - what TWR neutralizes and XIRR consumes.
 type ExternalFlow struct {
 	Date   domain.Date
 	Amount float64
@@ -756,7 +756,7 @@ func Series(b *domain.Book, scope Scope, from, to domain.Date, ccy domain.Curren
 }
 ```
 
-NOTE pour l'implémenteur : `domain.Date` n'a pas de méthode After — utiliser
+NOTE pour l'implémenteur : `domain.Date` n'a pas de méthode After - utiliser
 `from.Before(txs[ti].Date)` pour « strictement après from » (les flux du jour `from`
 sont déjà dans la valeur de base V₀ et ne doivent PAS être collectés). Adapter le code
 ci-dessus en conséquence : `collect := from.Before(txs[ti].Date)` et
@@ -1054,7 +1054,7 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 }
 ```
 
-NOTE : `decimalFromFloat` n'existe pas — utiliser `decimal.NewFromFloat` (import
+NOTE : `decimalFromFloat` n'existe pas - utiliser `decimal.NewFromFloat` (import
 `github.com/shopspring/decimal`). La base d'enveloppe est plafonnée à 0
 (`max(0, basis)`) comme dans Value(). `perAccount` est une map : son itération
 n'affecte que des SOMMES (commutatif), le résultat reste déterministe.
@@ -1063,7 +1063,7 @@ n'affecte que des SOMMES (commutatif), le résultat reste déterministe.
 
 Run: `go test ./internal/portfolio/ -v -run TestSeries && go test ./...` → PASS.
 Le test d'or `TestSeriesMatchesValueAtEndpoint` est non négociable : si la série et
-Value() divergent à la date finale, c'est la série qui est fausse — investiguer
+Value() divergent à la date finale, c'est la série qui est fausse - investiguer
 (ordre d'application des relevés/ancres, dividendes, bases) sans toucher à Value().
 
 - [ ] **Step 5: commit**
@@ -1075,7 +1075,7 @@ git commit -m "feat(portfolio): séries journalières de valeur et flux externes
 
 ---
 
-### Task C3: chart — renderer braille pour le terminal
+### Task C3: chart - renderer braille pour le terminal
 
 **Files:**
 - Create: `internal/chart/braille.go`
@@ -1195,7 +1195,7 @@ func TestFormatCompact(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/chart/` → FAIL — undefined: Braille.
+Run: `go test ./internal/chart/` → FAIL - undefined: Braille.
 
 - [ ] **Step 3: implémenter**
 
@@ -1320,7 +1320,7 @@ func trimZero(s string) string {
 NOTE : vérifier les attentes de TestFormatCompact à la main : 1234567/1e6 = 1.234567 →
 "1.23" → "1.23M" ✓ ; 473890/1e3 = 473.89 → 'f' 1 → "473.9" → "473.9k" ✓ ; 1500/1e3 =
 1.5 → "1.5k" ✓ ; −4230.5/1e3 = −4.2305 → "-4.2k" ✓. La rampe de 60 jours va de
-2026-01-01 à 2026-03-01 (59 jours plus tard) — vérifier avec AddDays(59).
+2026-01-01 à 2026-03-01 (59 jours plus tard) - vérifier avec AddDays(59).
 
 - [ ] **Step 4: vérifier le succès**
 
@@ -1335,7 +1335,7 @@ git commit -m "feat(chart): courbes braille pour le terminal"
 
 ---
 
-### Task C4: chart — renderer SVG (pour la phase D)
+### Task C4: chart - renderer SVG (pour la phase D)
 
 **Files:**
 - Create: `internal/chart/svg.go`
@@ -1406,7 +1406,7 @@ func TestSVGDeterministic(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/chart/` → FAIL — undefined: SVG, Line.
+Run: `go test ./internal/chart/` → FAIL - undefined: SVG, Line.
 
 - [ ] **Step 3: implémenter**
 
@@ -1528,7 +1528,7 @@ git commit -m "feat(chart): renderer SVG autonome multi-courbes"
 
 ---
 
-### Task C5: cli — commande perf (périodes + métriques)
+### Task C5: cli - commande perf (périodes + métriques)
 
 **Files:**
 - Create: `internal/cli/perf.go`
@@ -1538,26 +1538,26 @@ git commit -m "feat(chart): renderer SVG autonome multi-courbes"
 Sortie :
 
 ```
-PEA BforBank — performance (EUR), évalué au 2026-06-05
+PEA BforBank - performance (EUR), évalué au 2026-06-05
 PÉRIODE   TWR       XIRR
-1j        +0.00%    —
-5j        +1.82%    —
-1m        +2.00%    —
-3m        +2.00%    —
-ytd       +2.00%    —
-1a        +2.00%    —
-an-1      —         —
+1j        +0.00%    -
+5j        +1.82%    -
+1m        +2.00%    -
+3m        +2.00%    -
+ytd       +2.00%    -
+1a        +2.00%    -
+an-1      -         -
 origine   +2.00%    +5.07%
 
 CAGR +5.10%   vol 4.05%   Sharpe 1.26   Sortino 1.71   (rf 0.0%)
-max drawdown −0.00% — aucun
+max drawdown −0.00% - aucun
 ```
 
 (Les nombres ci-dessus sont illustratifs SAUF ceux affirmés par le test : TWR origine
-+2.00 % avec la fixture fake. Le XIRR des fenêtres < 30 jours s'affiche « — » : annualiser
++2.00 % avec la fixture fake. Le XIRR des fenêtres < 30 jours s'affiche « - » : annualiser
 un rendement d'un jour n'a pas de sens.)
 
-Règles : `--to` fixe la date d'évaluation (défaut aujourd'hui) — les périodes sont
+Règles : `--to` fixe la date d'évaluation (défaut aujourd'hui) - les périodes sont
 relatives à cette date ; `--from` avec `--to` ajoute une ligne « fenêtre » au tableau ;
 le taux sans risque vient de `config risk-free` (« 2.4% ») ; les métriques (CAGR, vol,
 Sharpe, Sortino, maxDD) sont calculées sur la série depuis l'origine jusqu'à `--to`.
@@ -1586,7 +1586,7 @@ func TestPerfEndToEnd(t *testing.T) {
 		}
 	}
 	// XIRR des fenêtres courtes : tiret
-	if !strings.Contains(out, "—") {
+	if !strings.Contains(out, "-") {
 		t.Errorf("tiret XIRR absent:\n%s", out)
 	}
 
@@ -1599,7 +1599,7 @@ func TestPerfEndToEnd(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/cli/ -run TestPerfEndToEnd` → FAIL — unknown command "perf".
+Run: `go test ./internal/cli/ -run TestPerfEndToEnd` → FAIL - unknown command "perf".
 
 - [ ] **Step 3: implémenter**
 
@@ -1667,7 +1667,7 @@ func perfCmd(a *app) *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 2, 4, 2, ' ', 0)
-			fmt.Fprintf(cmd.OutOrStdout(), "%s — performance (%s), évalué au %s\n", scope.Label, display, evalTo)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s - performance (%s), évalué au %s\n", scope.Label, display, evalTo)
 			fmt.Fprintln(w, "PÉRIODE\tTWR\tXIRR")
 			for _, name := range perf.Names() {
 				pf, pt, err := perf.PeriodRange(name, evalTo)
@@ -1702,7 +1702,7 @@ func perfCmd(a *app) *cobra.Command {
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "max drawdown %s (%s → %s, %s)\n", pct(dd.Depth), dd.Peak, dd.Trough, rec)
 			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), "max drawdown — aucun")
+				fmt.Fprintln(cmd.OutOrStdout(), "max drawdown - aucun")
 			}
 			return nil
 		},
@@ -1735,20 +1735,20 @@ func window(res portfolio.SeriesResult, from, to domain.Date) ([]perf.Point, []p
 func twrCell(res portfolio.SeriesResult, from, to domain.Date) string {
 	pts, flows := window(res, from, to)
 	if len(pts) < 2 {
-		return "—"
+		return "-"
 	}
 	return pct(perf.TWR(pts, flows))
 }
 
-// xirrCell: windows shorter than 30 days print "—" (annualizing a daily move
+// xirrCell: windows shorter than 30 days print "-" (annualizing a daily move
 // is meaningless).
 func xirrCell(res portfolio.SeriesResult, from, to domain.Date) string {
 	if to.Time().Sub(from.Time()).Hours() < 30*24 {
-		return "—"
+		return "-"
 	}
 	pts, flows := window(res, from, to)
 	if len(pts) < 2 || pts[0].Value <= 0 {
-		return "—"
+		return "-"
 	}
 	cfs := []perf.Flow{{Date: pts[0].Date, Amount: -pts[0].Value}}
 	for _, fl := range flows {
@@ -1757,7 +1757,7 @@ func xirrCell(res portfolio.SeriesResult, from, to domain.Date) string {
 	cfs = append(cfs, perf.Flow{Date: pts[len(pts)-1].Date, Amount: pts[len(pts)-1].Value})
 	r, err := perf.XIRR(cfs)
 	if err != nil {
-		return "—"
+		return "-"
 	}
 	return pct(r)
 }
@@ -1780,7 +1780,7 @@ func riskFree(b *domain.Book) float64 {
 }
 ```
 
-NOTE : `pct` n'ajoute pas de signe « + » — le test attend "+2.00%". Adapter : pour les
+NOTE : `pct` n'ajoute pas de signe « + » - le test attend "+2.00%". Adapter : pour les
 cellules TWR/XIRR utiliser un format signé (`%+.2f%%` via
 `fmt.Sprintf("%+.2f%%", x*100)`) et garder `pct` non signé pour CAGR/vol/rf. Définir
 deux helpers : `pctSigned` et `pct`. Vérifier la cohérence avec le test (le test cherche
@@ -1794,12 +1794,12 @@ Run: `go test ./internal/cli/ -run TestPerfEndToEnd -v && go test ./...` → PAS
 
 ```bash
 git add internal/cli
-git commit -m "feat(cli): perf — TWR/XIRR par période, CAGR, vol, Sharpe, Sortino, max drawdown"
+git commit -m "feat(cli): perf - TWR/XIRR par période, CAGR, vol, Sharpe, Sortino, max drawdown"
 ```
 
 ---
 
-### Task C6: cli — commande chart + finition de phase
+### Task C6: cli - commande chart + finition de phase
 
 **Files:**
 - Create: `internal/cli/chart.go`
@@ -1843,7 +1843,7 @@ func TestChartEndToEnd(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/cli/ -run TestChartEndToEnd` → FAIL — unknown command "chart".
+Run: `go test ./internal/cli/ -run TestChartEndToEnd` → FAIL - unknown command "chart".
 
 - [ ] **Step 3: implémenter**
 
@@ -1918,7 +1918,7 @@ func chartCmd(a *app) *cobra.Command {
 				pts[i] = perf.Point{Date: p.Date, Value: v}
 			}
 			last := pts[len(pts)-1]
-			fmt.Fprintf(cmd.OutOrStdout(), "%s (%s, %s) — dernier point : %s\n",
+			fmt.Fprintf(cmd.OutOrStdout(), "%s (%s, %s) - dernier point : %s\n",
 				scope.Label, label, display, money(last.Value, display))
 			fmt.Fprint(cmd.OutOrStdout(), chart.Braille(pts, width, height))
 			return nil
@@ -1934,7 +1934,7 @@ func chartCmd(a *app) *cobra.Command {
 }
 ```
 
-- [ ] **Step 4: vérifier le succès — toute la phase**
+- [ ] **Step 4: vérifier le succès - toute la phase**
 
 Run: `gofmt -l . && go vet ./... && go test ./... -count=1` → tout vert.
 
@@ -1959,7 +1959,7 @@ sur « origine », aucune erreur, aucun accès réseau.
 
 ```bash
 git add internal/cli
-git commit -m "feat(cli): chart — courbe braille de la valeur, brut ou net"
+git commit -m "feat(cli): chart - courbe braille de la valeur, brut ou net"
 git tag phase-c
 ```
 

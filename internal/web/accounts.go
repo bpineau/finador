@@ -63,7 +63,7 @@ func (s *Server) accountCreate(w http.ResponseWriter, r *http.Request) {
 type accountEditData struct {
 	Today      domain.Date
 	Account    *domain.Account
-	TaxMode    string // "none" | "gains" | "value" — drives the <select>
+	TaxMode    string // "none" | "gains" | "value" - drives the <select>
 	TaxRatePct string // rate as a percentage string, e.g. "17.2"
 	AliasesCSV string
 	Error      string

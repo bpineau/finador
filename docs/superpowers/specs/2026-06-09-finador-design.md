@@ -1,6 +1,6 @@
-# Finador — design
+# Finador - design
 
-*2026-06-09 — spec validée pendant la session de brainstorming.*
+*2026-06-09 - spec validée pendant la session de brainstorming.*
 
 Outil personnel de suivi de patrimoine (façon Finary / portfolio Yahoo Finance), en Go,
 **single binary**, utilisable indifféremment en ligne de commande et en web, données dans
@@ -29,7 +29,7 @@ Outil personnel de suivi de patrimoine (façon Finary / portfolio Yahoo Finance)
 finador/
 ├── cmd/finador/main.go     # wiring + racine cobra
 └── internal/
-    ├── domain/      # types métier : Account, Asset, Transaction, Money, Currency, Date — zéro dépendance
+    ├── domain/      # types métier : Account, Asset, Transaction, Money, Currency, Date - zéro dépendance
     ├── store/       # conteneur chiffré : Open/Save du snapshot, versions & migrations
     ├── keyring/     # mot de passe : prompt sans écho + cache Keychain macOS (par tty, TTL)
     ├── market/      # interface PriceSource + impl. Yahoo (clôtures, FX, dividendes) + politique de cache
@@ -41,7 +41,7 @@ finador/
 ```
 
 **Règle de dépendance.** `domain` ne dépend de rien. `portfolio` et `perf` ne dépendent que
-de `domain` et reçoivent les prix par interface — testables sans réseau. `cli` et `web` sont
+de `domain` et reçoivent les prix par interface - testables sans réseau. `cli` et `web` sont
 deux façades minces sur le même moteur : toute capacité CLI existe en web et réciproquement.
 
 **Dépendances externes** (courtes, volontairement) :
@@ -83,22 +83,22 @@ type Account struct {
   `Σ achats − Σ produits de vente`.
 - **`TaxOnValue`** (PER déduit à l'entrée…) : tout le contenu est taxable. `impôt = valeur × taux`.
 
-Partout où une valeur s'affiche : **brut, impôt latent estimé, net** — y compris les courbes
+Partout où une valeur s'affiche : **brut, impôt latent estimé, net** - y compris les courbes
 (la base fiscale est datée, la courbe nette est donc exacte dans le temps). La valeur nette
 par *groupe* (qui croise plusieurs enveloppes) applique le taux de l'enveloppe position par
-position — approximation documentée, exacte quand l'enveloppe est liquidée en bloc.
+position - approximation documentée, exacte quand l'enveloppe est liquidée en bloc.
 
 Le slug **et** le nom libre sont acceptés partout où une enveloppe est attendue (CLI, CSV, web).
 
 ### Actifs
 
 ```go
-type AssetKind uint8 // Security | Property — le cash n'est pas un actif, il est porté par le compte
+type AssetKind uint8 // Security | Property - le cash n'est pas un actif, il est porté par le compte
 
 type Asset struct {
-    ID       AssetID   // slug stable : "cw8", "maison-acheres"
+    ID       AssetID   // slug stable : "cw8", "maison-renover"
     Kind     AssetKind
-    Name     string    // "Amundi MSCI World", "Maison à Achères"
+    Name     string    // "Amundi MSCI World", "Maison à Rénover"
     Ticker   string    // Security : symbole Yahoo ("CW8.PA")
     ISIN     string    // optionnel ; résolu en ticker via la recherche Yahoo
     Aliases  []string  // noms libres acceptés partout où un actif est attendu
@@ -108,7 +108,7 @@ type Asset struct {
 ```
 
 - **Security** : valorisé `quantité détenue × clôture(date) × FX(date)`.
-- **Property** (« Maison à Achères ») : estimations datées, fonction en escalier.
+- **Property** (« Maison à Rénover ») : estimations datées, fonction en escalier.
 - Le **cash** n'est pas un actif : c'est un attribut de chaque compte (cf. ci-dessous).
 - Le **groupe** vit sur l'actif (la stratégie ne dépend pas de l'enveloppe qui loge la ligne) ;
   toute commande accepte un préfixe de chemin : `finador value actions` agrège le sous-arbre.
@@ -134,10 +134,10 @@ type Transaction struct {
 }
 ```
 
-### Sémantique du cash — une règle
+### Sémantique du cash - une règle
 
 Dans un compte, les trades bougent le cash : Buy débite, Sell et Dividend créditent, Fee
-débite — un achat est **neutre en valeur**, comme dans la réalité. `Statement` ancre un solde
+débite - un achat est **neutre en valeur**, comme dans la réalité. `Statement` ancre un solde
 constaté à une date (et absorbe les écarts entre relevés). `Deposit`/`Withdraw` marquent les
 flux externes (ils alimentent la base fiscale et le XIRR).
 
@@ -148,7 +148,7 @@ la performance et la base fiscale. Aucune configuration : le comportement décou
 ### Import CSV
 
 Colonnes par en-tête, ordre libre : `date, kind, account, asset, quantity, price, amount,
-currency, group, note` — `price` (unitaire) **ou** `amount` (total), l'autre se déduit. Les
+currency, group, note` - `price` (unitaire) **ou** `amount` (total), l'autre se déduit. Les
 actifs et comptes inconnus sont créés à la volée. Import **idempotent** : chaque ligne reçoit
 un hash de contenu, les doublons sont ignorés au ré-import.
 
@@ -157,7 +157,7 @@ un hash de contenu, les doublons sont ignorés au ré-import.
 Récupérés de Yahoo (`events=div`) et **dérivés à la volée** (pas matérialisés dans le ledger) :
 `quantité détenue à l'ex-date × montant`, crédités au cash du compte s'il est suivi, sinon
 comptés comme revenu externe dans la performance. Si un actif a au moins un `Dividend` manuel,
-l'automatique est désactivé pour cet actif (pas de double compte). Montants bruts — la retenue
+l'automatique est désactivé pour cet actif (pas de double compte). Montants bruts - la retenue
 à la source n'est pas modélisée en v1 (approximation documentée).
 
 ## 4. Stockage : le fichier `.fin`
@@ -180,9 +180,9 @@ l'automatique est désactivé pour cet actif (pas de double compte). Montants br
 - Ouverture : mdp → clé → déchiffrement → structs en RAM. Sauvegarde : JSON → gzip → chiffre →
   write tmp → fsync → **rename atomique**, l'ancienne version devient `.bak`.
 - Un mauvais mot de passe et un fichier altéré sont indistinguables par construction (échec
-  d'authentification GCM) — le message d'erreur l'explique.
+  d'authentification GCM) - le message d'erreur l'explique.
 - Le **cache de prix vit dans le fichier chiffré** : la liste des tickers détenus est une
-  métadonnée sensible. Volumétrie attendue : quelques Mo avant gzip — réécriture intégrale
+  métadonnée sensible. Volumétrie attendue : quelques Mo avant gzip - réécriture intégrale
   à chaque save, négligeable à cette échelle.
 - L'octet de version permet les migrations de schéma futures.
 
@@ -215,7 +215,7 @@ type PriceSource interface {
 
 ## 6. Moteur : valorisation & performance
 
-**Valorisation.** `Value(scope, date, devise)` — titres = quantité × clôture × FX ; cash et
+**Valorisation.** `Value(scope, date, devise)` - titres = quantité × clôture × FX ; cash et
 biens = escalier des relevés/estimations. Devise d'affichage EUR par défaut, `--ccy USD`.
 Affichage brut ou net d'impôt latent (`--net`).
 
@@ -244,7 +244,7 @@ finador init                                   # crée le .fin (mdp demandé 2×
 finador account add "PEA BforBank" --tax gains:17.2%
 finador account add "PER Linxea"   --tax value:20%
 finador asset  add CW8.PA --group actions/monde
-finador asset  set maison-acheres 450000 --at 2026-06-01
+finador asset  set maison-renover 450000 --at 2026-06-01
 finador add    cw8 10 @550 2026-06-01 --account "PEA BforBank"   # qty<0 = vente
 finador cash   set "CTO Saxo" 12500
 finador deposit|withdraw "PEA BforBank" 5000 2026-01-10
@@ -267,13 +267,13 @@ variations), courbes braille via `chart/term`. Exit codes : 0 ok, 1 erreur d'usa
 `finador serve` déverrouille en terminal puis sert sur `127.0.0.1` (pas d'auth web : local par
 défaut ; avertissement explicite si on binde une autre interface). **Zéro JavaScript** : pages
 `html/template`, formulaires POST/redirect, courbes SVG inline rendues par `chart/svg`, CSS
-écrit main — le tout embarqué via `go:embed`.
+écrit main - le tout embarqué via `go:embed`.
 
-- `/` — dashboard : valeur totale brut/net, variation du jour, courbe SVG, répartition par
+- `/` - dashboard : valeur totale brut/net, variation du jour, courbe SVG, répartition par
   groupe, perfs par périodes ;
-- `/group/{path}`, `/account/{id}`, `/asset/{id}` — la « vue de portée » : valeur, courbe,
+- `/group/{path}`, `/account/{id}`, `/asset/{id}` - la « vue de portée » : valeur, courbe,
   métriques, lignes détenues, transactions ;
-- `/tx` — liste + formulaires d'ajout/édition/suppression ; `/import` — upload CSV ;
+- `/tx` - liste + formulaires d'ajout/édition/suppression ; `/import` - upload CSV ;
   bouton refresh (POST).
 
 En mode serve, le store est protégé par un `sync.RWMutex` ; chaque mutation sauvegarde

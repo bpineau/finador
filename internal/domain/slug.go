@@ -8,7 +8,7 @@ var accents = strings.NewReplacer(
 )
 
 // Slugify turns a free-form name into a stable identifier:
-// "PEA BforBank" → "pea-bforbank", "Maison à Achères" → "maison-a-acheres".
+// "PEA BforBank" → "pea-bforbank", "Maison à Rénover" → "maison-a-renover".
 func Slugify(name string) string {
 	s := accents.Replace(strings.ToLower(name))
 	var out []rune

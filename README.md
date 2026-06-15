@@ -1,13 +1,13 @@
 # finador
 
-A personal, encrypted wealth tracker in a single Go binary — think Finary or a
+A personal, encrypted wealth tracker in a single Go binary - think Finary or a
 Yahoo Finance portfolio, but **yours**: every account, security, property and cash
 balance lives in **one encrypted file** on your machine, usable from the **command
 line and the web** alike.
 
 ```
 $ finador value
-portfolio — 2026-06-10
+portfolio - 2026-06-10
 LINE      GROSS           TAX          NET
 equities  18050.00 EUR    361.20 EUR   17688.80 EUR
 property  450000.00 EUR   9000.00 EUR  441000.00 EUR
@@ -17,7 +17,7 @@ TOTAL     486060.00 EUR   9361.20 EUR  476698.80 EUR
 
 - **One encrypted file.** Argon2id + AES-256-GCM, atomic writes with a `.bak`,
   password prompted once and optionally cached in the macOS Keychain per terminal.
-- **Tax envelopes.** Every account carries its tax rule — `gains:18.6%` (only the
+- **Tax envelopes.** Every account carries its tax rule - `gains:18.6%` (only the
   gain beyond your contributions is taxed, à la PEA/CTO) or `value:20%` (the whole
   value is taxed, à la PER). Everything can be shown **gross, estimated tax, net**.
 - **Any asset.** Listed securities (Yahoo quotes, automatic dividends, FX crossed
@@ -25,11 +25,11 @@ TOTAL     486060.00 EUR   9361.20 EUR  476698.80 EUR
   dated estimates.
 - **Real performance.** TWR (strategy performance, flows neutralized) and XIRR
   (what your money actually earned), CAGR, volatility, Sharpe, Sortino, max
-  drawdown — per period, per scope.
+  drawdown - per period, per scope.
 - **Curves everywhere.** Braille charts in the terminal, server-rendered SVG on the
   web. Zero JavaScript, zero external resources.
 
-Build (Go ≥ 1.26, nothing else — pure Go, no CGo, no JS toolchain):
+Build (Go ≥ 1.26, nothing else - pure Go, no CGo, no JS toolchain):
 
 ```sh
 go build -trimpath -o bin/finador ./cmd/finador
@@ -66,7 +66,7 @@ its flags and an example. For a full from-scratch setup of an existing portfolio
 ### Which command do I use?
 
 The whole model fits in one table. The crux: **`deposit`/`withdraw` move *external*
-cash in and out of an envelope (a contribution/withdrawal — neutral for
+cash in and out of an envelope (a contribution/withdrawal - neutral for
 performance); `set` records an *observed* value or balance, and the change since the
 previous `set` counts as performance.**
 
@@ -75,25 +75,25 @@ previous `set` counts as performance.**
 | Buy/sell a quoted security (quantity + price) | `asset buy` / `asset sell` | a trade, builds the cost basis |
 | A dividend received / a fee paid on a security | `asset dividend` / `asset fee` | income / cost |
 | Record the **observed value** of a property or unlisted holding | `asset set` | change vs the previous value = **performance** |
-| Move **external cash** in/out of an envelope | `cash deposit` / `cash withdraw` | a contribution / withdrawal — **neutral** |
+| Move **external cash** in/out of an envelope | `cash deposit` / `cash withdraw` | a contribution / withdrawal - **neutral** |
 | Record the **observed balance** of an envelope | `cash set` | change vs the previous balance = **performance** |
 
 The first `asset set` / `cash set` on an account is treated as an *acquisition* (an
-external flow), not as performance — only later changes count.
+external flow), not as performance - only later changes count.
 
-### Declaring a holding — two equivalent ways
+### Declaring a holding - two equivalent ways
 
 There are **two interchangeable ways** to declare an asset and record activity on it.
-They reach the **same end state** — pick whichever fits the moment.
+They reach the **same end state** - pick whichever fits the moment.
 
-**A. Declare, then record** — set the asset up once (alias, group, ISIN…), then trade it:
+**A. Declare, then record** - set the asset up once (alias, group, ISIN…), then trade it:
 
 ```sh
 finador asset add CW8.PA --alias cw8 --group equities/world
 finador asset buy cw8 100 90000 --account "PEA BforBank" --label core
 ```
 
-**B. One shot** — `buy` creates the security on the fly (Yahoo-resolved), accepting the
+**B. One shot** - `buy` creates the security on the fly (Yahoo-resolved), accepting the
 **same** `--alias`/`--group` at creation and `--label` for the position:
 
 ```sh
@@ -101,24 +101,24 @@ finador asset buy CW8.PA 100 90000 --account "PEA BforBank" --group equities/wor
 ```
 
 Both leave you with the asset declared (alias `cw8`, group `equities/world`), the buy
-recorded, and the position tagged `core` — they are equivalent. `asset dividend` and
+recorded, and the position tagged `core` - they are equivalent. `asset dividend` and
 `asset fee` auto-create the same way. Reach for **A** when setting several assets up
 first, or for **ISIN-only funds** (no Yahoo ticker) and **properties**
-(`--kind property`) — which only `asset add` can create; reach for **B** for quick entry
+(`--kind property`) - which only `asset add` can create; reach for **B** for quick entry
 of a quoted security.
 
 ### Onboard a seasoned account (existing holdings, no history to backfill)
 
 You're starting with a **full PEA**: ~150,000 € contributed over the years, now
 worth ~170,000 €, fully invested in a couple of funds. You won't retrace every
-trade. The cash didn't stay as cash — you bought shares — so declare today's
+trade. The cash didn't stay as cash - you bought shares - so declare today's
 **positions**, not a cash balance. Your broker statement gives you, per line, the
 **quantity** held and the **amount you invested** (its cost basis / PRU).
 
 ```sh
 finador account add "PEA BforBank" --tax gains:18.6%
 
-# asset buy <asset> <shares held> <amount you invested> — straight off your statement.
+# asset buy <asset> <shares held> <amount you invested> - straight off your statement.
 # For ticker-quoted securities you don't need a separate `asset add`: buy creates them
 # on the fly, resolving the name and currency from Yahoo. Tag a position inline with --label.
 finador asset buy CW8.PA 100 90000 --account "PEA BforBank" --group equities/world --alias cw8 --label core
@@ -133,7 +133,7 @@ finador refresh    # live prices → current value = shares × price
 
 `finador value` then values your positions at the live price (~170,000 €) with
 the envelope's taxable basis at what you invested (90k + 60k = **150,000 €**), so only
-the ~20,000 € gain is taxed — and future growth is taxed on the new excess
+the ~20,000 € gain is taxed - and future growth is taxed on the new excess
 automatically. You also get the real **composition**: per-fund allocation, live price
 tracking, and `perf` per fund / `--label`.
 
@@ -141,28 +141,28 @@ tracking, and `perf` per fund / `--label`.
   costs. For a buy-and-hold PEA that equals your *versements*. If internal churn or
   dividend reinvestment made your cost basis differ from your real versements, anchor
   the exact figure with `finador cash deposit "PEA BforBank" 150000` and enter the buys
-  at cost (the cash nets to ~0) — the deposit then defines the basis whatever happened
+  at cost (the cash nets to ~0) - the deposit then defines the basis whatever happened
   inside the envelope.
 - **A fund with no Yahoo quote?** Value it with `finador asset set "<fund>" <current
   value>` instead of relying on `refresh` (the statement is the price fallback).
 
 **Honest note:** you didn't backfill the trades, so the historical gain isn't
-attributed to `perf` (finador has no history to compute it from) — only moves **after**
+attributed to `perf` (finador has no history to compute it from) - only moves **after**
 this declaration show up in performance. The tax is exact regardless. Buy dates are
 approximate; for a euro account they don't change the basis.
 
-### Invest cash into the market — the everyday move
+### Invest cash into the market - the everyday move
 
-The move you make most once set up. Key rule: **a declared holding is never a gain** — a
+The move you make most once set up. Key rule: **a declared holding is never a gain** - a
 `buy` is capital deployed at that day's market value, so it reads 0 %, not +100 %.
 
 ```sh
-# MANDATORY — just record the buys. This IS the whole operation (buy creates the asset
+# MANDATORY - just record the buys. This IS the whole operation (buy creates the asset
 # on the fly via its Yahoo ticker; @100 = unit price, a bare number = total).
 finador asset buy CW8.PA   200 @100 --account "CTO" --group equities/world   # 20 000 €
 finador asset buy PE500.PA 250 @40  --account "CTO" --group equities/us      # 10 000 €
 
-# OPTIONAL — the cash side, only if you want to see idle / uninvested balances.
+# OPTIONAL - the cash side, only if you want to see idle / uninvested balances.
 # A move between accounts = a pair (no "transfer" verb), neutral for performance:
 finador cash withdraw "Livret A" 30000     # leaves the savings account
 finador cash deposit  "CTO"      30000     # lands on the broker; the buys spend it down to ~0
@@ -180,26 +180,26 @@ Same account = a `sell` then a `buy`. No cash step needed (both legs are in the 
 ```sh
 finador asset sell CW8.PA 3 @100 --account "CTO"   # 3 out → 300 €
 finador asset buy  AAPL   2 @150 --account "CTO"   # 2 in → 300 €; neutral for perf (a swap, not money in/out)
-finador asset fee  CW8.PA 1.50  --account "CTO"    # any trading cost — this one DOES weigh on performance
+finador asset fee  CW8.PA 1.50  --account "CTO"    # any trading cost - this one DOES weigh on performance
 # the sell trims CW8.PA's basis proportionally; the buy sets AAPL's basis, tracked from there.
 # a sell also CREDITS the proceeds as cash on the account (unlike Finary/Yahoo, where a sale just
-# closes the position) — so a sale you don't reinvest stays visible as cash to redeploy later.
+# closes the position) - so a sale you don't reinvest stays visible as cash to redeploy later.
 ```
 
 ### Buy a real-estate property
 
 A property is valued by dated `asset set` statements: the **first** is the acquisition
-(a contribution), **later** ones are performance — it's all in the comments.
+(a contribution), **later** ones are performance - it's all in the comments.
 
 ```sh
-finador account add "Patrimoine immo" --tax gains:36.2%   # --tax = your regime (private gain vs pro/BIC)
+finador account add "Patrimoine immo" --tax gains:37.6%   # --tax = your regime (private gain 19% + 18.6% social; vs pro/BIC)
 finador asset add "Appart Lyon" --kind property --group realestate
 
 finador asset set "Appart Lyon" 250000 --account "Patrimoine immo" --at 2022-06-01  # acquisition basis = price + works + notaire fees
 finador asset set "Appart Lyon" 270000 --at 2024-01-01                              # revaluation → the gap is performance (no --account needed now)
 ```
 
-A buy-renovate-resell (*marchand de biens*-style flip) records **identically** — only the
+A buy-renovate-resell (*marchand de biens*-style flip) records **identically** - only the
 tax regime differs:
 
 ```sh
@@ -210,7 +210,7 @@ finador asset set renov 0 --at 2026-09-15                                    # s
 finador cash set "Compte courant" 350000 --at 2026-10-02                     # proceeds when they land
 ```
 
-### Sell a property (cash decoupled — the real-life flow)
+### Sell a property (cash decoupled - the real-life flow)
 
 In real life the sale and the money landing on your bank account happen weeks apart,
 often on a different account. finador models exactly that: close the position when
@@ -224,8 +224,8 @@ finador cash set "Compte Boursorama" 295000 --at 2025-11-02   # or: cash deposit
 ```
 
 **Honest note:** between those two dates your net worth reflects the money *in
-transit* — the property already at 0, the cash not yet recorded. That gap is real,
-not a bug: it's the time your money spent at the notary. History is **not** deleted —
+transit* - the property already at 0, the cash not yet recorded. That gap is real,
+not a bug: it's the time your money spent at the notary. History is **not** deleted -
 the property's whole valuation trail stays in the ledger.
 
 ### Cash
@@ -233,11 +233,11 @@ the property's whole valuation trail stays in the ledger.
 ```sh
 finador cash set "Livret A" 15000 --at 2026-06-01    # declare an observed balance
 finador tx rm <id-prefix>                            # remove an erroneous declaration (id from `tx list`)
-finador cash set "Livret A" 0                         # "no more cash" — declares an empty balance
+finador cash set "Livret A" 0                         # "no more cash" - declares an empty balance
 ```
 
 Use `cash deposit "Livret A" 500` (not `set`) when you actually *added* €500 from
-outside — that's a contribution, neutral for performance, while a `set` 500 higher
+outside - that's a contribution, neutral for performance, while a `set` 500 higher
 than the last balance would be counted as a gain.
 
 ### Securities
@@ -266,7 +266,7 @@ finador tx rm <id-prefix>                            # delete a line entirely
 ```
 
 Ids resolve by **unique prefix**, like short git SHAs (`tx edit 8x3k …`). A
-correction appends a small record rather than rewriting the file — friendly to
+correction appends a small record rather than rewriting the file - friendly to
 git-synced storage. `finador compact` rewrites a minimal journal dropping the
 superseded records; rarely needed.
 
@@ -288,8 +288,8 @@ ledger is re-sealed in place; the previous file is kept as `.bak`.
 
 ## Concepts
 
-**The file is the database.** Everything — accounts, assets, the transaction
-ledger, the quote cache — lives in one encrypted `.fin` file (default
+**The file is the database.** Everything - accounts, assets, the transaction
+ledger, the quote cache - lives in one encrypted `.fin` file (default
 `~/.finador.fin`, override with `--db` or `FINADOR_DB`). Copying that file *is*
 your backup. All derived state (positions, cost bases, series) is recomputed by
 replaying the ledger, so transactions can always be edited or deleted safely.
@@ -310,12 +310,12 @@ treated as external flows in performance.
 **`cash deposit` ≠ `cash set`.** A *contribution* is entered with
 `cash deposit`/`cash withdraw` (it feeds the tax basis and XIRR). `cash set`
 records an *observed balance*, and the gap between two statements counts as
-performance — that's how savings-account interest is captured. The first statement
+performance - that's how savings-account interest is captured. The first statement
 of an account or property is treated as an *acquisition* (an external flow), not as
 performance.
 
 **Asset references.** Anywhere an asset is expected you may use its id, ticker,
-ISIN, any alias, or its full name — case-insensitive. If every exact match fails,
+ISIN, any alias, or its full name - case-insensitive. If every exact match fails,
 a **unique prefix** wins: `finador value cw8` finds `cw8-pa`. An ambiguous prefix
 fails and lists the candidates. The same applies to account names.
 
@@ -366,8 +366,8 @@ finador asset rm <asset>              # refused while transactions reference it
 For a `security`, the argument is the Yahoo ticker; unless `--offline`, finador
 resolves it (canonical symbol, full name, quote currency) through Yahoo search.
 For a `property`, the argument is just a name. `asset set` records a dated
-valuation statement: it is how properties — and securities that Yahoo doesn't
-quote (unlisted funds, private equity) — get their value. When an asset has both
+valuation statement: it is how properties - and securities that Yahoo doesn't
+quote (unlisted funds, private equity) - get their value. When an asset has both
 market quotes and statements, quotes win.
 
 ### Recording activity
@@ -400,7 +400,7 @@ finador tx rm <id>
 ```
 
 Only the flags you pass change; everything else is preserved. Since all derived
-state is replayed from the ledger, editing history is always safe — values, bases
+state is replayed from the ledger, editing history is always safe - values, bases
 and performance recompute instantly.
 
 ### Valuation: `value`
@@ -426,29 +426,29 @@ finador value [scope] [--at YYYY-MM-DD] [--ccy USD] [--gross]
 finador perf [scope] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c] [--exclude refs]...
 ```
 
-Prints a period table — `1d 5d 1m 3m ytd 1y prev-yr inception` (plus a `window`
-row when `--from` is given) — with three complementary measures:
+Prints a period table - `1d 5d 1m 3m ytd 1y prev-yr inception` (plus a `window`
+row when `--from` is given) - with three complementary measures:
 
 - **TWR** chains daily returns with external flows neutralized: the performance of
   the *strategy*, comparable across scopes.
 - **XIRR** is the money-weighted annual rate of *your* euros, contributions
   included. Shown only for windows ≥ 30 days (annualizing a daily move is noise).
-- **GAIN** is the money made or lost over the window, *net of contributions* — the
+- **GAIN** is the money made or lost over the window, *net of contributions* - the
   value change your deposits and onboarding declarations don't explain. Declaring
   "I hold 1000 € of X" is not a 1000 € gain; only what it earns afterwards counts.
 
 Periods that predate your first transaction are omitted (a fresh portfolio has no
-"1y") — the `inception` row always shows the real, full span.
+"1y") - the `inception` row always shows the real, full span.
 
 Below the table: `tracking since <date> (N d)`, then the annualized figures, each
-gated by how much history backs it — **vol, Sharpe, Sortino** appear from ~90 days,
+gated by how much history backs it - **vol, Sharpe, Sortino** appear from ~90 days,
 **CAGR** only from a full year (annualizing a few weeks compounds noise into
 nonsense). Max drawdown shows whenever there's a dip. Risk-free rate comes from
 `config set risk-free 2.4%`; `--to` moves the evaluation date (periods are relative
 to it), which makes output reproducible in scripts.
 
 A holding declared at its *average cost* (the onboarding recipe) enters the
-performance series at its **market value** on the day you record it, not at cost —
+performance series at its **market value** on the day you record it, not at cost -
 so the latent gain you built up before tracking isn't mistaken for a one-day spike.
 Likewise, a property (or any hand-valued holding) is priced by *declaration*, not a
 market: each `asset set` re-bases its value as an adjustment, so entering an old
@@ -471,9 +471,9 @@ after-tax curve.
 finador export [--at YYYY-MM-DD] [--ccy USD] > assets.csv
 ```
 
-Writes a CSV to stdout, one row per held asset — `ticker,name,isin,gross,net,currency` —
-each position valued (gross and after estimated latent tax) like `value`, in the display
-currency. The web app serves the same file from the **export CSV** link at the bottom of
+Writes a CSV to stdout, one row per holding (securities, properties AND cash):
+`kind,ticker,name,isin,gross,net,currency`, each valued (gross and after estimated latent
+tax) like `value`, in the display currency. The web app serves the same file from the **export CSV** link at the bottom of
 the assets tab (`GET /assets.csv`).
 
 ### Quotes: `refresh` and `--offline`
@@ -485,31 +485,31 @@ finador refresh        # force-refresh quotes, FX and dividends from Yahoo
 `value`, `perf` and `chart` refresh stale series automatically (at most once a
 day) before computing; network failures degrade to warnings and the cache keeps
 working. `--offline` skips all of it. The quote cache lives **inside** the
-encrypted file — your ticker list is sensitive metadata.
+encrypted file - your ticker list is sensitive metadata.
 
 ### Atypical assets (funds by ISIN)
 
-Yahoo Finance is the primary quote source (ticker-based). When Yahoo doesn't cover an asset, finador automatically falls back — **by ISIN** — to two additional providers on every `finador refresh`:
+Yahoo Finance is the primary quote source (ticker-based). When Yahoo doesn't cover an asset, finador automatically falls back - **by ISIN** - to two additional providers on every `finador refresh`:
 
-1. **Financial Times** (`markets.ft.com`) — covers a wide range of European funds (SICAV/OPCVM).
-2. **Morningstar via Boursorama** — resolves the ISIN to a Morningstar `0P…` id through Boursorama's fund search, then fetches the daily NAV from `tools.morningstar.fr`.
+1. **Financial Times** (`markets.ft.com`) - covers a wide range of European funds (SICAV/OPCVM).
+2. **Morningstar via Boursorama** - resolves the ISIN to a Morningstar `0P…` id through Boursorama's fund search, then fetches the daily NAV from `tools.morningstar.fr`.
 
 The chain is: **Yahoo → FT → Morningstar**. The first provider that returns data wins; a provider that can't find the asset signals `ErrNotCovered` and the chain falls through transparently.
 
-**Typical usage — a French/Luxembourg fund:**
+**Typical usage - a French/Luxembourg fund:**
 
 ```sh
 finador asset add "Indépendance AM Europe Small" --isin LU1832174962
 finador refresh    # priced via FT or Morningstar automatically
 ```
 
-**Honest limitation — French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an Eres Sélection fund) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain covers them. Value them manually:
+**Honest limitation - French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an Eres Sélection fund) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain covers them. Value them manually:
 
 ```sh
 finador asset set "Eres Sélection Équilibre" 4250.00 --account "PEE Entreprise"
 ```
 
-All three providers are implemented with no extra dependency — stdlib HTTP and `regexp` only.
+All three providers are implemented with no extra dependency - stdlib HTTP and `regexp` only.
 
 ### Web: `serve`
 
@@ -517,7 +517,7 @@ All three providers are implemented with no extra dependency — stdlib HTTP and
 finador serve [--addr 127.0.0.1:8451]
 ```
 
-Unlocks the file in the terminal, then serves the whole app — dashboard with
+Unlocks the file in the terminal, then serves the whole app - dashboard with
 allocation trees (by group / by account), an allocation donut at the bottom of
 the overview showing top-level group weights and cash with a muted palette and
 an HTML legend, an **assets tab** showing every holding on one dense row with
@@ -561,11 +561,11 @@ finador sync                                                               # for
 
 | Command | What it does |
 |---|---|
-| `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `finador.fin`) is the file's path inside the repo; `--branch` (default **`master`** — pass `--branch main` if that's your repo's default branch, finador doesn't auto-detect it). |
+| `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `finador.fin`) is the file's path inside the repo; `--branch` (default **`master`** - pass `--branch main` if that's your repo's default branch, finador doesn't auto-detect it). |
 | `remote login` | Prompts for the fine-grained PAT, stores it in the macOS Keychain (re-run to rotate), and **verifies it can reach the repo** (a bad/expired token is reported now, not at the next sync). `GITHUB_TOKEN` overrides it. |
-| `remote adopt` | Uploads an existing local `.fin` (`--from`, default `~/.finador.fin`) to the remote as-is — a one-time migration. Refuses to overwrite an existing remote file unless `--force`. |
+| `remote adopt` | Uploads an existing local `.fin` (`--from`, default `~/.finador.fin`) to the remote as-is - a one-time migration. Refuses to overwrite an existing remote file unless `--force`. |
 | `remote show` | Prints the active mode, the repo/path/branch and the sync state (last pull, unpushed changes). Never prints the token. |
-| `remote off` | Sets `source: local` — commands use `~/.finador.fin` again. |
+| `remote off` | Sets `source: local` - commands use `~/.finador.fin` again. |
 | `sync` | Forces a pull now (don't wait the hourly refresh) and pushes pending offline changes, reconciling via `merge` if the remote moved. |
 
 **Config file** `~/.config/finador/config.json` (plain JSON, hand-editable):
@@ -582,16 +582,16 @@ local mode for a single invocation, whatever the config says.
 
 **Behaviour & errors**
 - **Reads** use the local working copy, pulling from GitHub only when it's older than
-  `readPullAfter`. **Writes** always pull first, then push — **one commit per save**.
+  `readPullAfter`. **Writes** always pull first, then push - **one commit per save**.
 - **Offline:** reads use the local copy; a write succeeds locally, is marked pending, and is
-  pushed on the next online command or `sync` — never lost.
+  pushed on the next online command or `sync` - never lost.
 - **Concurrent change** (another machine pushed): the push is reconciled automatically (union +
   last-writer-wins by timestamp); a genuine same-field/same-instant clash prompts you to choose.
-- **Bad/missing token** → `github authentication failed` (run `finador remote login`) — reported
+- **Bad/missing token** → `github authentication failed` (run `finador remote login`) - reported
   distinctly from being offline.
 - The GitHub Contents API caps a file at ~1 MB; the ledger (market cache excluded) stays well
   under it. `finador lock` forgets both cached passwords and the GitHub token.
-- **Already have a local file?** `init` starts fresh and `sync` only pulls an existing remote —
+- **Already have a local file?** `init` starts fresh and `sync` only pulls an existing remote -
   neither imports a pre-existing `~/.finador.fin`. Migrate it with **`finador remote adopt`**,
   which uploads the encrypted file as-is (no password needed) and installs it as the working
   copy.
@@ -599,7 +599,7 @@ local mode for a single invocation, whatever the config says.
   `--path my-wallet.fin`. The one rule: the config `--path` must match the actual file name in
   the repo, or finador won't find it (the usual first-time snag).
 - **No file found at the remote?** Reads and `sync` report it and show the path/branch they
-  looked at — a wrong `--path` or `--branch` (finador defaults to `master`) is the usual cause;
+  looked at - a wrong `--path` or `--branch` (finador defaults to `master`) is the usual cause;
   check `finador remote show`. For a genuinely new repo, run `init` or `remote adopt`.
 
 ## CSV import
@@ -630,7 +630,7 @@ date,kind,account,asset,quantity,price,amount,currency,group,note
 
 ## Advanced usage
 
-**Scripting.** Set `FINADOR_PASSWORD` to skip the prompt (less secure — prefer the
+**Scripting.** Set `FINADOR_PASSWORD` to skip the prompt (less secure - prefer the
 Keychain interactively), `FINADOR_DB` for the file path. Output is plain
 tab-aligned text, colors disappear automatically when piping. All errors exit 1
 with a single-line `finador: …` message.
@@ -642,7 +642,7 @@ FINADOR_PASSWORD=… finador --db work.fin value --ccy USD | grep TOTAL
 **Multi-currency.** Each account and asset has its own currency; ledger amounts
 keep theirs. Conversions cross through USD with daily Yahoo FX, *at each flow's
 own date* for bases and *at the valuation date* for values. Display anything in
-any currency with `--ccy` — the needed FX series is fetched on demand.
+any currency with `--ccy` - the needed FX series is fetched on demand.
 
 **Dividends.** Listed assets get their dividends automatically from Yahoo
 (quantity held at ex-date × gross amount, credited to tracked cash). Set a
@@ -666,7 +666,7 @@ finador chart equities --from 2025-01-01     # one pocket, custom window
 ```
 
 Compute performance or value of a subset by **envelope** (`"PEA BforBank"`), by
-**group** (`equities/world`), or by **label** (`--label retraite` — all positions
+**group** (`equities/world`), or by **label** (`--label retraite` - all positions
 tagged with that label, regardless of envelope). Combine with `--exclude` to drop
 specific assets: `finador perf --label retraite --exclude CW8` works. Labels are
 attached to (account, asset) pairs via `finador label add`. Exclusions accept any
@@ -689,18 +689,18 @@ done; every figure recomputes. `asset edit` renames, regroups, retickers or
 realiases without touching the ledger. Reference collisions (an alias equal to
 another asset's ticker, …) are rejected to keep resolution unambiguous. The file
 is an append-only journal, so a correction (`tx edit`, `tx rm`, even on an old
-entry) appends a small record rather than rewriting the file — friendly to
+entry) appends a small record rather than rewriting the file - friendly to
 git-synced storage. `finador compact` rewrites a minimal journal, dropping the
 superseded records; rarely needed.
 
 **Concurrent access.** The web server and the CLI can share the file: writes are
 protected by optimistic locking. If another process wrote since you opened, the
-save fails with *"file modified by another process since it was opened — retry
+save fails with *"file modified by another process since it was opened - retry
 the command"* instead of silently overwriting. (A long-running `serve` whose file
 was modified by the CLI will refuse further web writes until restarted.)
 
 **Backup & recovery.** The previous version of the file is kept next to it as
-`.bak` on every save. Both are fully self-contained — password parameters live in
+`.bak` on every save. Both are fully self-contained - password parameters live in
 the authenticated header. A wrong password and a corrupted file are
 indistinguishable by design.
 
@@ -732,7 +732,7 @@ one repo. Local mode stays the default and the fallback.
    finador init                  # creates and pushes the encrypted file
    ```
    **If your repo's default branch isn't `master`** (e.g. `main`), add `--branch main` to
-   `remote set` — finador defaults to `master` and does **not** auto-detect the repo's branch.
+   `remote set` - finador defaults to `master` and does **not** auto-detect the repo's branch.
 
    **Already have a populated `~/.finador.fin`?** Don't run `init` (it would start empty).
    After `remote set` + `remote login`, migrate it in one command:
@@ -740,25 +740,25 @@ one repo. Local mode stays the default and the fallback.
    finador remote adopt          # uploads ~/.finador.fin as-is (still encrypted), then reads it
    ```
    On another machine, repeat steps 1–3 with the same repo/token (and matching `--branch`),
-   then run any command — it pulls the existing `finador.fin`.
+   then run any command - it pulls the existing `finador.fin`.
 
 **How sync works**
 
 - **Reads** use a local working copy, refreshed from GitHub when it's older than an hour
   (configurable via `readPullAfter`). `finador sync` forces a refresh now.
-- **Writes** pull the latest first, apply the change, then push immediately — **each save is a
+- **Writes** pull the latest first, apply the change, then push immediately - **each save is a
   commit**, so GitHub shows your history with the small per-change append-log diffs.
 - **Offline**, a write succeeds locally and is pushed on the next online command (or `sync`).
-- If another machine pushed meanwhile, finador **reconciles automatically** — the same
+- If another machine pushed meanwhile, finador **reconciles automatically** - the same
   union / last-writer-wins / merge as [`finador merge`](#reconcile-two-machines); random ids +
   timestamps make it lossless for independent changes, and a true same-instant conflict asks
   you to choose.
 
 **Good to know**
 
-- The repo contains only the **AES-256-GCM-encrypted** ledger — a leaked repo reveals nothing.
+- The repo contains only the **AES-256-GCM-encrypted** ledger - a leaked repo reveals nothing.
   The token lives in the Keychain (never in the config or logs); `finador lock` forgets it.
-- The **market cache stays local** (it's regenerable) — only the ledger travels, keeping the
+- The **market cache stays local** (it's regenerable) - only the ledger travels, keeping the
   repo small and the diffs clean.
 - `finador remote show` prints the mode and sync state; `finador remote off` returns to local;
   `finador --db <path> <cmd>` forces local for a single command.
@@ -769,7 +769,7 @@ one repo. Local mode stays the default and the fallback.
 - The transaction ledger is the single source of truth; positions, tax bases and
   series are replays. Transaction ids are stable and never reused.
 - File layout: `magic ‖ version ‖ Argon2id parameters ‖ salt ‖ nonce ‖
-  AES-256-GCM(gzip(JSON))` — the clear header is authenticated (AAD), so any
+  AES-256-GCM(gzip(JSON))` - the clear header is authenticated (AAD), so any
   tampered byte fails decryption. Atomic writes (tmp + fsync + rename).
 - KDF: Argon2id, time=3, memory=64 MiB. Parameters are bounds-checked before
   derivation, so a forged file cannot OOM the process.
@@ -784,6 +784,6 @@ implementation plans live under `docs/superpowers/`.
 
 Yahoo quotes are unofficial. Automatic dividends are gross unless you set a
 per-asset withholding. Per-line tax in breakdowns is a per-position approximation
-(the total follows the exact per-envelope rule — a footnote says so when they
+(the total follows the exact per-envelope rule - a footnote says so when they
 differ). No benchmark comparison yet. Last-writer wins across processes (with
 conflict detection, see above). Exit code is always 1 on error.

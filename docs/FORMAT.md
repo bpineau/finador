@@ -6,8 +6,8 @@ example a native Android client) without looking at finador's source. Every deta
 below was checked against the reference implementation in
 `internal/store/{header,record,log,store,cache}.go` and `internal/domain/id.go`.
 
-The format uses only universal primitives — **AES-256-GCM**, **Argon2id**,
-**HKDF-SHA256**, **base64**, **gzip**, **UTF-8 JSON** — so it is implementable on
+The format uses only universal primitives - **AES-256-GCM**, **Argon2id**,
+**HKDF-SHA256**, **base64**, **gzip**, **UTF-8 JSON** - so it is implementable on
 any platform (Android/Kotlin, iOS/Swift, web/WASM, …).
 
 If anything below disagrees with the code, the code wins; please report it.
@@ -41,7 +41,7 @@ spec is named `sample.ledger` for that reason.)
 
 **Storage location is out of scope.** finador can keep this exact file in a local path
 or in a private GitHub repository (synced via the Contents API, one commit per save).
-Either way the bytes and the format are identical — the remote is only a transport. A
+Either way the bytes and the format are identical - the remote is only a transport. A
 reimplementation needs only to read/write these bytes; how they are stored or synced is
 not part of this format.
 
@@ -49,7 +49,7 @@ not part of this format.
 
 ## 2. Cryptography
 
-### 2.1 Key derivation — Argon2id + HKDF-SHA256
+### 2.1 Key derivation - Argon2id + HKDF-SHA256
 
 A single master key is derived from the passphrase with **Argon2id**, then split
 into two independent 32-byte subkeys with **HKDF-SHA256**.
@@ -65,7 +65,7 @@ keyCache = HKDF-SHA256(ikm=master, salt=nil, info="finador-cache-v2",  L=32)
 - `t`, `m` (in **KiB**), `p` are the header's `t`, `m`, `p` fields.
 - Argon2id output length is **32 bytes**.
 - HKDF uses **SHA-256**, an **empty (nil) salt**, and the literal info strings
-  exactly as shown — bytes of the ASCII strings **`finador-ledger-v2`** and
+  exactly as shown - bytes of the ASCII strings **`finador-ledger-v2`** and
   **`finador-cache-v2`** (note: the `-v2` suffix is historical and did not change
   with the v3 record schema). Output length **32 bytes** each.
 
@@ -130,7 +130,7 @@ surface as the same "bad password / corrupt file" error.
 | `m` | int | Argon2id memory in **KiB** |
 | `p` | int | Argon2id parallelism |
 | `salt` | string | base64 (standard, padded) of 16 random bytes |
-| `id` | string | base64 (standard, padded) of 16 random bytes — the file's stable identity, used only to name the sidecar cache |
+| `id` | string | base64 (standard, padded) of 16 random bytes - the file's stable identity, used only to name the sidecar cache |
 
 `salt` and `id` are standard base64 (the default of Go's `encoding/json` for
 `[]byte`): standard alphabet, **with** `=` padding.
@@ -141,7 +141,7 @@ the head. Editing any byte of the header therefore breaks decryption of the whol
 file.
 
 > Implementation note: the reference writer emits the header keys in the order
-> above. Readers must not rely on key order — parse it as JSON. The `hdrHash` is
+> above. Readers must not rely on key order - parse it as JSON. The `hdrHash` is
 > computed over the **literal on-disk line bytes**, so a reader must hash the raw
 > first line rather than a re-serialized form.
 
@@ -153,9 +153,9 @@ Each record line is:
 base64_std( nonce[12] ‖ AES-256-GCM(plaintext, AAD) )
 ```
 
-- `nonce` — 12 random bytes.
+- `nonce` - 12 random bytes.
 - The GCM output is `ciphertext ‖ tag[16]`.
-- `plaintext` — the UTF-8 JSON of one record envelope (§4).
+- `plaintext` - the UTF-8 JSON of one record envelope (§4).
 - base64 is **standard alphabet, padded**.
 
 **Record AAD** (these are the *exact bytes*, concatenated, no separators):
@@ -273,7 +273,7 @@ These reflect the actual JSON produced by the Go domain types (custom
 `MarshalText` means several enums and the tax rule serialize as **strings**, and
 decimals serialize as **strings**).
 
-#### `acct` — create/update an account (folds an upsert by `id`)
+#### `acct` - create/update an account (folds an upsert by `id`)
 
 ```json
 {"id":"<id>","name":"PEA BforBank","ccy":"EUR","tax":"gains:17.2%","aliases":["pea"]}
@@ -293,13 +293,13 @@ decimals serialize as **strings**).
 times 100 (the stored rate is a fraction, rendered back as a percentage; e.g. a
 17.2% rule round-trips as `"gains:17.2%"`).
 
-#### `acct-del` — delete an account
+#### `acct-del` - delete an account
 
 ```json
 {"id":"<account-id>"}
 ```
 
-#### `asset` — create/update an asset (upsert by `id`)
+#### `asset` - create/update an asset (upsert by `id`)
 
 ```json
 {"id":"<id>","kind":"security","name":"CW8.PA","ticker":"CW8.PA","isin":"LU…","aliases":["cw8"],"ccy":"EUR","group":"equities/world","withholding":0.15}
@@ -320,13 +320,13 @@ times 100 (the stored rate is a fraction, rendered back as a percentage; e.g. a
 `kind` is a **string**, not a number. (Internally `security = 1`, `property = 2`,
 but the wire form is the text via `MarshalText`.)
 
-#### `asset-del` — delete an asset
+#### `asset-del` - delete an asset
 
 ```json
 {"id":"<asset-id>"}
 ```
 
-#### `config` — set a config key (folds into a key→value map)
+#### `config` - set a config key (folds into a key→value map)
 
 ```json
 {"key":"default-account","value":"pea-bforbank"}
@@ -335,7 +335,7 @@ but the wire form is the text via `MarshalText`.)
 Both `key` and `value` are strings. Known keys include `currency`, `risk-free`,
 `keychain-ttl`, `default-account`, but the map is open.
 
-#### `tx` — create a transaction · `tx-edit` — replace it (both upsert by `id`)
+#### `tx` - create a transaction · `tx-edit` - replace it (both upsert by `id`)
 
 `tx` and `tx-edit` carry the **same payload schema**; the kind only signals to a
 reader whether this is a first write or a correction. The fold treats both as an
@@ -350,10 +350,10 @@ upsert by `id`.
 | `id` | string | transaction id |
 | `date` | string | civil day `YYYY-MM-DD` (no time, no zone). This is the **business** date; ordering for display uses it. |
 | `account` | string | account **id** |
-| `asset` | string | asset **id**; optional — **omitted for pure cash** (deposit/withdraw/cash statement) |
+| `asset` | string | asset **id**; optional - **omitted for pure cash** (deposit/withdraw/cash statement) |
 | `kind` | string | one of **`buy`, `sell`, `dividend`, `fee`, `deposit`, `withdraw`, `statement`** |
-| `qty` | string | decimal as string; `"0"` when not applicable (cash, statement). Always non-negative — `kind` carries direction. |
-| `amount` | object | `{"amount":"<decimal string>","ccy":"<3-letter>"}` — always non-negative |
+| `qty` | string | decimal as string; `"0"` when not applicable (cash, statement). Always non-negative - `kind` carries direction. |
+| `amount` | object | `{"amount":"<decimal string>","ccy":"<3-letter>"}` - always non-negative |
 | `note` | string | optional |
 | `importHash` | string | optional; CSV-import idempotency fingerprint |
 
@@ -361,15 +361,15 @@ upsert by `id`.
 `cash set` and `asset set` both record a `statement` (a `statement` with an `asset`
 is a property/holding valuation; without an `asset` it is an account cash balance).
 
-#### `tx-del` — delete a transaction
+#### `tx-del` - delete a transaction
 
 ```json
 {"id":"<tx-id>"}
 ```
 
-#### `label` — tag a position (upsert by `id`)
+#### `label` - tag a position (upsert by `id`)
 
-A label tags a **position** — a specific (account, asset) couple — with a
+A label tags a **position** - a specific (account, asset) couple - with a
 free-form name. Each assignment is its **own random-id entity**, so a pair can
 carry any number of labels, and two machines tagging the same pair union with no
 conflict (each adds a distinct id).
@@ -390,7 +390,7 @@ for a future "wildcard"** (empty `account` = all accounts, empty `asset` = all
 assets); adding that meaning later is additive and needs no new kind. The fold
 treats `label` as an upsert by `id`.
 
-#### `label-del` — remove a label
+#### `label-del` - remove a label
 
 ```json
 {"id":"<label-id>"}
@@ -427,13 +427,13 @@ id-keyed collections (accounts, assets, transactions) plus a config map:
 There is **no derived numbering**: ids are self-assigned at creation, so nothing
 else is reconstructed during the fold. All higher-level state (positions, cost
 bases, tax bases, value series) is recomputed afterward from the folded
-transactions — it is never stored.
+transactions - it is never stored.
 
 Because every correction is just another record that supersedes or tombstones an
 earlier one, history is never rewritten in place; editing or deleting an old entry
 appends a small record.
 
-An unknown `k` must be treated as a hard error (§8) — never silently skipped.
+An unknown `k` must be treated as a hard error (§8) - never silently skipped.
 
 ---
 
@@ -448,7 +448,7 @@ On save it:
    producing the minimal set of new records (a created/changed entity ⇒ a fresh
    record; a removed entity ⇒ a `*-del` record). Order within a save: `config`,
    then accounts (and account deletes), then assets (and asset deletes), then
-   transactions (`tx` for new, `tx-edit` for changed) and transaction deletes —
+   transactions (`tx` for new, `tx-edit` for changed) and transaction deletes -
    definitions before references.
 2. **Re-emits all existing record lines byte-for-byte**, then appends the new
    sealed lines continuing the hash chain (each new record's `seq` continues from
@@ -471,7 +471,7 @@ full version.
   critical section of a save across processes (no-op on platforms without flock).
 - **Optimistic concurrency**: a reader records the file's `(size, mtime)` at open;
   on save, if the current `(size, mtime)` differs, the save is refused with a
-  "modified by another process — retry" error rather than overwriting.
+  "modified by another process - retry" error rather than overwriting.
 
 ### 6.4 Compaction
 
@@ -516,7 +516,7 @@ file:
 ```
 
 The cache is fully **regenerable**: a missing, unreadable or stale sidecar is not an
-error — a quote refresh rebuilds it. An alternate implementation can ignore the
+error - a quote refresh rebuilds it. An alternate implementation can ignore the
 cache entirely and refetch quotes itself.
 
 ---
@@ -527,7 +527,7 @@ The header `v` is the format version (**currently 3**). The rules, in order of
 importance for financial safety:
 
 1. **A reader MUST refuse an unknown `v`.** A file with a version the reader does
-   not implement is rejected outright — never partially read.
+   not implement is rejected outright - never partially read.
 2. **Within a known `v`, a reader MUST ignore unknown fields of a known `k`.** New
    optional fields may be added to an existing record kind **without** a version
    bump (additive, forward/backward-compatible evolution). Implementations should
@@ -535,7 +535,7 @@ importance for financial safety:
    recognize.
 3. **A new `k` (or a changed meaning of an existing `k`) REQUIRES a version bump.**
    A reader MUST treat an unknown `k` as a hard error. A financial ledger must never
-   silently skip a record it does not understand — doing so could hide money.
+   silently skip a record it does not understand - doing so could hide money.
    (Exception while v3 is **pre-release and unfrozen**: kinds may still be *added*
    to v3 without a bump. The `label` / `label-del` kinds were added this way. Once
    v3 is frozen, rule 3 applies strictly.)
@@ -548,7 +548,7 @@ iOS or the web without finador-specific dependencies.
 
 ## 9. Test vectors
 
-Real, computed values — use them to validate an independent implementation.
+Real, computed values - use them to validate an independent implementation.
 
 ### 9.1 KDF vector
 
@@ -572,7 +572,7 @@ where `master = Argon2id(password, salt, t=3, m=65536, p=4, 32)`,
 `keyLog = HKDF-SHA256(master, nil, "finador-ledger-v2", 32)` and
 `keyCache = HKDF-SHA256(master, nil, "finador-cache-v2", 32)`.
 
-> Note: these subkeys depend only on the master and the info strings — they are
+> Note: these subkeys depend only on the master and the info strings - they are
 > independent of `p` beyond its effect on the master. An alternate implementation
 > should recompute all three and match exactly.
 

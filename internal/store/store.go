@@ -23,7 +23,7 @@ import (
 )
 
 // ErrConcurrent signals another process wrote the file since it was opened.
-var ErrConcurrent = errors.New("file modified by another process since it was opened — retry the command")
+var ErrConcurrent = errors.New("file modified by another process since it was opened - retry the command")
 
 type diskStamp struct {
 	size  int64
@@ -77,7 +77,7 @@ func Open(path, password string) (*File, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("%s does not exist — run 'finador init' to create it", path)
+			return nil, fmt.Errorf("%s does not exist - run 'finador init' to create it", path)
 		}
 		return nil, err
 	}
@@ -171,8 +171,8 @@ func atomicWrite(path string, data []byte, backup bool) error {
 	return os.Rename(tmp, path)
 }
 
-// Compact rewrites a minimal log from the current Book — dropping superseded and
-// tombstoned records — with a fresh chain. One full-file rewrite; rare.
+// Compact rewrites a minimal log from the current Book - dropping superseded and
+// tombstoned records - with a fresh chain. One full-file rewrite; rare.
 func (f *File) Compact() error {
 	unlock, err := lockSidecar(f.Path + ".lock")
 	if err != nil {

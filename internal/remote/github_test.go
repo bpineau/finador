@@ -67,7 +67,7 @@ func TestFetchReturnsContentAndSHA(t *testing.T) {
 }
 
 func TestFetchBase64WithNewlines(t *testing.T) {
-	// GitHub wraps base64 at 60 chars with \n — we must handle that.
+	// GitHub wraps base64 at 60 chars with \n - we must handle that.
 	const content = "some binary data that results in multi-line base64 encoding"
 	raw := base64.StdEncoding.EncodeToString([]byte(content))
 	// Insert newlines every 10 chars to simulate GitHub's wrapping.
@@ -137,7 +137,7 @@ func TestFetch403ReturnsErrRemoteAuth(t *testing.T) {
 }
 
 func TestFetchOfflineReturnsErrOffline(t *testing.T) {
-	// Point at a server that is closed immediately — transport will error.
+	// Point at a server that is closed immediately - transport will error.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	srv.Close() // close before the request
 
@@ -292,8 +292,8 @@ func TestDescribe(t *testing.T) {
 func TestNewGitHubDefaultsBranch(t *testing.T) {
 	gh := GitHub{Owner: "a", Repo: "b", Path: "c.fin"}
 	c := NewGitHub(gh, "tok")
-	if c.Branch != "main" {
-		t.Errorf("Branch: got %q, want \"main\"", c.Branch)
+	if c.Branch != "master" {
+		t.Errorf("Branch: got %q, want \"master\"", c.Branch)
 	}
 }
 

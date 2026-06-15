@@ -189,7 +189,7 @@ Add `ByLabel` case in `hasAsset` (after `ByAccountGroup`):
 		return s.Pairs[pairKey{acc: acc.ID, asset: asset.ID}]
 ```
 
-`hasCash` already falls through to `return false` for unrecognised kinds — no change needed (ByLabel is not `All` or `ByAccount`).
+`hasCash` already falls through to `return false` for unrecognised kinds - no change needed (ByLabel is not `All` or `ByAccount`).
 
 Add `ByLabel` to `lineLabel` (after `ByAccountGroup`):
 
@@ -268,7 +268,7 @@ func TestSeriesExternalFlowsLabelScope(t *testing.T) {
 }
 ```
 
-Also add `"fmt"` import if not already present in the test file (the existing file doesn't import fmt — check and add only if needed).
+Also add `"fmt"` import if not already present in the test file (the existing file doesn't import fmt - check and add only if needed).
 
 - [ ] **Step 2: Run test to confirm it fails**
 
@@ -276,7 +276,7 @@ Also add `"fmt"` import if not already present in the test file (the existing fi
 cd /Users/ben/projects/finador && go test ./internal/portfolio/ -run 'TestSeriesExternalFlowsLabelScope' -count=1
 ```
 
-Expected: FAIL — ByLabel buy flows are not collected (falls into the `default` case).
+Expected: FAIL - ByLabel buy flows are not collected (falls into the `default` case).
 
 - [ ] **Step 3: Add `ByLabel` to all three switches in `series.go`**
 
@@ -338,7 +338,7 @@ Expected: all PASS.
 
 ```bash
 git add internal/portfolio/series.go internal/portfolio/series_test.go
-git commit -m "feat(portfolio): ByLabel flows — add ByLabel alongside ByGroup/ByAsset in series switches"
+git commit -m "feat(portfolio): ByLabel flows - add ByLabel alongside ByGroup/ByAsset in series switches"
 ```
 
 ---
@@ -498,7 +498,7 @@ func valueCmd(a *app) *cobra.Command {
 	var exclude, whatIf []string
 	cmd := &cobra.Command{
 		Use:   "value [scope]",
-		Short: "Portfolio value — all, a group, an account or an asset",
+		Short: "Portfolio value - all, a group, an account or an asset",
 		Example: "  finador value --net\n" +
 			"  finador value --at 2024-12-31\n" +
 			"  finador value equities/world\n" +
@@ -615,7 +615,7 @@ finador chart equities --from 2025-01-01     # one pocket, custom window
 ```
 
 Compute performance or value of a subset by **envelope** (`"PEA BforBank"`), by
-**group** (`equities/world`), or by **label** (`--label retraite` — all positions
+**group** (`equities/world`), or by **label** (`--label retraite` - all positions
 tagged with that label, regardless of envelope). Combine with `--exclude` to drop
 specific assets: `finador perf --label retraite --exclude CW8` works. Labels are
 attached to (account, asset) pairs via `finador label add`. Exclusions accept any
@@ -695,7 +695,7 @@ git add -A   # should be nothing new
 git log --oneline -6
 ```
 
-If everything is already in separate commits, that's fine — the pre-commit hook will run on each. The task specification asks for a single commit with message `feat(perf,value): subset by --label; document group/account/exclude scopes`. If not already done as a single commit, amend or squash as desired, then verify the hook passes.
+If everything is already in separate commits, that's fine - the pre-commit hook will run on each. The task specification asks for a single commit with message `feat(perf,value): subset by --label; document group/account/exclude scopes`. If not already done as a single commit, amend or squash as desired, then verify the hook passes.
 
 ---
 
@@ -721,11 +721,11 @@ If everything is already in separate commits, that's fine — the pre-commit hoo
 | cli_test.go: perf --label, value --label, mutual exclusion, unknown label, --label + --exclude | Task 3 |
 | README recipe | Task 4 |
 
-**Placeholder scan:** No TBD or placeholders — all steps have complete code.
+**Placeholder scan:** No TBD or placeholders - all steps have complete code.
 
 **Type consistency:**
-- `pairKey` is already defined in `series.go` as `struct{ acc domain.AccountID; asset domain.AssetID }` — used as-is in `LabelScope`.
-- `Scope.Pairs` type is `map[pairKey]bool` — consistent across Task 1 and Task 3.
-- `LabelScope` returns `(Scope, error)` — consistent across Task 1 (definition) and Tasks 2/3 (usage).
-- `b.AddLabel` takes `*domain.Label` — used correctly in test helpers.
-- Field names `ID`, `Account`, `Asset`, `Name` on `domain.Label` — verified against `internal/domain/label.go`.
+- `pairKey` is already defined in `series.go` as `struct{ acc domain.AccountID; asset domain.AssetID }` - used as-is in `LabelScope`.
+- `Scope.Pairs` type is `map[pairKey]bool` - consistent across Task 1 and Task 3.
+- `LabelScope` returns `(Scope, error)` - consistent across Task 1 (definition) and Tasks 2/3 (usage).
+- `b.AddLabel` takes `*domain.Label` - used correctly in test helpers.
+- Field names `ID`, `Account`, `Asset`, `Name` on `domain.Label` - verified against `internal/domain/label.go`.
