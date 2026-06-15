@@ -187,6 +187,14 @@ finador asset buy  apple 2 @150  --account saxo    # 2 shares in → 300 €
 - **Trading fees**, if any: `finador asset fee world 1.50 --account saxo` — a cost that
   *does* weigh on performance (unlike the neutral swap itself).
 
+> **The cash stays in the ledger — the main difference from Finary / Yahoo Finance.**
+> There, declaring a sale just closes the position; the proceeds aren't tracked
+> afterwards. finador is a real double-entry ledger: on a **cash-tracked** account a
+> `sell` *credits the proceeds as cash* (and a `buy` debits it), so a sale you don't
+> reinvest right away leaves the money visible as cash on the account — to withdraw,
+> reinvest later, or just hold. (On an account whose cash you don't track, finador
+> behaves like them: the `sell` simply reduces the holding, nothing is left to follow.)
+
 ### After selling a property (a house)
 
 In real life the sale and the cash landing on your bank account happen weeks apart,

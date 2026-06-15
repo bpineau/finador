@@ -216,6 +216,13 @@ It's **neutral for performance** — you swapped holdings, you didn't add or rem
 basis proportionally; the buy sets AAPL's basis, tracked from there. Record any trading
 cost separately with `asset fee` — that one *does* weigh on performance.
 
+> **The cash stays in the ledger** — the main difference from Finary / Yahoo Finance,
+> where a declared sale just closes the position and the proceeds aren't tracked. On a
+> **cash-tracked** account finador credits a `sell`'s proceeds as cash (and a `buy`
+> debits it), so a sale you don't reinvest leaves the money visible as cash, to withdraw
+> or redeploy later. (On an account whose cash you don't track, it behaves like them:
+> the sell just reduces the holding.)
+
 ### Buy a real-estate property
 
 A property is valued by dated statements (the Statement model). The **first**
