@@ -354,7 +354,7 @@ finador account add <name> [--tax none|gains:N%|value:N%] [--ccy EUR] [--alias a
 finador account list
 ```
 
-Account names are free-form (`"CTO IBKR"`); use `--alias` to add short names
+Account names are free-form (`"CTO Meridia"`); use `--alias` to add short names
 that resolve everywhere.
 
 ### Assets
@@ -621,8 +621,8 @@ date,kind,account,asset,quantity,price,amount,currency,group,note
 2026-01-15,buy,PEA Zephyr,CW8.PA,10,550,,EUR,equities/world,first buy
 2026-01-20,deposit,PEA Zephyr,,,,5000,EUR,,
 2026-02-01,statement,Savings,,,,12000,EUR,,
-2026-03-10,dividend,CTO IBKR,AAPL,,,7.50,USD,,net of withholding
-2026-03-12,fee,CTO IBKR,,,,1.20,USD,,broker fee
+2026-03-10,dividend,CTO Meridia,AAPL,,,7.50,USD,,net of withholding
+2026-03-12,fee,CTO Meridia,,,,1.20,USD,,broker fee
 ```
 
 - `kind` ∈ `buy, sell, deposit, withdraw, dividend, fee, statement`.

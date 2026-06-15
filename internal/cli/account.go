@@ -25,7 +25,7 @@ func accountAdd(a *app) *cobra.Command {
 	var aliases []string
 	cmd := &cobra.Command{
 		Use:     "add <name>",
-		Short:   "Create an account — the name is free: \"PEA Zephyr\", \"CTO IBKR\"…",
+		Short:   "Create an account — the name is free: \"PEA Zephyr\", \"CTO Meridia\"…",
 		Example: "  finador account add \"PEA Zephyr\" --tax gains:17.2% --alias pea",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
