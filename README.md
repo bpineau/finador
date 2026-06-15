@@ -151,6 +151,54 @@ attributed to `perf` (finador has no history to compute it from) — only moves 
 this declaration show up in performance. The tax is exact regardless. Buy dates are
 approximate; for a euro account they don't change the basis.
 
+### Invest cash into the market — the everyday move
+
+Once your portfolio is set up, this is the move you'll make most: you have cash and you
+put it into ETFs or shares. One thing to internalize first:
+
+**Declaring a holding is never a gain.** A `buy` is recorded as capital *deployed* at
+that day's market value, and performance is tracked from there — "bought 100 WPEA at
+10 €", now 12 € → **+20%**, not +120%. So you can just record your buys and trust the
+figures.
+
+Say you move 300,000 € of cash into 200,000 € of NTSG and 100,000 € of UETW in your
+IBKR account (fake prices):
+
+**Mandatory — record the buys.** This is the whole operation:
+
+```sh
+finador asset buy NTSG.DE 4000 @50 --account "IBKR" --group equities/world
+finador asset buy UETW.DE 4000 @25 --account "IBKR" --group equities/world
+```
+
+Each buy creates the security on the fly (resolved by Yahoo ticker — use the exact
+symbol, e.g. `.DE` / `.MI` / `.PA`), starts its cost basis, and begins tracking its
+performance. `@50` is a unit price (total = qty × price); a bare number is the total.
+
+**Optional — the cash side.** Recording cash flows is worth it *only* if you want to
+see **idle, uninvested balances** (cash parked at a broker, a savings account's
+interest). If you don't, skip it entirely — the buys above are complete and correct.
+
+If you do track cash, model the move out of Revolut as a **pair** (there's no
+"transfer" verb), which keeps both balances exact and stays neutral for performance:
+
+```sh
+finador cash withdraw "Revolut" 300000     # leaves Revolut
+finador cash deposit  "IBKR"    300000     # arrives on IBKR — the buys then spend it down to ~0
+```
+
+Two gotchas:
+
+- **Never use `cash set` for this.** `set` records an *observed balance*, so dropping
+  Revolut from 300k to 0 with `set` would be booked as a −300,000 € loss. `withdraw` is
+  the neutral move.
+- That money-market fund ("Fonds Monétaires Flexibles") is treated here as **cash**. If
+  you'd rather track it as a real holding (to capture its yield), `asset sell` it
+  instead of `cash withdraw`.
+
+On the **web and mobile**, the same move is: add the two buy transactions from the
+*Transactions* screen; the cash entries are equally optional.
+
 ### Buy a real-estate property
 
 A property is valued by dated statements (the Statement model). The **first**
