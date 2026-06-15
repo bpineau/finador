@@ -164,6 +164,29 @@ finador cash deposit  meridia    30000    # lands on the CTO; the buys above the
 Don't use `cash set` to empty the account here: `set` is an *observed balance*, so going
 from 30 000 to 0 would be booked as a 30 000 € loss. `withdraw` is the neutral move.
 
+### Switch one holding for another (arbitrage)
+
+Selling one position to buy another **in the same account** is just two transactions —
+a `sell` then a `buy` on that account. Say you rotate 3 units of the world ETF into
+2 Apple shares inside your CTO (fake prices, ~300 € each side):
+
+```sh
+finador asset sell world 3 @100 --account meridia   # 3 units out → 300 €
+finador asset buy  apple 2 @150  --account meridia    # 2 shares in → 300 €
+```
+
+- **It's neither a gain nor a loss.** You didn't add or remove money — you swapped one
+  holding for another — so the arbitrage is neutral for performance; only the *future*
+  moves of the new position count. (Under the hood the sell and the buy are equal,
+  opposite capital flows that cancel when you reinvest the full proceeds.)
+- **Cost basis follows.** The sell trims the world ETF's basis proportionally; the buy
+  sets Apple's basis at 300 €, tracked from there.
+- **No cash step needed** — both legs are on the same account. If that account's cash is
+  tracked, the sell credits it and the buy debits it (any small leftover stays as cash);
+  if it's untracked, there's nothing else to record.
+- **Trading fees**, if any: `finador asset fee world 1.50 --account meridia` — a cost that
+  *does* weigh on performance (unlike the neutral swap itself).
+
 ### After selling a property (a house)
 
 In real life the sale and the cash landing on your bank account happen weeks apart,
