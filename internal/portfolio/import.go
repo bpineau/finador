@@ -71,7 +71,7 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 	if err != nil {
 		return zero, err
 	}
-	ccy, err := currencyOr(get("currency"), acc.Currency)
+	ccy, err := domain.CurrencyOr(get("currency"), acc.Currency)
 	if err != nil {
 		return zero, err
 	}
@@ -152,12 +152,4 @@ func EnsureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) 
 	asset := &domain.Asset{ID: domain.AssetID(domain.Slugify(ref)), Kind: domain.Security,
 		Name: ref, Ticker: ref, Currency: ccy, Group: group}
 	return asset, b.AddAsset(asset)
-}
-
-// currencyOr parses a user-supplied currency, empty meaning fallback.
-func currencyOr(s string, fallback domain.Currency) (domain.Currency, error) {
-	if s == "" {
-		return fallback, nil
-	}
-	return domain.ParseCurrency(s)
 }
