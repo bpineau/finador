@@ -67,7 +67,7 @@ type DividendEvent struct {
 // refetchable — losing it costs one refresh, never user data.
 type MarketData struct {
 	Prices    map[AssetID]*PriceSeries    `json:"prices,omitempty"`
-	FX        map[Currency]*PriceSeries   `json:"fx,omitempty"` // valeur de 1 unité en USD
+	FX        map[Currency]*PriceSeries   `json:"fx,omitempty"` // value of 1 unit in USD
 	Dividends map[AssetID][]DividendEvent `json:"dividends,omitempty"`
 }
 

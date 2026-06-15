@@ -7,22 +7,22 @@ import (
 	"finador/internal/domain"
 )
 
-// syntheticSeries construit une série journalière plate puis +2 % sur N jours.
+// syntheticSeries builds a flat daily series then +2% over N days.
 func syntheticSeries(start domain.Date, flatDays int, riseDay domain.Date) []Point {
 	var pts []Point
 	v := 100.0
 	for i := range flatDays + 1 {
 		pts = append(pts, Point{Date: start.AddDays(i), Value: v})
 	}
-	// dernier point : riseDay avec +2 %
+	// last point: riseDay with +2%
 	pts = append(pts, Point{Date: riseDay, Value: v * 1.02})
 	return pts
 }
 
 func TestReportOrigineHasTWR(t *testing.T) {
-	// série : 100 jours plats à 100, puis +2 % le jour suivant
+	// series: 100 flat days at 100, then +2% the next day
 	start := d("2026-01-01")
-	evalTo := d("2026-04-11") // > 30 jours
+	evalTo := d("2026-04-11") // > 30 days
 	pts := syntheticSeries(start, 99, evalTo)
 
 	rows, _ := Report(pts, nil, evalTo, 0)
@@ -44,7 +44,7 @@ func TestReportOrigineHasTWR(t *testing.T) {
 
 func TestReportXIRRPresentOnLongWindow(t *testing.T) {
 	start := d("2026-01-01")
-	evalTo := d("2026-04-11") // > 30 jours
+	evalTo := d("2026-04-11") // > 30 days
 	pts := syntheticSeries(start, 99, evalTo)
 
 	rows, _ := Report(pts, nil, evalTo, 0)
@@ -64,10 +64,10 @@ func TestReportXIRRPresentOnLongWindow(t *testing.T) {
 }
 
 func TestReportXIRRDashOnShortNamedPeriods(t *testing.T) {
-	// Les périodes nommées "1j", "2j", "5j", "7j" durent < 30 jours →
-	// HasXIRR doit être false (annualiser un micro-mouvement est sans sens).
+	// The named periods "1j", "2j", "5j", "7j" last < 30 days →
+	// HasXIRR must be false (annualizing a micro-movement is meaningless).
 	start := d("2025-06-01")
-	evalTo := d("2026-06-01") // un an de données
+	evalTo := d("2026-06-01") // one year of data
 	var pts []Point
 	for i := range 366 {
 		pts = append(pts, Point{Date: start.AddDays(i), Value: 100.0 + float64(i)*0.01})

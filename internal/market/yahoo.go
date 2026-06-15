@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"time"
-	_ "time/tzdata" // fuseaux des places boursières, sans dépendre de l'OS
+	_ "time/tzdata" // exchange time zones, without depending on the OS
 
 	"finador/internal/domain"
 )
@@ -145,7 +145,7 @@ func (y *Yahoo) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData
 	}
 	for i, ts := range r.Timestamp {
 		if i >= len(closes) || closes[i] == nil {
-			continue // jour férié ou close manquant
+			continue // holiday or missing close
 		}
 		out.Closes = append(out.Closes, domain.PricePoint{Date: dateOf(ts), Close: *closes[i]})
 	}

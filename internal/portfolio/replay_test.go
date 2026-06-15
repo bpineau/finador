@@ -22,8 +22,8 @@ func eur(s string) domain.Money {
 	return domain.Money{Amount: dec(s), Currency: domain.EUR}
 }
 
-// fixture : PEA avec cw8 (2 achats, 1 vente) ; CTO avec cw8 aussi (multi-comptes) ;
-// Livret (cash pur) ; compte « untracked » sans aucun mouvement de cash pur.
+// fixture: PEA with cw8 (2 buys, 1 sell); CTO with cw8 too (multi-account);
+// Livret (pure cash); an "untracked" account with no pure-cash movement at all.
 func sampleBook(t *testing.T) *domain.Book {
 	t.Helper()
 	b := domain.NewBook()
@@ -63,7 +63,7 @@ func TestHoldings(t *testing.T) {
 	if !Quantity(b, "pea", "cw8", mustDate("2026-12-31")).Equal(dec("12")) {
 		t.Errorf("qté pea = %s", Quantity(b, "pea", "cw8", mustDate("2026-12-31")))
 	}
-	// à une date antérieure, le rejeu s'arrête là
+	// at an earlier date, the replay stops there
 	if !Quantity(b, "pea", "cw8", mustDate("2026-02-01")).Equal(dec("10")) {
 		t.Errorf("qté pea au 1er févr = %s", Quantity(b, "pea", "cw8", mustDate("2026-02-01")))
 	}
@@ -99,15 +99,15 @@ func TestOverSellClampsToZero(t *testing.T) {
 func TestCashTracked(t *testing.T) {
 	b := sampleBook(t)
 	for acc, want := range map[domain.AccountID]bool{
-		"pea":    true,  // a un Deposit
-		"livret": true,  // a un Statement cash
-		"cto":    false, // n'a que des trades
+		"pea":    true,  // has a Deposit
+		"livret": true,  // has a cash Statement
+		"cto":    false, // only has trades
 	} {
 		if got := CashTracked(b, acc); got != want {
 			t.Errorf("CashTracked(%s) = %v, attendu %v", acc, got, want)
 		}
 	}
-	// un Statement SUR ACTIF (estimation de bien) ne rend pas le cash suivi
+	// a Statement ON AN ASSET (property estimate) does not make cash tracked
 	if err := b.AddAsset(&domain.Asset{ID: "maison", Kind: domain.Property, Name: "Maison", Currency: domain.EUR}); err != nil {
 		t.Fatal(err)
 	}

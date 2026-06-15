@@ -10,7 +10,7 @@ import (
 	"finador/internal/domain"
 )
 
-// fakeSource scripte les réponses et enregistre les appels.
+// fakeSource scripts the responses and records the calls.
 type fakeSource struct {
 	calls []string // "DAILY sym from", "RESOLVE q"
 	daily map[string]DailyData
@@ -56,12 +56,12 @@ func TestRefreshFetchesFromFirstTx(t *testing.T) {
 	if len(sum.Warnings) != 0 {
 		t.Fatalf("warnings: %v", sum.Warnings)
 	}
-	// prix demandés depuis la 1re transaction − 7 jours
+	// prices requested from the first transaction − 7 days
 	wantCall := "DAILY CW8.PA " + mustDate("2026-05-15").AddDays(-7).String()
 	if !contains(src.calls, wantCall) {
 		t.Errorf("appels = %v, attendu %q", src.calls, wantCall)
 	}
-	// série et FX en cache, FetchedAt posé à aujourd'hui
+	// series and FX cached, FetchedAt set to today
 	if _, _, ok := b.Market.Price("cw8").At(mustDate("2026-05-15")); !ok {
 		t.Error("série prix absente")
 	}
@@ -82,7 +82,7 @@ func TestRefreshSkipsFreshSeries(t *testing.T) {
 	if len(src.calls) != 0 {
 		t.Fatalf("séries fraîches refetchées: %v", src.calls)
 	}
-	// force passe outre
+	// force overrides it
 	src.daily = map[string]DailyData{"CW8.PA": {}, "EURUSD=X": {}}
 	Refresh(context.Background(), b, src, true)
 	if len(src.calls) != 2 {
@@ -95,7 +95,7 @@ func TestRefreshIncrementalFrom(t *testing.T) {
 	b.Market.Price("cw8").Merge([]domain.PricePoint{{Date: mustDate("2026-06-01"), Close: 550}})
 	src := &fakeSource{daily: map[string]DailyData{"CW8.PA": {}, "EURUSD=X": {}}}
 	Refresh(context.Background(), b, src, false)
-	// repart de la DERNIÈRE clôture connue (elle peut avoir bougé en séance)
+	// restarts from the LAST known close (it may have moved during the session)
 	if !contains(src.calls, "DAILY CW8.PA 2026-06-01") {
 		t.Errorf("appels = %v", src.calls)
 	}
@@ -123,7 +123,7 @@ func TestRefreshWarnsAndContinues(t *testing.T) {
 func TestRefreshCurrencyMismatchWarning(t *testing.T) {
 	b := bookWithTrade(t)
 	src := &fakeSource{daily: map[string]DailyData{
-		"CW8.PA":   {Currency: domain.USD}, // l'actif est déclaré EUR
+		"CW8.PA":   {Currency: domain.USD}, // the asset is declared EUR
 		"EURUSD=X": {},
 	}}
 	sum := Refresh(context.Background(), b, src, false)

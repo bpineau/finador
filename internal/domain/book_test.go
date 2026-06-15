@@ -27,7 +27,7 @@ func sampleBook(t *testing.T) *Book {
 
 func TestResolveAccount(t *testing.T) {
 	b := sampleBook(t)
-	// ID, nom exact, et nom insensible à la casse matchent tous
+	// ID, exact name, and case-insensitive name all match
 	for _, ref := range []string{"pea-bforbank", "PEA BforBank", "pea bforbank", "PEA-BFORBANK"} {
 		if _, err := b.Account(ref); err != nil {
 			t.Errorf("Account(%q): %v", ref, err)
@@ -56,8 +56,8 @@ func TestResolveAssetTiers(t *testing.T) {
 func TestAddAssetRejectsAnyCollidingReference(t *testing.T) {
 	b := sampleBook(t)
 	for _, dup := range []*Asset{
-		{ID: "autre1", Kind: Security, Name: "X", Ticker: "cw8.pa", Currency: EUR},           // ticker, casse différente
-		{ID: "autre2", Kind: Security, Name: "amundi msci world", Currency: EUR},             // nom
+		{ID: "autre1", Kind: Security, Name: "X", Ticker: "cw8.pa", Currency: EUR},           // ticker, different case
+		{ID: "autre2", Kind: Security, Name: "amundi msci world", Currency: EUR},             // name
 		{ID: "autre3", Kind: Security, Name: "Y", Aliases: []string{"WORLD"}, Currency: EUR}, // alias
 		{ID: "autre4", Kind: Security, Name: "Z", ISIN: "LU1681043599", Currency: EUR},       // isin
 	} {
@@ -69,14 +69,14 @@ func TestAddAssetRejectsAnyCollidingReference(t *testing.T) {
 
 func TestResolveAmbiguous(t *testing.T) {
 	b := sampleBook(t)
-	// Injection directe pour simuler un livre corrompu/legacy :
-	// AddAsset rejette désormais toute collision d'alias.
+	// Direct injection to simulate a corrupted/legacy book:
+	// AddAsset now rejects any alias collision.
 	b.Assets = append(b.Assets, &Asset{ID: "cw8-cto", Kind: Security, Name: "CW8 bis",
 		Aliases: []string{"world"}, Currency: EUR})
 	if _, err := b.Asset("world"); !errors.Is(err, ErrAmbiguous) {
 		t.Errorf("Asset(world): %v, attendu ErrAmbiguous", err)
 	}
-	// le tier ID gagne avant que le tier alias ne devienne ambigu
+	// the ID tier wins before the alias tier becomes ambiguous
 	if _, err := b.Asset("cw8"); err != nil {
 		t.Errorf("Asset(cw8): %v", err)
 	}
@@ -215,7 +215,7 @@ func TestCheckAssetRefsCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 	autre, _ := b.Asset("autre")
-	autre.Aliases = []string{"CW8.PA"} // collision exacte avec le ticker de cw8
+	autre.Aliases = []string{"CW8.PA"} // exact collision with cw8's ticker
 	if err := b.CheckAssetRefs(autre); !errors.Is(err, ErrDuplicate) {
 		t.Errorf("collision non détectée: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestAccountAliases(t *testing.T) {
 			t.Errorf("Account(%q) = %v, %v", ref, acc, err)
 		}
 	}
-	// collision d'alias avec un nom existant → ErrDuplicate
+	// alias collision with an existing name → ErrDuplicate
 	if err := b.AddAccount(&Account{ID: "autre", Name: "Autre", Currency: EUR}); err != nil {
 		t.Fatal(err)
 	}
@@ -281,32 +281,32 @@ func TestResolveUniquePrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// préfixe unique d'ID → résout
+	// unique ID prefix → resolves
 	if a, err := b.Asset("cw8"); err != nil || a.ID != "cw8-pa" {
 		t.Errorf("Asset(cw8) = %v, %v", a, err)
 	}
-	// préfixe unique de nom → résout
+	// unique name prefix → resolves
 	if a, err := b.Asset("datad"); err != nil || a.ID != "ddog" {
 		t.Errorf("Asset(datad) = %v, %v", a, err)
 	}
-	// préfixe de compte
+	// account prefix
 	if acc, err := b.Account("pea"); err != nil || acc.ID != "pea-bforbank" {
 		t.Errorf("Account(pea) = %v, %v", acc, err)
 	}
-	// préfixe ambigu → erreur qui liste les candidats
+	// ambiguous prefix → error listing the candidates
 	_, err := b.Account("pe")
 	if !errors.Is(err, ErrAmbiguous) || !strings.Contains(err.Error(), "pea-bforbank") ||
 		!strings.Contains(err.Error(), "per-linxea") {
 		t.Errorf("Account(pe) = %v, attendu ambiguïté listant les candidats", err)
 	}
-	// l'exact gagne toujours sur le préfixe : un actif ID "dd" exact
+	// the exact match always wins over the prefix: an asset with exact ID "dd"
 	if err := b.AddAsset(&Asset{ID: "dd", Kind: Security, Name: "Doubledown", Currency: EUR}); err != nil {
 		t.Fatal(err)
 	}
 	if a, err := b.Asset("dd"); err != nil || a.ID != "dd" {
 		t.Errorf("Asset(dd) = %v, %v — l'exact doit gagner", a, err)
 	}
-	// introuvable reste introuvable
+	// not found stays not found
 	if _, err := b.Asset("zz"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Asset(zz) = %v", err)
 	}

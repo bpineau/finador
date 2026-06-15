@@ -146,7 +146,7 @@ func TestFavicon(t *testing.T) {
 	if len(body) < 6 || body[0] != 0 || body[1] != 0 || body[2] != 1 || body[3] != 0 {
 		t.Error("not an ICO (bad magic)")
 	}
-	// le lien force le rechargement par une URL versionnée
+	// the link forces a reload via a versioned URL
 	if _, home := get(t, srv, "/"); !strings.Contains(home, `href="/favicon.ico?v=1"`) {
 		t.Error("base template must reference /favicon.ico?v=1 (cache-buster)")
 	}
@@ -492,33 +492,33 @@ func TestAssetsPage(t *testing.T) {
 		t.Fatalf("GET /assets = %d\n%s", code, excerpt(body))
 	}
 	for _, want := range []string{
-		"actions/monde",        // en-tête de section : chemin complet
-		"/group/actions/monde", // cliquable
-		"Amundi MSCI World",    // une ligne d'actif
-		"/asset/cw8",           // nom cliquable
-		"assets-table",         // table dense
+		"actions/monde",        // section header: full path
+		"/group/actions/monde", // clickable
+		"Amundi MSCI World",    // an asset row
+		"/asset/cw8",           // clickable name
+		"assets-table",         // dense table
 		"GROSS", "NET", "1W", "1M", "1Y",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/assets: %q missing", want)
 		}
 	}
-	// trois sparklines pour l'unique actif valorisé
+	// three sparklines for the single valued asset
 	if got := strings.Count(body, "<polyline"); got != 3 {
 		t.Errorf("polylines = %d, want 3", got)
 	}
-	// montants brut et net de la position (10×560 = 5600 ; base 5500 → gain 100
-	// → tax 17.20 si gains:17.2% → net 5582.80)
+	// gross and net amounts of the position (10×560 = 5600 ; base 5500 → gain 100
+	// → tax 17.20 if gains:17.2% → net 5582.80)
 	for _, want := range []string{"5,600.00", "5,582.80"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/assets amounts: %q missing", want)
 		}
 	}
-	// densité : sparkline 72×20, nom indenté
+	// density: 72×20 sparkline, indented name
 	if !strings.Contains(body, `viewBox="0 0 72 20"`) {
 		t.Error("sparklines should be 72x20")
 	}
-	// table-layout:fixed lit la PREMIÈRE rangée : les th doivent porter la classe
+	// table-layout:fixed reads the FIRST row: the th cells must carry the class
 	if !strings.Contains(body, `<th class="sparkcell">1W</th>`) {
 		t.Error("header cells must carry sparkcell so fixed layout sizes the columns")
 	}
@@ -531,7 +531,7 @@ func TestAssetsPage(t *testing.T) {
 			t.Errorf("style.css: %q missing", want)
 		}
 	}
-	// l'onglet est dans la manchette de toutes les pages
+	// the tab is in the header of every page
 	if _, home := get(t, srv, "/"); !strings.Contains(home, `href="/assets"`) {
 		t.Error("nav link /assets missing on dashboard")
 	}
@@ -573,31 +573,31 @@ func TestChartRanges(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("range=1m = %d", code)
 	}
-	// le sélecteur est présent, l'actif est marqué, les liens préservent by/range
+	// the selector is present, the active range is marked, links preserve by/range
 	for _, want := range []string{`class="ranges"`, `active-range`, `range=3m`} {
 		if !strings.Contains(m1, want) {
 			t.Errorf("?range=1m: %q missing", want)
 		}
 	}
-	// la courbe 1m diffère de la courbe complète (moins de points)
-	// On compare le nombre de virgules dans le HTML comme proxy du nombre de
-	// points SVG : une courbe plus courte produit moins de coordonnées "x,y".
-	// Si la série de test est trop courte pour la différence soit visible avec
-	// des virgules (ex. même période), on peut toujours vérifier la présence du
-	// sélecteur — l'assertion de virgules est commentée et remplacée par une
-	// assertion que full contient au moins autant de virgules.
+	// the 1m curve differs from the full curve (fewer points)
+	// We compare the number of commas in the HTML as a proxy for the number of
+	// SVG points: a shorter curve produces fewer "x,y" coordinates.
+	// If the test series is too short for the difference to be visible via
+	// commas (e.g. same period), we can still check for the presence of the
+	// selector — the comma assertion is commented out and replaced by an
+	// assertion that full contains at least as many commas.
 	if strings.Count(m1, ",") >= strings.Count(full, ",") {
 		t.Error("1m curve should carry fewer svg points than the full curve")
 	}
-	// les onglets de répartition préservent le range
+	// the breakdown tabs preserve the range
 	if !strings.Contains(m1, "by=account&amp;range=1m") {
 		t.Errorf("tabs should carry the range:\n%s", excerpt(m1))
 	}
-	// portée : le sélecteur existe aussi
+	// scope: the selector exists too
 	if _, sc := get(t, srv, "/asset/cw8?range=3m"); !strings.Contains(sc, "active-range") {
 		t.Error("scope pages should have the range selector")
 	}
-	// invalide → all (200, pas d'erreur)
+	// invalid → all (200, no error)
 	if code, _ := get(t, srv, "/?range=zz"); code != http.StatusOK {
 		t.Errorf("invalid range = %d", code)
 	}
@@ -630,7 +630,7 @@ func TestTxCreateOnTheFly(t *testing.T) {
 		t.Fatalf("asset not created: %v %v", a, err)
 	}
 
-	// le formulaire est en datalist, plus en select
+	// the form uses a datalist, no longer a select
 	_, body := get(t, srv, "/tx")
 	if !strings.Contains(body, "<datalist") || strings.Contains(body, `<select id="account"`) {
 		t.Error("account field should be a datalist input")
@@ -666,7 +666,7 @@ func TestTxDelete(t *testing.T) {
 func TestNoOrphanOnInvalidForm(t *testing.T) {
 	srv, f := testServer(t)
 	before, beforeAssets := len(f.Book.Accounts), len(f.Book.Assets)
-	// compte ET actif inconnus, mais quantité manquante → 400
+	// account AND asset both unknown, but quantity missing → 400
 	code, _, _ := postForm(t, srv, "/tx", url.Values{
 		"date": {"2026-06-03"}, "kind": {"buy"}, "account": {"Ghost Bank"},
 		"asset": {"GHOST"}, "amount": {"100"},

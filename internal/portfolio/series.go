@@ -27,7 +27,7 @@ type ExternalFlow struct {
 type SeriesResult struct {
 	Points   []SeriesPoint
 	Flows    []ExternalFlow
-	Warnings []string // avertissements de conversion (une fois par (label, devise))
+	Warnings []string // conversion warnings (once per (label, currency))
 }
 
 // PerfPoints converts the series points to perf.Point, using gross or net value.
@@ -100,7 +100,7 @@ type walker struct {
 	accounts map[domain.AccountID]*accountState
 	manual   map[domain.AssetID]bool
 	flows    []ExternalFlow
-	warned   map[string]bool // clé = "label:from→to", évite les doublons
+	warned   map[string]bool // key = "label:from→to", avoids duplicates
 }
 
 type pairKey struct {
@@ -125,7 +125,7 @@ type accountState struct {
 	tracked     bool
 	cash        float64 // balance in account currency, anchored on last Statement
 	flowBasis   float64 // envelope basis in display currency (deposits - withdrawals)
-	hadCashStmt bool    // premier relevé cash déjà vu (règle D8)
+	hadCashStmt bool    // first cash statement already seen (rule D8)
 }
 
 func newWalker(b *domain.Book, scope Scope, ccy domain.Currency, fx FX) *walker {
@@ -180,7 +180,7 @@ func (w *walker) convF(amount float64, from, to domain.Currency, at domain.Date,
 	return v
 }
 
-// warn enregistre un avertissement de conversion une seule fois par (label, devise).
+// warn records a conversion warning only once per (label, currency).
 func (w *walker) warn(label string, from, to domain.Currency) {
 	key := fmt.Sprintf("%s:%s→%s", label, from, to)
 	if !w.warned[key] {
@@ -188,7 +188,7 @@ func (w *walker) warn(label string, from, to domain.Currency) {
 	}
 }
 
-// warnings retourne la liste des avertissements de conversion collectés.
+// warnings returns the list of collected conversion warnings.
 func (w *walker) warnings() []string {
 	if len(w.warned) == 0 {
 		return nil
@@ -336,15 +336,15 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 	case domain.Statement:
 		if t.Asset == "" {
-			// Relevé de cash pur.
-			// Première réconciliation = adoption (apport), pas performance ;
-			// les relevés suivants mesurent la performance (intérêts d'un livret).
+			// Pure cash statement.
+			// First reconciliation = adoption (contribution), not performance;
+			// later statements measure performance (interest on a savings account).
 			if acc.tracked {
 				label := acc.acc.Name
 				newBalance := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
 				if !acc.hadCashStmt {
-					// Premier relevé cash : l'écart entre le solde courant et le nouveau
-					// solde est traité comme un apport externe (adoption D8).
+					// First cash statement: the gap between the current balance and the
+					// new balance is treated as an external contribution (adoption D8).
 					currentDisp := w.convF(acc.cash, acc.acc.Currency, w.ccy, t.Date, label)
 					newDisp := w.conv(t.Amount, w.ccy, t.Date, label)
 					adoptionAmt := newDisp - currentDisp
@@ -353,7 +353,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 					}
 					acc.hadCashStmt = true
 				}
-				// Mettre à jour le solde (comportement d'ancrage existant).
+				// Update the balance (existing anchoring behavior).
 				acc.cash = newBalance
 			}
 			return
@@ -415,7 +415,7 @@ func (w *walker) applyDividends(d domain.Date, collect bool) {
 			disp := w.conv(gross, w.ccy, d, p.asset.Name)
 			acc := w.accounts[p.acc.ID]
 			if acc.tracked {
-				// même retenue à la source que value.go : le cash reçoit le NET
+				// same withholding as value.go: the cash receives the NET
 				cashAmt := w.convF(p.qty*ev.Amount*(1-p.asset.Withholding), p.asset.Currency, acc.acc.Currency, d, p.asset.Name)
 				acc.cash += cashAmt
 			}
