@@ -10,10 +10,7 @@ import (
 
 // currencyOr parses a user-supplied currency, empty meaning fallback.
 func currencyOr(s string, fallback domain.Currency) (domain.Currency, error) {
-	if s == "" {
-		return fallback, nil
-	}
-	return domain.ParseCurrency(s)
+	return domain.CurrencyOr(s, fallback)
 }
 
 // dateOrToday parses a --at flag, empty meaning today.

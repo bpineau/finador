@@ -94,7 +94,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	today := domain.Today()
 	scope, _ := portfolio.ParseScope(b, "")
 	fx := market.Converter{FX: b.Market.FX}
-	ccy := displayCurrency(b)
+	ccy := b.DisplayCurrency()
 
 	mode := r.URL.Query().Get("by")
 	switch mode {
@@ -161,12 +161,4 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	data.Pie, data.PieSlices = buildPie(lines)
 
 	s.render(w, http.StatusOK, "dashboard.html", data)
-}
-
-// displayCurrency mirrors the CLI rule: config "currency" else EUR.
-func displayCurrency(b *domain.Book) domain.Currency {
-	if c, err := domain.ParseCurrency(b.Config["currency"]); err == nil {
-		return c
-	}
-	return domain.EUR
 }
