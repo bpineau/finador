@@ -34,7 +34,7 @@ func Pie(values []float64, colors []string, size int) string {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" width="%d" height="%d">`, size, size, size, size)
-	angle := -math.Pi / 2 // départ à midi
+	angle := -math.Pi / 2 // start at noon
 	for i, v := range values {
 		if v <= 0 {
 			continue
@@ -44,7 +44,7 @@ func Pie(values []float64, colors []string, size int) string {
 		if i < len(colors) {
 			color = colors[i]
 		}
-		if frac >= 0.9999 { // anneau complet : deux demi-anneaux pour éviter l'arc dégénéré
+		if frac >= 0.9999 { // full ring: two half-rings to avoid a degenerate arc
 			fmt.Fprintf(&b, `<path d="%s" fill="%s"/>`, ringHalf(cx, cy, rOut, rIn, angle, angle+math.Pi), color)
 			fmt.Fprintf(&b, `<path d="%s" fill="%s"/>`, ringHalf(cx, cy, rOut, rIn, angle+math.Pi, angle+2*math.Pi), color)
 			break

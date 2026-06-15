@@ -15,7 +15,7 @@ func TestSparkline(t *testing.T) {
 			t.Errorf("%q missing in:\n%s", want, out)
 		}
 	}
-	// pas d'axes, pas de texte, pas de NaN
+	// no axes, no text, no NaN
 	for _, bad := range []string{"<text", "<line", "NaN", "Inf"} {
 		if strings.Contains(out, bad) {
 			t.Errorf("%s should not appear in a sparkline", bad)
@@ -30,7 +30,7 @@ func TestSparklineDegenerate(t *testing.T) {
 	if out := Sparkline(ramp(1), 90, 24, "#000"); out != "" {
 		t.Errorf("single point: %q", out)
 	}
-	// série plate : rendue sans division par zéro
+	// flat series: rendered without dividing by zero
 	flat := ramp(5)
 	for i := range flat {
 		flat[i].Value = 42

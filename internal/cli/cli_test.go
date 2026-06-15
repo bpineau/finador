@@ -13,9 +13,9 @@ import (
 	"finador/internal/market"
 )
 
-// tryRun exécute finador contre db, mot de passe fourni par l'environnement,
-// Keychain désactivé pour ne jamais toucher le vrai trousseau en test.
-// --offline est toujours ajouté : aucun test du harnais offline ne touche le réseau.
+// tryRun runs finador against db, password supplied via the environment,
+// Keychain disabled so tests never touch the real keychain.
+// --offline is always added: no offline-harness test hits the network.
 func tryRun(t *testing.T, db string, args ...string) (string, error) {
 	t.Helper()
 	t.Setenv("FINADOR_PASSWORD", "secret-de-test")
@@ -65,7 +65,7 @@ func TestAssetAddSetList(t *testing.T) {
 			t.Errorf("asset list: %q manquant dans:\n%s", want, out)
 		}
 	}
-	// estimation datée ; l'enveloppe par défaut est l'unique compte existant
+	// dated estimate; the default envelope is the only existing account
 	out = run(t, db, "asset", "set", "Maison à Achères", "450000", "--at", "2026-06-01")
 	for _, want := range []string{"450000 EUR", "2026-06-01"} {
 		if !strings.Contains(out, want) {
@@ -185,7 +185,7 @@ func TestCurrencyNormalized(t *testing.T) {
 	}
 }
 
-// fakeSource sert des données de marché déterministes aux tests CLI.
+// fakeSource serves deterministic market data to the CLI tests.
 type fakeSource struct{}
 
 func (fakeSource) Resolve(_ context.Context, q string) (market.SymbolInfo, error) {
@@ -225,7 +225,7 @@ func (fakeSource) Daily(_ context.Context, ref market.Ref, _ domain.Date) (marke
 	return market.DailyData{}, domain.ErrNotFound
 }
 
-// tryRunNet exécute finador SANS --offline, avec la Source factice.
+// tryRunNet runs finador WITHOUT --offline, using the fake Source.
 func tryRunNet(t *testing.T, db string, args ...string) (string, error) {
 	t.Helper()
 	t.Setenv("FINADOR_PASSWORD", "secret-de-test")
@@ -255,8 +255,8 @@ func TestValueEndToEnd(t *testing.T) {
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	out := runNet(t, db, "value", "--net", "--at", "2026-06-05")
-	// 10 × 560 = 5600 ; cash suivi = 5000 − 5500 = −500 → brut 5100
-	// base d'enveloppe 5000 → gain 100 → impôt 17.20 → net 5082.80
+	// 10 × 560 = 5600 ; tracked cash = 5000 − 5500 = −500 → gross 5100
+	// envelope base 5000 → gain 100 → tax 17.20 → net 5082.80
 	for _, want := range []string{"5100.00 EUR", "17.20 EUR", "5082.80 EUR"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("value --net: %q manquant dans:\n%s", want, out)
@@ -268,7 +268,7 @@ func TestValueEndToEnd(t *testing.T) {
 		t.Errorf("value USD:\n%s", out)
 	}
 
-	// le cache permet ensuite le hors-ligne
+	// the cache then enables offline mode
 	out = run(t, db, "value", "--at", "2026-06-05")
 	if !strings.Contains(out, "5100.00 EUR") {
 		t.Errorf("value --offline après cache:\n%s", out)
@@ -296,26 +296,26 @@ func TestAssetAddResolvesFromYahoo(t *testing.T) {
 		t.Errorf("résolution Yahoo absente: %q", out)
 	}
 	list := run(t, db, "asset", "list")
-	if !strings.Contains(list, "CW8.PA") { // ticker canonique résolu
+	if !strings.Contains(list, "CW8.PA") { // canonical ticker resolved
 		t.Errorf("asset list:\n%s", list)
 	}
 }
 
 func TestValueDisplayFXMissing(t *testing.T) {
-	// GBP n'est ni une devise de compte ni d'actif : le refresh normal ne la
-	// couvre pas. ensureDisplayFX doit la récupérer à la demande (le
-	// fakeSource sert GBPUSD=X) pour que --ccy GBP fonctionne.
+	// GBP is neither an account nor an asset currency: the normal refresh does
+	// not cover it. ensureDisplayFX must fetch it on demand (the fakeSource
+	// serves GBPUSD=X) so that --ccy GBP works.
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions/monde")
 	run(t, db, "cash", "deposit", "PEA Zephyr", "5000", "2026-01-10")
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
-	// D'abord on remplit le cache EUR (nécessaire pour avoir des prix)
+	// First fill the EUR cache (needed to have prices)
 	runNet(t, db, "value", "--at", "2026-06-05")
 
-	// Un fakeSource sans GBPUSD=X : on utilise le fakeSource standard qui le sert maintenant,
-	// mais la série GBP n'est pas dans le cache initialement → ensureDisplayFX la fetche.
+	// A fakeSource without GBPUSD=X: we use the standard fakeSource that now serves it,
+	// but the GBP series is not in the cache initially → ensureDisplayFX fetches it.
 	out := runNet(t, db, "value", "--ccy", "GBP", "--at", "2026-06-05")
 	// 5100 EUR × 1.10/1.25 = 4488.00 GBP
 	if !strings.Contains(out, "4488.00 GBP") {
@@ -331,9 +331,9 @@ func TestPerfEndToEnd(t *testing.T) {
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
-	// série : 5000 plat jusqu'au 1er juin (l'achat est neutre), puis
-	// 06-05 : 10×560 − 500 = 5100 → TWR origine = +2.00 %.
-	// 146 j d'historique : vol/Sharpe/Sortino affichés, CAGR masqué (< 1 an).
+	// series: 5000 flat until June 1st (the buy is neutral), then
+	// 06-05: 10×560 − 500 = 5100 → TWR since inception = +2.00 %.
+	// 146 days of history: vol/Sharpe/Sortino shown, CAGR hidden (< 1 year).
 	for _, want := range []string{"PERIOD", "TWR", "XIRR", "inception", "+2.00%",
 		"GAIN (EUR)", "+100.00", // money P&L, net of contributions (10×(560−550))
 		"tracking since 2026-01-10 (146 d)", "Sharpe", "Sortino", "max drawdown"} {
@@ -341,16 +341,16 @@ func TestPerfEndToEnd(t *testing.T) {
 			t.Errorf("perf: %q manquant dans:\n%s", want, out)
 		}
 	}
-	// CAGR n'a de sens qu'à ≥ 1 an : masqué ici.
+	// CAGR only makes sense at ≥ 1 year: hidden here.
 	if strings.Contains(out, "CAGR") {
 		t.Errorf("CAGR ne devrait pas apparaître sous 1 an d'historique:\n%s", out)
 	}
-	// XIRR des fenêtres courtes : tiret
+	// XIRR of short windows: dash
 	if !strings.Contains(out, "—") {
 		t.Errorf("tiret XIRR absent:\n%s", out)
 	}
 
-	// portée inexistante → erreur propre
+	// nonexistent scope → clean error
 	if _, err := tryRun(t, db, "perf", "nimporte"); err == nil {
 		t.Fatal("portée inconnue acceptée")
 	}
@@ -372,14 +372,14 @@ func TestChartEndToEnd(t *testing.T) {
 		}
 	}
 	if !hasBraille {
-		t.Errorf("aucun caractère braille:\n%s", out)
+		t.Errorf("no braille character:\n%s", out)
 	}
 	for _, want := range []string{"2026-01-10", "2026-06-05", "5.1k"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("chart: %q manquant dans:\n%s", want, out)
 		}
 	}
-	// --net produit aussi une courbe
+	// --net also produces a curve
 	if out := runNet(t, db, "chart", "--net", "--to", "2026-06-05"); !strings.Contains(out, "net") {
 		t.Errorf("chart --net:\n%s", out)
 	}
@@ -396,11 +396,11 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 			t.Errorf("achat: %q manquant dans %q", want, out)
 		}
 	}
-	out = run(t, db, "asset", "sell", "cw8", "4", "2310", "2026-06-05") // vente, montant total
+	out = run(t, db, "asset", "sell", "cw8", "4", "2310", "2026-06-05") // sell, total amount
 	if !strings.Contains(out, "sell") || !strings.Contains(out, "2310 EUR") {
 		t.Errorf("vente: %q", out)
 	}
-	// quantité négative possible via asset buy, derrière -- (sinon pflag lit -2 comme un flag)
+	// negative quantity is possible via asset buy, behind -- (otherwise pflag reads -2 as a flag)
 	out = run(t, db, "asset", "buy", "--", "cw8", "-2", "@577", "2026-06-06")
 	if !strings.Contains(out, "sell") || !strings.Contains(out, "1154 EUR") {
 		t.Errorf("vente via qté négative: %q", out)
@@ -430,17 +430,17 @@ func TestPerfAndValueExclude(t *testing.T) {
 	run(t, db, "cash", "deposit", "PEA Zephyr", "5000", "2026-01-10")
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
-	// valeur sans cw8 : il ne reste que le cash (5000 − 5500 = −500)
+	// value without cw8: only cash remains (5000 − 5500 = −500)
 	out := runNet(t, db, "value", "--exclude", "cw8", "--at", "2026-06-05")
 	if !strings.Contains(out, "-500.00 EUR") {
 		t.Errorf("value --exclude:\n%s", out)
 	}
-	// perf accepte la même exclusion (liste à virgules)
+	// perf accepts the same exclusion (comma list)
 	out = runNet(t, db, "perf", "--exclude", "cw8", "--to", "2026-06-05")
 	if !strings.Contains(out, "inception") {
 		t.Errorf("perf --exclude:\n%s", out)
 	}
-	// référence inconnue dans --exclude → erreur propre
+	// unknown reference in --exclude → clean error
 	if _, err := tryRun(t, db, "value", "--exclude", "zzz"); err == nil {
 		t.Fatal("exclusion inconnue acceptée")
 	}
@@ -453,7 +453,7 @@ func TestValueWhatIfAndByAccount(t *testing.T) {
 	run(t, db, "cash", "deposit", "PEA Zephyr", "5000", "2026-01-10")
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
-	// hypothèse : cw8 à 600 → 10×600 − 500 = 5500 brut, et un delta vs réel (5100)
+	// what-if: cw8 at 600 → 10×600 − 500 = 5500 gross, and a delta vs actual (5100)
 	out := runNet(t, db, "value", "--what-if", "cw8=600", "--at", "2026-06-05")
 	for _, want := range []string{"5500.00 EUR", "what-if", "+400.00 EUR"} {
 		if !strings.Contains(out, want) {
@@ -465,7 +465,7 @@ func TestValueWhatIfAndByAccount(t *testing.T) {
 	if !strings.Contains(out, "PEA Zephyr") {
 		t.Errorf("--by account:\n%s", out)
 	}
-	// erreurs propres
+	// clean errors
 	if _, err := tryRun(t, db, "value", "--what-if", "zzz=10"); err == nil {
 		t.Fatal("what-if sur actif inconnu accepté")
 	}
@@ -488,16 +488,16 @@ func TestAssetEditAndRm(t *testing.T) {
 	if !strings.Contains(out, "Vizor") || !strings.Contains(out, "15") {
 		t.Errorf("asset list après edit:\n%s", out)
 	}
-	// l'alias résout
+	// the alias resolves
 	run(t, db, "asset", "edit", "vizr", "--rm-alias", "Vizor")
 	if out = run(t, db, "asset", "list"); strings.Contains(out, "Vizor,") {
 		t.Errorf("alias non retiré:\n%s", out)
 	}
-	// collision refusée
+	// collision refused
 	if _, err := tryRun(t, db, "asset", "edit", "vizr", "--add-alias", "CW8.PA"); err == nil {
 		t.Fatal("collision d'alias acceptée")
 	}
-	// rm : refus si référencé, ok sinon
+	// rm: refused if referenced, ok otherwise
 	run(t, db, "asset", "buy", "cw8", "1", "@550", "2026-06-01")
 	if _, err := tryRun(t, db, "asset", "rm", "cw8"); err == nil {
 		t.Fatal("rm d'un actif référencé accepté")
@@ -517,13 +517,13 @@ func TestAccountEdit(t *testing.T) {
 	if !strings.Contains(out, "ALIASES") || !strings.Contains(out, "p") {
 		t.Errorf("aliases column:\n%s", out)
 	}
-	// l'alias résout pour la saisie
+	// the alias resolves for entry
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
 	run(t, db, "cash", "deposit", "p", "1000", "2026-01-10")
 	if out := run(t, db, "tx", "list", "--account", "p"); !strings.Contains(out, "deposit") {
 		t.Errorf("alias should resolve in tx list:\n%s", out)
 	}
-	// collision refusée, --rm-alias marche, edit du taux marche
+	// collision refused, --rm-alias works, editing the rate works
 	if _, err := tryRun(t, db, "account", "edit", "Savings", "--add-alias", "PEA Zephyr"); err == nil {
 		t.Fatal("alias collision accepted")
 	}
@@ -540,27 +540,27 @@ func TestPerfColors(t *testing.T) {
 	run(t, db, "cash", "deposit", "PEA Zephyr", "5000", "2026-01-10")
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
-	// pas un terminal → pas de couleur par défaut
+	// not a terminal → no color by default
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
 	if strings.Contains(out, "\x1b[") {
-		t.Errorf("séquences ANSI sans terminal:\n%q", out)
+		t.Errorf("ANSI sequences without a terminal:\n%q", out)
 	}
-	// forçage pour les tests : les TWR positifs sont verts
+	// forced for tests: positive TWRs are green
 	t.Setenv("FINADOR_FORCE_COLOR", "1")
 	out = runNet(t, db, "perf", "--to", "2026-06-05")
 	if !strings.Contains(out, "\x1b[32m") {
-		t.Errorf("vert absent avec FINADOR_FORCE_COLOR:\n%q", out)
+		t.Errorf("green missing with FINADOR_FORCE_COLOR:\n%q", out)
 	}
-	// --no-color gagne sur le forçage
+	// --no-color wins over forcing
 	out = runNet(t, db, "perf", "--no-color", "--to", "2026-06-05")
 	if strings.Contains(out, "\x1b[") {
-		t.Errorf("--no-color inopérant:\n%q", out)
+		t.Errorf("--no-color ineffective:\n%q", out)
 	}
 }
 
 func TestServeRefusesOfflineBindWarning(t *testing.T) {
 	db := newDB(t)
-	// pas de listen réel : on vérifie seulement la validation des flags
+	// no real listen: we only check flag validation
 	if _, err := tryRun(t, db, "serve", "--addr", "pas-une-adresse"); err == nil {
 		t.Fatal("adresse invalide acceptée")
 	}

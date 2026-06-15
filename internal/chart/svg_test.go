@@ -13,9 +13,9 @@ func TestSVGStructure(t *testing.T) {
 	for _, want := range []string{
 		`<svg xmlns="http://www.w3.org/2000/svg"`, `viewBox="0 0 800 300"`,
 		`<polyline`, `stroke="#0a7d4b"`, `stroke="#888888"`,
-		"2026-01-01", "2026-03-01", // dates aux coins
-		"159", "100", // étiquettes d'échelle (max/min)
-		"brut", "net", // légende
+		"2026-01-01", "2026-03-01", // dates at the corners
+		"159", "100", // scale labels (max/min)
+		"brut", "net", // legend
 		"</svg>",
 	} {
 		if !strings.Contains(out, want) {
@@ -25,7 +25,7 @@ func TestSVGStructure(t *testing.T) {
 	if strings.Count(out, "<polyline") != 2 {
 		t.Errorf("polylines = %d, attendu 2", strings.Count(out, "<polyline"))
 	}
-	// pas de NaN ni d'Inf dans les coordonnées
+	// no NaN or Inf in the coordinates
 	for _, bad := range []string{"NaN", "Inf"} {
 		if strings.Contains(out, bad) {
 			t.Errorf("%s dans le SVG", bad)

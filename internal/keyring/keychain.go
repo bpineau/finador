@@ -39,7 +39,7 @@ func (k *keychain) Get(key string) (string, bool) {
 	}
 	raw, derr := base64.StdEncoding.DecodeString(strings.TrimSpace(enc))
 	if derr != nil {
-		return "", false // entrée illisible (ancien format) : on retape, puis on re-cache
+		return "", false // unreadable entry (old format): retype, then re-cache
 	}
 	stamp, password, ok := strings.Cut(string(raw), "\n")
 	expiry, perr := strconv.ParseInt(stamp, 10, 64)
@@ -50,15 +50,15 @@ func (k *keychain) Get(key string) (string, bool) {
 }
 
 func (k *keychain) Put(key, password string, ttl time.Duration) {
-	// On encode le payload "expiry\npassword" en base64 : la valeur stockée est
-	// alors toujours imprimable (pas de \n). Sans ça, `security find-generic-password -w`
-	// renvoie un DUMP HEX dès que la valeur contient un octet non imprimable (le \n),
-	// ce qui cassait la relecture — donc le cache du mot de passe.
+	// Encode the "expiry\npassword" payload in base64 so the stored value is
+	// always printable (no \n). Without this, `security find-generic-password -w`
+	// returns a HEX DUMP as soon as the value contains a non-printable byte (the \n),
+	// which broke reading it back — and thus the password cache.
 	payload := fmt.Sprintf("%d\n%s", k.now().Add(ttl).Unix(), password)
 	enc := base64.StdEncoding.EncodeToString([]byte(payload))
-	// -U met à jour l'entrée si elle existe ; l'échec est bénin (on retapera).
-	// Le payload (base64) passe en argv (brève fenêtre dans ps) : compromis assumé
-	// d'un design sans CGo — security(1) n'a pas de lecture stdin propre.
+	// -U updates the entry if it exists; failure is benign (we'll retype).
+	// The payload (base64) goes through argv (a brief window in ps): an accepted
+	// trade-off of a CGo-free design — security(1) has no clean stdin read.
 	_, _ = k.run("add-generic-password", "-U", "-s", service, "-a", key, "-w", enc)
 }
 

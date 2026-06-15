@@ -13,8 +13,8 @@ const (
 	ansiReset   = "\x1b[0m"
 )
 
-// colorsEnabled: jamais si --no-color ou NO_COLOR ; toujours si
-// FINADOR_FORCE_COLOR (tests) ; sinon seulement sur un vrai terminal.
+// colorsEnabled: never with --no-color or NO_COLOR; always with
+// FINADOR_FORCE_COLOR (tests); otherwise only on a real terminal.
 func (a *app) colorsEnabled(cmd *cobra.Command) bool {
 	if a.noColor || os.Getenv("NO_COLOR") != "" {
 		return false

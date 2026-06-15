@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// fakeRun simule /usr/bin/security sur une map account → payload.
+// fakeRun simulates /usr/bin/security over an account → payload map.
 func fakeRun(entries map[string]string) func(args ...string) (string, error) {
 	return func(args ...string) (string, error) {
 		switch args[0] {
@@ -37,16 +37,16 @@ func testKeychain(entries map[string]string, now time.Time) *keychain {
 	return &keychain{now: func() time.Time { return now }, run: fakeRun(entries)}
 }
 
-// fakeRunHexOnNonPrintable reproduit le vrai comportement de security(1) :
-// `find-generic-password -w` renvoie un DUMP HEX dès que la valeur stockée
-// contient un octet non imprimable (ex. un \n), et la valeur brute sinon.
+// fakeRunHexOnNonPrintable reproduces the real behavior of security(1):
+// `find-generic-password -w` returns a HEX DUMP as soon as the stored value
+// contains a non-printable byte (e.g. a \n), and the raw value otherwise.
 func fakeRunHexOnNonPrintable(entries map[string]string) func(args ...string) (string, error) {
 	faithful := fakeRun(entries)
 	return func(args ...string) (string, error) {
 		out, err := faithful(args...)
 		if err == nil && args[0] == "find-generic-password" {
 			for i := 0; i < len(out); i++ {
-				if out[i] < 0x20 { // non imprimable → security encode en hex
+				if out[i] < 0x20 { // non-printable → security encodes as hex
 					return hex.EncodeToString([]byte(out)), nil
 				}
 			}
@@ -55,16 +55,16 @@ func fakeRunHexOnNonPrintable(entries map[string]string) func(args ...string) (s
 	}
 }
 
-// TestKeychainSurvivesSecurityHexDump : avec le vrai comportement de security
-// (hex dès qu'il y a un \n), le round-trip doit fonctionner — c'est ce que le
-// stockage base64 garantit (l'ancien format "expiry\npassword" échouait ici).
+// TestKeychainSurvivesSecurityHexDump: with security's real behavior
+// (hex as soon as there's a \n), the round-trip must work — that's what
+// base64 storage guarantees (the old "expiry\npassword" format failed here).
 func TestKeychainSurvivesSecurityHexDump(t *testing.T) {
 	entries := map[string]string{}
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	k := &keychain{now: func() time.Time { return now }, run: fakeRunHexOnNonPrintable(entries)}
 	k.Put("db@tty1", "s3cret avec espace", time.Hour)
 
-	for _, v := range entries { // la valeur stockée ne doit contenir aucun \n
+	for _, v := range entries { // the stored value must not contain any \n
 		if strings.ContainsRune(v, '\n') {
 			t.Fatalf("valeur stockée avec un \\n (security la rendrait en hex): %q", v)
 		}

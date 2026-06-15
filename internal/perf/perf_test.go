@@ -27,35 +27,35 @@ func TestTWRNoFlows(t *testing.T) {
 	pts := []Point{
 		{d("2026-06-01"), 100}, {d("2026-06-02"), 110}, {d("2026-06-03"), 99},
 	}
-	// 100→110 : +10 % ; 110→99 : −10 % ; composé : 0.99 − 1 = −1 %
+	// 100→110: +10%; 110→99: −10%; compounded: 0.99 − 1 = −1%
 	approx(t, "TWR", TWR(pts, nil), -0.01, 1e-9)
 }
 
 func TestTWRNeutralizesFlows(t *testing.T) {
-	// Jour 2 : apport de 100 juste avant ouverture, la valeur passe à 210 puis
-	// le marché fait +10 % → 231. Le TWR ne doit voir que les +5 % du jour 1
-	// (100→105) et les +10 % du jour 2 ((231−100... non : (V2−F2)/V1.
+	// Day 2: a contribution of 100 just before the open lifts the value to 210,
+	// then the market gains +10% → 231. TWR must see only day 1's +5%
+	// (100→105) and day 2's +10% ((231−100... no: (V2−F2)/V1.
 	pts := []Point{{d("2026-06-01"), 100}, {d("2026-06-02"), 105}, {d("2026-06-03"), 215.5}}
 	flows := []Flow{{d("2026-06-03"), 100}}
-	// r3 = (215.5 − 100)/105 = 1.10 → +10 %. TWR = 1.05×1.10 − 1 = 15.5 %
+	// r3 = (215.5 − 100)/105 = 1.10 → +10%. TWR = 1.05×1.10 − 1 = 15.5%
 	approx(t, "TWR", TWR(pts, flows), 0.155, 1e-9)
 }
 
 func TestTWRSkipsZeroBase(t *testing.T) {
 	pts := []Point{{d("2026-06-01"), 0}, {d("2026-06-02"), 100}, {d("2026-06-03"), 110}}
 	flows := []Flow{{d("2026-06-02"), 100}}
-	// jour 2 : base nulle → ignoré ; jour 3 : +10 %
+	// day 2: zero base → skipped; day 3: +10%
 	approx(t, "TWR", TWR(pts, flows), 0.10, 1e-9)
 }
 
 func TestDailyReturnsWeekdaysOnly(t *testing.T) {
-	// vendredi 5 juin 2026, samedi 6, dimanche 7, lundi 8
+	// Friday June 5 2026, Saturday 6, Sunday 7, Monday 8
 	pts := []Point{
 		{d("2026-06-04"), 100}, {d("2026-06-05"), 102},
 		{d("2026-06-06"), 102}, {d("2026-06-07"), 102}, {d("2026-06-08"), 104},
 	}
 	rs := DailyReturns(pts, nil)
-	// vendredi (+2 %) et lundi (104/102 − 1) gardés ; samedi/dimanche éliminés
+	// Friday (+2%) and Monday (104/102 − 1) kept; Saturday/Sunday dropped
 	if len(rs) != 2 {
 		t.Fatalf("returns = %v, attendu 2 valeurs", rs)
 	}
@@ -64,8 +64,8 @@ func TestDailyReturnsWeekdaysOnly(t *testing.T) {
 }
 
 func TestXIRRKnownValue(t *testing.T) {
-	// Référence vérifiable : −1000 le 1er janv, +1100 le 31 déc 2026
-	// (364 jours). 1100/1000 = 1.10 sur 364/365.25 ans → r ≈ 10.03 %
+	// Verifiable reference: −1000 on Jan 1, +1100 on Dec 31 2026
+	// (364 days). 1100/1000 = 1.10 over 364/365.25 years → r ≈ 10.03%
 	r, err := XIRR([]Flow{{d("2026-01-01"), -1000}, {d("2026-12-31"), 1100}})
 	if err != nil {
 		t.Fatal(err)
@@ -74,8 +74,8 @@ func TestXIRRKnownValue(t *testing.T) {
 }
 
 func TestXIRRWithIntermediateFlow(t *testing.T) {
-	// −1000 au départ, −500 à mi-année, +1600 au bout d'un an.
-	// Vérité indépendante : NPV(r)=0 ; vérifier que NPV(XIRR)≈0.
+	// −1000 at the start, −500 mid-year, +1600 after a year.
+	// Independent ground truth: NPV(r)=0; check that NPV(XIRR)≈0.
 	flows := []Flow{{d("2026-01-01"), -1000}, {d("2026-07-01"), -500}, {d("2027-01-01"), 1600}}
 	r, err := XIRR(flows)
 	if err != nil {
@@ -100,7 +100,7 @@ func TestXIRRNoSolution(t *testing.T) {
 }
 
 func TestCAGR(t *testing.T) {
-	// +21 % en 2 ans → 10 % annuel
+	// +21% over 2 years → 10% annual
 	approx(t, "CAGR", CAGR(0.21, 731), math.Pow(1.21, 365.25/731)-1, 1e-9)
 	approx(t, "CAGR 1an", CAGR(0.10, 365), math.Pow(1.10, 365.25/365)-1, 1e-9)
 }
@@ -112,13 +112,13 @@ func TestVolSharpeSortino(t *testing.T) {
 	for _, r := range rs {
 		ss += (r - mean) * (r - mean)
 	}
-	wantVol := math.Sqrt(ss/4) * math.Sqrt(252) // écart-type échantillon, annualisé
+	wantVol := math.Sqrt(ss/4) * math.Sqrt(252) // sample standard deviation, annualized
 	approx(t, "Vol", Vol(rs), wantVol, 1e-9)
 
 	wantSharpe := (mean*252 - 0.02) / wantVol
 	approx(t, "Sharpe", Sharpe(rs, 0.02), wantSharpe, 1e-9)
 
-	// Sortino : seuls les rendements sous rf/252 comptent dans le dénominateur
+	// Sortino: only returns below rf/252 count toward the denominator
 	rfDaily := 0.02 / 252
 	var dss float64
 	n := 0
@@ -185,7 +185,7 @@ func TestMaxDrawdownReanchorsOnExactRetouch(t *testing.T) {
 }
 
 func TestDailyReturnsAdjustsFlows(t *testing.T) {
-	// jeudi 4 juin, vendredi 5 : apport de 100 le vendredi, valeur 210 → r = (210−100)/100 − 1 = +10 %
+	// Thursday June 4, Friday 5: contribution of 100 on Friday, value 210 → r = (210−100)/100 − 1 = +10%
 	pts := []Point{{d("2026-06-04"), 100}, {d("2026-06-05"), 210}}
 	rs := DailyReturns(pts, []Flow{{d("2026-06-05"), 100}})
 	if len(rs) != 1 {

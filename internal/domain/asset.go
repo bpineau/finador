@@ -5,8 +5,8 @@ import "fmt"
 type AssetKind uint8
 
 const (
-	Security AssetKind = iota + 1 // coté : valorisé au cours de marché
-	Property                      // bien : valorisé par estimations datées
+	Security AssetKind = iota + 1 // quoted: valued at the market price
+	Property                      // property: valued from dated estimates
 )
 
 func ParseAssetKind(s string) (AssetKind, error) {
@@ -54,11 +54,11 @@ type Asset struct {
 	ID       AssetID   `json:"id"`
 	Kind     AssetKind `json:"kind"`
 	Name     string    `json:"name"`
-	Ticker   string    `json:"ticker,omitempty"` // symbole Yahoo ("CW8.PA")
+	Ticker   string    `json:"ticker,omitempty"` // Yahoo symbol ("CW8.PA")
 	ISIN     string    `json:"isin,omitempty"`
 	Aliases  []string  `json:"aliases,omitempty"`
 	Currency Currency  `json:"ccy"`
-	Group    string    `json:"group,omitempty"` // chemin hiérarchique : "actions/us/tech"
+	Group    string    `json:"group,omitempty"` // hierarchical path: "actions/us/tech"
 	// Withholding is the source-tax rate applied to AUTOMATIC dividends
 	// (net = gross × (1−w)); manual Dividend lines are assumed already net.
 	Withholding float64 `json:"withholding,omitempty"`

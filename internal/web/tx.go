@@ -93,7 +93,7 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 		}
 		if asset != nil {
 			ccy = asset.Currency
-		} // un actif à créer cotera dans la devise du compte
+		} // an asset to be created will be priced in the account's currency
 	}
 	if (kind == domain.Buy || kind == domain.Sell || kind == domain.Dividend) && assetRef == "" {
 		return zero, fmt.Errorf("a %s requires an asset", kind)

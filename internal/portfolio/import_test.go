@@ -36,7 +36,7 @@ func TestImportCSV(t *testing.T) {
 	if added != 3 || skipped != 0 {
 		t.Fatalf("added=%d skipped=%d", added, skipped)
 	}
-	// comptes et actif créés à la volée
+	// accounts and asset created on the fly
 	if _, err := b.Account("pea-zephyr"); err != nil {
 		t.Error(err)
 	}
@@ -50,7 +50,7 @@ func TestImportCSV(t *testing.T) {
 	if asset.Group != "actions/monde" {
 		t.Errorf("group = %q", asset.Group)
 	}
-	// price unitaire × quantité → montant total
+	// unit price × quantity → total amount
 	if got := b.Transactions[0].Amount.Amount.String(); got != "5500" {
 		t.Errorf("amount = %s", got)
 	}
@@ -156,8 +156,8 @@ func TestImportPropagatesAmbiguity(t *testing.T) {
 	b := domain.NewBook()
 	// Pre-declare the account so the asset ambiguity is what we're testing.
 	addAccount(t, b, "PEA", domain.EUR)
-	// Injection directe des deux actifs pour simuler un livre legacy/corrompu
-	// avec des alias en collision — AddAsset les refuserait désormais.
+	// Inject both assets directly to simulate a legacy/corrupted book
+	// with colliding aliases — AddAsset would now reject them.
 	b.Assets = append(b.Assets,
 		&domain.Asset{ID: "a1", Kind: domain.Security, Name: "Un", Aliases: []string{"dup"}, Currency: domain.EUR},
 		&domain.Asset{ID: "a2", Kind: domain.Security, Name: "Deux", Aliases: []string{"dup"}, Currency: domain.EUR},

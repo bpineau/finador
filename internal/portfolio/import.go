@@ -136,7 +136,7 @@ func ResolveAccount(b *domain.Book, ref string) (*domain.Account, error) {
 		return acc, nil
 	}
 	if !errors.Is(err, domain.ErrNotFound) {
-		return nil, err // ambiguïté : ne pas masquer
+		return nil, err // ambiguity: don't mask it
 	}
 	return nil, fmt.Errorf("unknown account %q — declare it first with `finador account add %q`", ref, ref)
 }
@@ -147,7 +147,7 @@ func EnsureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) 
 	if asset, err := b.Asset(ref); err == nil {
 		return asset, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {
-		return nil, err // ambiguïté : ne pas masquer en création
+		return nil, err // ambiguity: don't mask it by creating
 	}
 	asset := &domain.Asset{ID: domain.AssetID(domain.Slugify(ref)), Kind: domain.Security,
 		Name: ref, Ticker: ref, Currency: ccy, Group: group}

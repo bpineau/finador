@@ -11,13 +11,13 @@ func TestParseTaxRule(t *testing.T) {
 		in   string
 		ok   bool
 		mode TaxMode
-		rate string // taux décimal attendu
+		rate string // expected decimal rate
 	}{
 		{"none", true, TaxNone, "0"},
 		{"", true, TaxNone, "0"},
 		{"gains:17.2%", true, TaxOnGains, "0.172"},
 		{"value:20%", true, TaxOnValue, "0.2"},
-		{"gains:30", true, TaxOnGains, "0.3"}, // le % est optionnel
+		{"gains:30", true, TaxOnGains, "0.3"}, // the % is optional
 		{"plusvalue:30%", false, 0, ""},
 		{"gains:abc%", false, 0, ""},
 		{"gains:-5%", false, 0, ""},
