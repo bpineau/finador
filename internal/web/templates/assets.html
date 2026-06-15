@@ -2,9 +2,33 @@
 {{define "title"}}assets — finador{{end}}
 {{define "main"}}
 <section>
-  <h2>assets</h2>
-  {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+  <h2>new asset</h2>
   {{if .Error}}<p class="flash erreur">{{.Error}}</p>{{end}}
+  {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+  <form method="post" action="/assets">
+    <fieldset>
+      <legend>asset</legend>
+      <div class="champs">
+        <div><label for="name">name</label><input id="name" name="name" placeholder="Amundi MSCI World"></div>
+        <div><label for="kind">kind</label>
+          <select id="kind" name="kind">
+            <option value="security">security</option>
+            <option value="property">property</option>
+          </select></div>
+        <div><label for="ticker">ticker</label><input id="ticker" name="ticker" placeholder="CW8.PA"></div>
+        <div><label for="isin">ISIN</label><input id="isin" name="isin" placeholder="LU1681043599"></div>
+        <div><label for="ccy">currency</label><input id="ccy" name="ccy" placeholder="EUR"></div>
+        <div><label for="group">group</label><input id="group" name="group" placeholder="actions/monde"></div>
+        <div><label for="aliases">aliases</label><input id="aliases" name="aliases" placeholder="comma, separated"></div>
+        <div><label for="withholding">withholding %</label><input id="withholding" name="withholding" placeholder="15"></div>
+      </div>
+      <button type="submit">Save</button>
+    </fieldset>
+  </form>
+</section>
+
+<section>
+  <h2>assets</h2>
   {{range .Warnings}}<p class="approx">≈ {{.}}</p>{{end}}
   <table class="assets-table">
     <tr><th>asset</th><th class="sparkcell">1W</th><th class="sparkcell">1M</th><th class="sparkcell">1Y</th><th class="nombre">GROSS</th><th class="nombre">NET</th></tr>
@@ -30,5 +54,19 @@
     <a href="/assets.csv" class="quiet" download>export CSV ↓</a>
     <form method="post" action="/refresh" class="refresh-quiet"><button type="submit" class="quiet">refresh quotes</button></form>
   </div>
+</section>
+
+<section>
+  <h2>manage assets</h2>
+  <table>
+    <tr><th>id</th><th>kind</th><th>name</th><th>ticker</th><th>ISIN</th><th>currency</th><th>group</th><th>aliases</th><th></th></tr>
+    {{range .Assets}}
+    <tr>
+      <td class="nombre">{{.ID}}</td><td>{{.Kind}}</td><td>{{.Name}}</td><td>{{.Ticker}}</td><td>{{.ISIN}}</td><td>{{.Currency}}</td><td>{{.Group}}</td>
+      <td>{{range $i, $a := .Aliases}}{{if $i}}, {{end}}{{$a}}{{end}}</td>
+      <td class="actions"><a href="/assets/{{.ID}}/edit">edit</a> <form method="post" action="/assets/{{.ID}}/delete"><button class="lien" type="submit">delete</button></form></td>
+    </tr>
+    {{end}}
+  </table>
 </section>
 {{end}}
