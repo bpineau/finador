@@ -47,7 +47,7 @@ func initCmd(a *app) *cobra.Command {
 
 			if isRemote {
 				// First push creates (or, if the remote already has a file, merges
-				// into) the remote — the sync layer handles ErrRemoteMissing→create.
+				// into) the remote - the sync layer handles ErrRemoteMissing→create.
 				warnings, perr := s.AfterWrite(context.Background(), "finador init", a.remoteMerge(staticPW(pw)))
 				if perr != nil {
 					return remoteError(perr)

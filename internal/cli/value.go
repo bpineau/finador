@@ -20,7 +20,7 @@ func valueCmd(a *app) *cobra.Command {
 	var exclude, whatIf []string
 	cmd := &cobra.Command{
 		Use:   "value [scope]",
-		Short: "Portfolio value (gross, estimated tax, net) — all, a group, an account or an asset",
+		Short: "Portfolio value (gross, estimated tax, net) - all, a group, an account or an asset",
 		Example: "  finador value                 # gross, estimated tax and net (default)\n" +
 			"  finador value --gross         # gross value only\n" +
 			"  finador value equities/world  # scope to a group\n" +
@@ -158,7 +158,7 @@ func money(x float64, c domain.Currency) string {
 
 func printValuation(cmd *cobra.Command, scope portfolio.Scope, date domain.Date, v portfolio.Valuation, net bool) {
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "%s — %s\n", scope.Label, date)
+	fmt.Fprintf(out, "%s - %s\n", scope.Label, date)
 	w := tabwriter.NewWriter(out, 2, 4, 2, ' ', 0)
 	if net {
 		fmt.Fprintln(w, "LINE\tGROSS\tTAX\tNET")
@@ -186,7 +186,7 @@ func printValuation(cmd *cobra.Command, scope portfolio.Scope, date domain.Date,
 }
 
 // ensureDisplayFX fetches the display currency's FX series when the cache
-// lacks it — the regular refresh only covers currencies the book uses.
+// lacks it - the regular refresh only covers currencies the book uses.
 func ensureDisplayFX(cmd *cobra.Command, a *app, f *store.File, display domain.Currency) {
 	if a.offline || display == domain.USD {
 		return

@@ -1,5 +1,5 @@
 {{define "tx.html"}}{{template "base" .}}{{end}}
-{{define "title"}}transactions — finador{{end}}
+{{define "title"}}transactions - finador{{end}}
 {{define "main"}}
 <section>
   <h2>new entry</h2>
@@ -16,7 +16,7 @@
           <input id="account" name="account" list="accounts-list" placeholder="existing or new">
           <datalist id="accounts-list">{{range .Accounts}}<option value="{{.Name}}">{{end}}</datalist></div>
         <div><label for="asset">asset</label>
-          <input id="asset" name="asset" list="assets-list" placeholder="optional — existing or new">
+          <input id="asset" name="asset" list="assets-list" placeholder="optional - existing or new">
           <datalist id="assets-list">{{range .Assets}}<option value="{{.Name}}">{{end}}</datalist></div>
         <div><label for="qty">quantity</label><input id="qty" name="qty"></div>
         <div><label for="amount">total amount</label><input id="amount" name="amount"></div>

@@ -304,7 +304,7 @@ func TestResolveUniquePrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	if a, err := b.Asset("dd"); err != nil || a.ID != "dd" {
-		t.Errorf("Asset(dd) = %v, %v — l'exact doit gagner", a, err)
+		t.Errorf("Asset(dd) = %v, %v - l'exact doit gagner", a, err)
 	}
 	// not found stays not found
 	if _, err := b.Asset("zz"); !errors.Is(err, ErrNotFound) {

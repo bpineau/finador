@@ -337,12 +337,12 @@ func TestSeriesOpeningBuyValuedAtMarket(t *testing.T) {
 	must(b.AddAsset(&domain.Asset{ID: "aa", Kind: domain.Security, Name: "A", Currency: domain.EUR, Group: "g"}))
 	must(b.AddAsset(&domain.Asset{ID: "bb", Kind: domain.Security, Name: "B", Currency: domain.EUR, Group: "g"}))
 
-	// A is bought at market (cost == value) and held flat — it gives the window
+	// A is bought at market (cost == value) and held flat - it gives the window
 	// a positive base value so the next day's return is actually measured.
 	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "cto", Asset: "aa",
 		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("1000")})
 	// B is onboarded mid-window at a STALE average cost (500) while the market
-	// already says 1000 — the classic "declare today's positions" case.
+	// already says 1000 - the classic "declare today's positions" case.
 	b.Add(domain.Transaction{Date: mustDate("2026-01-05"), Account: "cto", Asset: "bb",
 		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("500")})
 

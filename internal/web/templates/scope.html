@@ -1,9 +1,9 @@
 {{define "scope.html"}}{{template "base" .}}{{end}}
-{{define "title"}}{{.Label}} — finador{{end}}
+{{define "title"}}{{.Label}} - finador{{end}}
 {{define "main"}}
 <p class="fil-ariane"><a href="/">overview</a> → {{.Label}}</p>
 <section class="heros">
-  <p class="libelle">{{.Label}} — net worth, after estimated tax</p>
+  <p class="libelle">{{.Label}} - net worth, after estimated tax</p>
   <p class="chiffre-une">{{fmtMoney .Val.Net .Val.Currency}}</p>
   <p class="sous-titre">gross {{fmtMoney .Val.Gross .Val.Currency}} · estimated tax {{fmtMoney .Val.Tax .Val.Currency}}</p>
   {{range .Val.Stale}}<p class="approx">≈ {{.}}</p>{{end}}
@@ -36,9 +36,9 @@
     <tr><th>period</th><th class="nombre">TWR</th><th class="nombre">XIRR</th><th class="nombre">gain</th></tr>
     {{range .Rows}}
     <tr><td>{{.Name}}</td>
-      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{fmtPct .TWR}}{{else}}—{{end}}</td>
-      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{fmtPct .XIRR}}{{else}}—{{end}}</td>
-      <td class="nombre delta {{if .HasGain}}{{signe .Gain}}{{end}}">{{if .HasGain}}{{fmtMoney .Gain $.Val.Currency}}{{else}}—{{end}}</td></tr>
+      <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{fmtPct .TWR}}{{else}}-{{end}}</td>
+      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{fmtPct .XIRR}}{{else}}-{{end}}</td>
+      <td class="nombre delta {{if .HasGain}}{{signe .Gain}}{{end}}">{{if .HasGain}}{{fmtMoney .Gain $.Val.Currency}}{{else}}-{{end}}</td></tr>
     {{end}}
   </table>
   <p class="sous-titre">{{if .Met.HasCAGR}}CAGR {{fmtPct .Met.CAGR}} · {{end}}{{if .Met.HasRisk}}vol {{fmtPct .Met.Vol}} · Sharpe {{fmtNum .Met.Sharpe}} · Sortino {{fmtNum .Met.Sortino}} · {{end}}tracking since {{.Met.Since}} ({{.Met.Days}} d)</p>

@@ -28,11 +28,11 @@ type GitHubClient struct {
 }
 
 // NewGitHub creates a GitHubClient from a Config GitHub section and a PAT.
-// Branch defaults to "main" when empty.
+// Branch defaults to "master" when empty.
 func NewGitHub(gh GitHub, token string) *GitHubClient {
 	branch := gh.Branch
 	if branch == "" {
-		branch = "main"
+		branch = "master"
 	}
 	return &GitHubClient{
 		Owner:   gh.Owner,
@@ -68,7 +68,7 @@ func (g *GitHubClient) repoURL() string {
 	return fmt.Sprintf("%s/repos/%s/%s", base, g.Owner, g.Repo)
 }
 
-// CheckAccess verifies the token can reach the repository via a metadata GET —
+// CheckAccess verifies the token can reach the repository via a metadata GET -
 // independent of whether the .fin file exists. nil on success; ErrRemoteAuth on
 // 401/403/404 (GitHub returns 404 for a repo a token can't see); ErrOffline on
 // transport errors. Used by `remote login` to validate the token immediately.

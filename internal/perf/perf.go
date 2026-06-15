@@ -69,7 +69,7 @@ func flowsByDay(flows []Flow) map[domain.Date]float64 {
 // XIRR solves the money-weighted annual rate by bisection. Cashflows follow
 // the investor's convention: invested money negative, final value positive.
 // For flows with several sign changes the NPV may have multiple roots:
-// bisection returns one of them — an accepted convention for typical
+// bisection returns one of them - an accepted convention for typical
 // savings flows.
 func XIRR(cashflows []Flow) (float64, error) {
 	if len(cashflows) < 2 {
@@ -123,7 +123,7 @@ func Vol(returns []float64) float64 {
 	return math.Sqrt(ss/float64(len(returns)-1)) * math.Sqrt(252)
 }
 
-// Sharpe uses arithmetic annualization of the mean daily excess return —
+// Sharpe uses arithmetic annualization of the mean daily excess return -
 // the usual simple convention, documented in the plan.
 func Sharpe(returns []float64, rfAnnual float64) float64 {
 	v := Vol(returns)

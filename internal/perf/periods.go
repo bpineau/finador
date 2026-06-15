@@ -9,7 +9,7 @@ import (
 // PeriodRange resolves a period name into [from, to]: the value at `from` is
 // the comparison base, so "ytd" starts at Dec 31 of last year. Month/year
 // arithmetic follows Go's AddDate normalization: from March 31, "1m" lands on
-// March 3 (Feb 31 doesn't exist) — accepted quirk for month-end dates.
+// March 3 (Feb 31 doesn't exist) - accepted quirk for month-end dates.
 func PeriodRange(name string, today domain.Date) (from, to domain.Date, err error) {
 	to = today
 	switch name {

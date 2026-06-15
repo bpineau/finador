@@ -17,7 +17,7 @@ type SeriesPoint struct {
 }
 
 // ExternalFlow is money entering (>0) or leaving (<0) the scope, in display
-// currency — what TWR neutralizes and XIRR consumes.
+// currency - what TWR neutralizes and XIRR consumes.
 type ExternalFlow struct {
 	Date   domain.Date
 	Amount float64
@@ -203,7 +203,7 @@ func (w *walker) warnings() []string {
 			i++
 		}
 		ccy := key[i+1:]
-		out = append(out, fmt.Sprintf("cannot convert %s — counted as 0", ccy))
+		out = append(out, fmt.Sprintf("cannot convert %s - counted as 0", ccy))
 	}
 	return out
 }
@@ -235,7 +235,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		}
 		qtyBefore := p.qty
 
-		// Update position state (not for property — property stays statement-valued)
+		// Update position state (not for property - property stays statement-valued)
 		if p.asset.Kind != domain.Property {
 			if t.Kind == domain.Buy {
 				p.basis += disp
@@ -248,7 +248,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		}
 
 		// External flow valued at the MARKET value of the shares transacted at
-		// t.Date — the value actually crossing the scope boundary — not the cash
+		// t.Date - the value actually crossing the scope boundary - not the cash
 		// amount. For a normal at-market buy the two coincide; for a position
 		// onboarded at its average cost they don't, and using the cash amount
 		// would book a phantom cost→market jump as performance. Falls back to
@@ -376,7 +376,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		}
 		// A statement re-declares a value rather than observing a market, so the
 		// gap since the previously-held value is an adjustment (apport), not
-		// performance — emitting it as an external flow keeps TWR from booking a
+		// performance - emitting it as an external flow keeps TWR from booking a
 		// multi-year appreciation as a one-day jump. The first statement
 		// (prevHeld 0) is the full adoption.
 		//   - property: always declaration-valued → re-baseline on every statement

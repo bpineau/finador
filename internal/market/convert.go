@@ -19,7 +19,7 @@ func (cv Converter) usdValue(c domain.Currency, d domain.Date) (float64, error) 
 	}
 	rate, _, ok := cv.FX[c].At(d) // At est nil-safe
 	if !ok {
-		return 0, fmt.Errorf("missing %s exchange rate on %s — run 'finador refresh'", c, d)
+		return 0, fmt.Errorf("missing %s exchange rate on %s - run 'finador refresh'", c, d)
 	}
 	return rate, nil
 }

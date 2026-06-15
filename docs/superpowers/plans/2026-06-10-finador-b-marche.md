@@ -1,8 +1,8 @@
-# Finador phase B — marché & valorisation : plan d'implémentation
+# Finador phase B - marché & valorisation : plan d'implémentation
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** La valeur du patrimoine — brut, impôt latent, net — à toute date, toute portée (tout / groupe / enveloppe / actif), toute devise d'affichage, avec prix Yahoo Finance, FX croisés par l'USD et dividendes automatiques, le tout en cache chiffré dans le fichier `.fin`.
+**Goal:** La valeur du patrimoine - brut, impôt latent, net - à toute date, toute portée (tout / groupe / enveloppe / actif), toute devise d'affichage, avec prix Yahoo Finance, FX croisés par l'USD et dividendes automatiques, le tout en cache chiffré dans le fichier `.fin`.
 
 **Architecture:** `domain` gagne les types de cache marché (séries de clôtures, FX, dividendes) stockés dans le Book. `market` = interface `Source` + client Yahoo (fixtures httptest), conversion FX par l'USD, orchestration du refresh. `portfolio` = rejeu du ledger (quantités, cash suivi/non suivi) puis valorisation avec fiscalité par enveloppe. La CLI gagne `value`, `refresh`, `--offline`, et la résolution Yahoo dans `asset add`.
 
@@ -20,7 +20,7 @@
 
 ---
 
-### Task B1: domain — types de cache marché
+### Task B1: domain - types de cache marché
 
 **Files:**
 - Create: `internal/domain/marketdata.go`
@@ -121,7 +121,7 @@ func TestMarketDataLazyAndJSON(t *testing.T) {
 - [ ] **Step 2: vérifier l'échec**
 
 Run: `go test ./internal/domain/`
-Expected: FAIL — undefined: PriceSeries, etc.
+Expected: FAIL - undefined: PriceSeries, etc.
 
 - [ ] **Step 3: implémenter**
 
@@ -132,7 +132,7 @@ package domain
 
 import "slices"
 
-// PricePoint is one daily close. Closes are analytics data: float64 is fine —
+// PricePoint is one daily close. Closes are analytics data: float64 is fine -
 // decimal exactness lives in the ledger, not in market quotes.
 type PricePoint struct {
 	Date  Date    `json:"d"`
@@ -141,7 +141,7 @@ type PricePoint struct {
 
 // PriceSeries is a date-sorted daily close series with forward-fill lookup.
 // FetchedAt records the last refresh day, even when no new point appeared
-// (week-ends) — staleness is judged on it, not on the last point.
+// (week-ends) - staleness is judged on it, not on the last point.
 type PriceSeries struct {
 	Points    []PricePoint `json:"points"`
 	FetchedAt Date         `json:"fetchedAt"`
@@ -194,7 +194,7 @@ type DividendEvent struct {
 
 // MarketData is the cached public market state. It lives inside the encrypted
 // Book: the list of held tickers is sensitive metadata. Everything here is
-// refetchable — losing it costs one refresh, never user data.
+// refetchable - losing it costs one refresh, never user data.
 type MarketData struct {
 	Prices    map[AssetID]*PriceSeries    `json:"prices,omitempty"`
 	FX        map[Currency]*PriceSeries   `json:"fx,omitempty"` // valeur de 1 unité en USD
@@ -238,12 +238,12 @@ Run: `go test ./internal/domain/ && go test ./...` → PASS. gofmt/vet silencieu
 
 ```bash
 git add internal/domain
-git commit -m "feat(domain): cache marché — séries de clôtures, FX vs USD, dividendes"
+git commit -m "feat(domain): cache marché - séries de clôtures, FX vs USD, dividendes"
 ```
 
 ---
 
-### Task B2: market — interface Source et client Yahoo
+### Task B2: market - interface Source et client Yahoo
 
 **Files:**
 - Create: `internal/market/source.go`, `internal/market/yahoo.go`
@@ -381,7 +381,7 @@ func mustDate(s string) domain.Date {
 - [ ] **Step 2: vérifier l'échec**
 
 Run: `go test ./internal/market/`
-Expected: FAIL — undefined: Yahoo, NewYahoo.
+Expected: FAIL - undefined: Yahoo, NewYahoo.
 
 - [ ] **Step 3: implémenter**
 
@@ -438,7 +438,7 @@ import (
 )
 
 // Yahoo is the default Source: the unofficial but stable Yahoo Finance API.
-// No key, no auth — just a browser-looking User-Agent and polite retries.
+// No key, no auth - just a browser-looking User-Agent and polite retries.
 type Yahoo struct {
 	BaseURL   string
 	Client    *http.Client
@@ -577,18 +577,18 @@ func (y *Yahoo) Daily(ctx context.Context, symbol string, from domain.Date) (Dai
 
 - [ ] **Step 4: vérifier le succès**
 
-Run: `go test ./internal/market/ && go test ./...` → PASS. gofmt/vet silencieux. Vérifier que le timestamp de la fixture est cohérent : `TZ=Europe/Paris date -r 1780297200` doit donner le 1er juin 2026 ; sinon ajuster la fixture (timestamps = 09:00 locale des 1/2/3 juin 2026) et les assertions en conséquence — signaler tout ajustement.
+Run: `go test ./internal/market/ && go test ./...` → PASS. gofmt/vet silencieux. Vérifier que le timestamp de la fixture est cohérent : `TZ=Europe/Paris date -r 1780297200` doit donner le 1er juin 2026 ; sinon ajuster la fixture (timestamps = 09:00 locale des 1/2/3 juin 2026) et les assertions en conséquence - signaler tout ajustement.
 
 - [ ] **Step 5: commit**
 
 ```bash
 git add internal/market
-git commit -m "feat(market): interface Source et client Yahoo — clôtures, dividendes, recherche, retries"
+git commit -m "feat(market): interface Source et client Yahoo - clôtures, dividendes, recherche, retries"
 ```
 
 ---
 
-### Task B3: market — conversion FX par l'USD
+### Task B3: market - conversion FX par l'USD
 
 **Files:**
 - Create: `internal/market/convert.go`
@@ -656,7 +656,7 @@ func TestConvertMissingRate(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/market/` → FAIL — undefined: Converter.
+Run: `go test ./internal/market/` → FAIL - undefined: Converter.
 
 - [ ] **Step 3: implémenter**
 
@@ -684,7 +684,7 @@ func (cv Converter) usdValue(c domain.Currency, d domain.Date) (float64, error) 
 	}
 	rate, _, ok := cv.FX[c].At(d) // At est nil-safe
 	if !ok {
-		return 0, fmt.Errorf("cours de change %s manquant au %s — lancez « finador refresh »", c, d)
+		return 0, fmt.Errorf("cours de change %s manquant au %s - lancez « finador refresh »", c, d)
 	}
 	return rate, nil
 }
@@ -727,7 +727,7 @@ git commit -m "feat(market): conversion de devises croisée par l'USD"
 
 ---
 
-### Task B4: market — orchestration du refresh
+### Task B4: market - orchestration du refresh
 
 **Files:**
 - Create: `internal/market/refresh.go`
@@ -899,7 +899,7 @@ func contains(ss []string, want string) bool {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/market/ ./internal/domain/` → FAIL — undefined: Refresh, AddDays.
+Run: `go test ./internal/market/ ./internal/domain/` → FAIL - undefined: Refresh, AddDays.
 
 - [ ] **Step 3: implémenter**
 
@@ -1065,12 +1065,12 @@ Run: `go test ./internal/market/ ./internal/domain/ && go test ./...` → PASS. 
 
 ```bash
 git add internal/market internal/domain
-git commit -m "feat(market): refresh incrémental gracieux — prix, FX, dividendes"
+git commit -m "feat(market): refresh incrémental gracieux - prix, FX, dividendes"
 ```
 
 ---
 
-### Task B5: portfolio — rejeu du ledger
+### Task B5: portfolio - rejeu du ledger
 
 **Files:**
 - Create: `internal/portfolio/replay.go`
@@ -1190,7 +1190,7 @@ func TestCashTracked(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/portfolio/` → FAIL — undefined: Holdings.
+Run: `go test ./internal/portfolio/` → FAIL - undefined: Holdings.
 
 - [ ] **Step 3: implémenter**
 
@@ -1319,12 +1319,12 @@ Run: `go test ./internal/portfolio/ && go test ./...` → PASS. gofmt/vet silenc
 
 ```bash
 git add internal/portfolio
-git commit -m "feat(portfolio): rejeu du ledger — positions, quantités, cash suivi"
+git commit -m "feat(portfolio): rejeu du ledger - positions, quantités, cash suivi"
 ```
 
 ---
 
-### Task B6: portfolio — portées et valorisation brut/impôt/net
+### Task B6: portfolio - portées et valorisation brut/impôt/net
 
 **Files:**
 - Create: `internal/portfolio/scope.go`, `internal/portfolio/value.go`
@@ -1335,7 +1335,7 @@ Règles (de la spec §3 et §6, décisions en tête de plan) :
 - Biens : dernier relevé ≤ at (escalier).
 - Cash des comptes suivis : ancre = dernier relevé cash ≤ at, puis flux postérieurs (±Deposit/Withdraw/Buy/Sell/Dividend manuel/Fee) convertis vers la devise du compte à leur date, + dividendes automatiques (actifs sans Dividend manuel, qty à l'ex-date), solde converti à `at`.
 - Impôt par ligne : position par position (TaxOnValue : valeur×taux ; TaxOnGains : max(0, valeur − coût moyen converti aux dates de flux)×taux ; bien : base = premier relevé). Impôt TOTAL des portées All/Account : règle d'enveloppe exacte (TaxOnGains : base = apports nets si cash suivi, sinon achats−ventes). Si l'écart ligne/total dépasse 1 centime → TaxNote l'explique.
-- Portées : "" → tout ; préfixe de groupe (insensible à la casse, par segments) ; enveloppe ; actif — dans cet ordre, l'ambiguïté se propage.
+- Portées : "" → tout ; préfixe de groupe (insensible à la casse, par segments) ; enveloppe ; actif - dans cet ordre, l'ambiguïté se propage.
 
 - [ ] **Step 1: tests qui échouent**
 
@@ -1388,7 +1388,7 @@ func valuationBook(t *testing.T) *domain.Book {
 	immo, _ := b.Account("immo")
 	immo.Tax, _ = domain.ParseTaxRule("gains:30%")
 	if err := b.AddAsset(&domain.Asset{ID: "maison", Kind: domain.Property,
-		Name: "Maison à Achères", Currency: domain.EUR, Group: "immo"}); err != nil {
+		Name: "Maison à Rénover", Currency: domain.EUR, Group: "immo"}); err != nil {
 		t.Fatal(err)
 	}
 	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "immo", Asset: "maison",
@@ -1553,7 +1553,7 @@ func TestParseScopeOrderAndErrors(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/portfolio/` → FAIL — undefined: Scope, Value.
+Run: `go test ./internal/portfolio/` → FAIL - undefined: Scope, Value.
 
 - [ ] **Step 3: implémenter**
 
@@ -1694,7 +1694,7 @@ type FX interface {
 
 // Valuation is the value of a scope at a date, in one display currency.
 // Line taxes are position-by-position (documented approximation); the total
-// of All/Account scopes uses the exact envelope rule — TaxNote is set when
+// of All/Account scopes uses the exact envelope rule - TaxNote is set when
 // the two visibly diverge.
 type Valuation struct {
 	Currency        domain.Currency
@@ -1830,7 +1830,7 @@ func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (
 }
 
 // positionValue: market close if a series exists, else last statement of the
-// (account, asset) pair, else zero — each fallback flagged.
+// (account, asset) pair, else zero - each fallback flagged.
 func (v *valuer) positionValue(h Holding) (float64, error) {
 	if close, cdate, ok := v.b.Market.Prices[h.Asset.ID].At(v.at); ok {
 		if cdate.AddDays(staleAfterDays).Before(v.at) {
@@ -1842,7 +1842,7 @@ func (v *valuer) positionValue(h Holding) (float64, error) {
 		v.stale = append(v.stale, fmt.Sprintf("%s: valorisé par relevé du %s", h.Asset.Name, tx.Date))
 		return v.convertAt(tx.Amount, v.ccy, v.at)
 	}
-	v.stale = append(v.stale, fmt.Sprintf("%s: aucun cours ni relevé — compté pour 0", h.Asset.Name))
+	v.stale = append(v.stale, fmt.Sprintf("%s: aucun cours ni relevé - compté pour 0", h.Asset.Name))
 	return 0, nil
 }
 
@@ -1877,7 +1877,7 @@ func (v *valuer) firstStatement(acc domain.AccountID, asset domain.AssetID) (*do
 	return nil, false
 }
 
-// positionTax: per-position rule — TaxOnValue: value × rate; TaxOnGains:
+// positionTax: per-position rule - TaxOnValue: value × rate; TaxOnGains:
 // max(0, value − average-cost basis, flows converted at their date) × rate.
 func (v *valuer) positionTax(acc *domain.Account, asset *domain.Asset, gross float64) (float64, error) {
 	switch acc.Tax.Mode {
@@ -1982,7 +1982,7 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		basis += sign * amt
 	}
 	// Les biens valorisés par relevés entrent dans la base par leur première
-	// estimation connue — sinon une enveloppe immo serait taxée sur la valeur
+	// estimation connue - sinon une enveloppe immo serait taxée sur la valeur
 	// totale et non la plus-value. Approximation documentée : si un apport
 	// suivi a financé le bien ET que le bien a un relevé initial, la base
 	// compte les deux (cas inhabituel, à corriger à la main si rencontré).
@@ -2127,7 +2127,7 @@ func statementPairs(b *domain.Book, at domain.Date) []pair {
 }
 ```
 
-NOTE pour l'implémenteur : `v.b.Market.Prices[id]` peut être nil — `At` est nil-safe par construction (Task B1). `max`/`min` sont les builtins Go 1.21+.
+NOTE pour l'implémenteur : `v.b.Market.Prices[id]` peut être nil - `At` est nil-safe par construction (Task B1). `max`/`min` sont les builtins Go 1.21+.
 
 - [ ] **Step 4: vérifier le succès**
 
@@ -2142,7 +2142,7 @@ git commit -m "feat(portfolio): valorisation brut/impôt latent/net à toute dat
 
 ---
 
-### Task B7: cli — value, refresh, --offline, résolution Yahoo d'asset add
+### Task B7: cli - value, refresh, --offline, résolution Yahoo d'asset add
 
 **Files:**
 - Create: `internal/cli/value.go`, `internal/cli/refresh.go`
@@ -2268,7 +2268,7 @@ func TestAssetAddResolvesFromYahoo(t *testing.T) {
 
 - [ ] **Step 2: vérifier l'échec**
 
-Run: `go test ./internal/cli/` → FAIL — undefined: cli.WithSource, unknown command "value".
+Run: `go test ./internal/cli/` → FAIL - undefined: cli.WithSource, unknown command "value".
 
 - [ ] **Step 3: implémenter**
 
@@ -2277,7 +2277,7 @@ Dans `internal/cli/cli.go` :
 ```go
 // en tête de fichier, imports += "fmt", "finador/internal/market"
 
-// Option configures the CLI — tests inject a fake market source.
+// Option configures the CLI - tests inject a fake market source.
 type Option func(*app)
 
 // WithSource replaces the default Yahoo market source.
@@ -2358,7 +2358,7 @@ func valueCmd(a *app) *cobra.Command {
 	var net bool
 	cmd := &cobra.Command{
 		Use:   "value [portée]",
-		Short: "Valeur du patrimoine — tout, un groupe, une enveloppe ou un actif",
+		Short: "Valeur du patrimoine - tout, un groupe, une enveloppe ou un actif",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
@@ -2542,11 +2542,11 @@ func enrichFromMarket(cmd *cobra.Command, a *app, asset *domain.Asset, query str
 }
 ```
 
-(ajouter l'import `"cmp"` toujours présent, et rien d'autre — `a.offline` et `a.marketSource()` viennent de cli.go)
+(ajouter l'import `"cmp"` toujours présent, et rien d'autre - `a.offline` et `a.marketSource()` viennent de cli.go)
 
 - [ ] **Step 4: vérifier le succès**
 
-Run: `go test ./internal/cli/ && go test ./...` → PASS. gofmt/vet silencieux. ATTENTION : vérifier que les tests N'APPELLENT JAMAIS le vrai Yahoo — `tryRun` garde `--offline`, seul `tryRunNet` (Source factice) s'en passe. `git grep -n "query1.finance" internal/cli` ne doit apparaître nulle part dans les tests.
+Run: `go test ./internal/cli/ && go test ./...` → PASS. gofmt/vet silencieux. ATTENTION : vérifier que les tests N'APPELLENT JAMAIS le vrai Yahoo - `tryRun` garde `--offline`, seul `tryRunNet` (Source factice) s'en passe. `git grep -n "query1.finance" internal/cli` ne doit apparaître nulle part dans les tests.
 
 - [ ] **Step 5: commit**
 
@@ -2576,8 +2576,8 @@ B="./bin/finador --db /tmp/demo-b.fin --no-keychain --offline"
 $B init
 $B account add "PEA Zephyr" --tax gains:17.2%
 $B account add "Immo" --tax gains:30%
-$B asset add "Maison à Achères" --kind property --group immo
-$B asset set maison-a-acheres 450000 --at 2026-06-01 --account Immo
+$B asset add "Maison à Rénover" --kind property --group immo
+$B asset set maison-a-renover 450000 --at 2026-06-01 --account Immo
 $B deposit "PEA Zephyr" 5000 2026-01-10
 $B cash set "PEA Zephyr" 4800 --at 2026-06-01
 $B value --net
@@ -2590,11 +2590,11 @@ Expected: la valeur affiche la maison (450000) + le cash (4800), impôt latent d
 Ajouter à `docs/superpowers/DECISIONS.md` :
 
 ```markdown
-## D7 — Le fichier .fin reste en version 1 avec le cache marché
+## D7 - Le fichier .fin reste en version 1 avec le cache marché
 
 **Contexte :** la phase B ajoute prices/fx/dividends dans le JSON du Book. Un binaire
 phase A qui réécrirait ce fichier perdrait silencieusement ces champs. **Choix :** pas de
-bump de version — ces champs sont des caches refetchables (un `finador refresh` les
+bump de version - ces champs sont des caches refetchables (un `finador refresh` les
 reconstruit), et toutes les phases sont livrées ensemble. **Alternative si refusé :**
 bump l'octet de version à 2 et refuser les versions inconnues.
 ```
@@ -2603,7 +2603,7 @@ bump l'octet de version à 2 et refuser les versions inconnues.
 
 ```bash
 git add docs/superpowers/DECISIONS.md
-git commit -m "docs: décision D7 — cache marché sans bump de version de fichier"
+git commit -m "docs: décision D7 - cache marché sans bump de version de fichier"
 git tag phase-b
 ```
 

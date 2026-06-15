@@ -28,7 +28,7 @@ func TestAssetRows(t *testing.T) {
 	}
 	// sorted by gross desc: the house (450 000) then cw8 (14 × 560 = 7840).
 	house, share := rows[0], rows[1]
-	if house.Name != "Maison à Achères" || share.Name != "CW8" {
+	if house.Name != "Maison à Rénover" || share.Name != "CW8" {
 		t.Fatalf("order = %q, %q", house.Name, share.Name)
 	}
 	approx(t, "house gross", house.Gross, 450000)
@@ -50,9 +50,9 @@ func TestAssetRows(t *testing.T) {
 
 func TestWriteAssetCSV(t *testing.T) {
 	rows := []AssetRow{
-		{Ticker: "CW8.PA", Name: "Amundi MSCI World", ISIN: "LU1681043599",
+		{Kind: "security", Ticker: "CW8.PA", Name: "Amundi MSCI World", ISIN: "LU1681043599",
 			Gross: 7840, Net: 7820.5, Currency: domain.EUR},
-		{Name: "Maison à Achères", Gross: 450000, Net: 435000, Currency: domain.EUR},
+		{Kind: "cash", Name: "Livret A", Gross: 8000, Net: 8000, Currency: domain.EUR},
 	}
 	var buf bytes.Buffer
 	if err := WriteAssetCSV(&buf, rows); err != nil {
@@ -65,17 +65,44 @@ func TestWriteAssetCSV(t *testing.T) {
 	if len(recs) != 3 {
 		t.Fatalf("records = %d, want 3 (header + 2 rows)", len(recs))
 	}
-	for i, h := range []string{"ticker", "name", "isin", "gross", "net", "currency"} {
+	for i, h := range []string{"kind", "ticker", "name", "isin", "gross", "net", "currency"} {
 		if recs[0][i] != h {
 			t.Errorf("header[%d] = %q, want %q", i, recs[0][i], h)
 		}
 	}
-	for i, c := range []string{"CW8.PA", "Amundi MSCI World", "LU1681043599", "7840.00", "7820.50", "EUR"} {
+	for i, c := range []string{"security", "CW8.PA", "Amundi MSCI World", "LU1681043599", "7840.00", "7820.50", "EUR"} {
 		if recs[1][i] != c {
 			t.Errorf("row1[%d] = %q, want %q", i, recs[1][i], c)
 		}
 	}
-	if recs[2][0] != "" || recs[2][2] != "" {
-		t.Errorf("property row should have empty ticker/isin: %v", recs[2])
+	// the cash row carries kind=cash and no ticker/isin
+	if recs[2][0] != "cash" || recs[2][1] != "" || recs[2][3] != "" {
+		t.Errorf("cash row malformed: %v", recs[2])
+	}
+}
+
+func TestAllRowsIncludesCash(t *testing.T) {
+	b := valuationBook(t)
+	at := mustDate("2026-06-05")
+	assets, err := AssetRows(b, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := AllRows(b, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) <= len(assets) {
+		t.Fatalf("AllRows (%d) must add cash rows on top of AssetRows (%d)", len(all), len(assets))
+	}
+	// the Livret's tracked cash (statement 12000) must surface as a cash row.
+	found := false
+	for _, r := range all {
+		if r.Kind == "cash" && r.Gross > 11999 && r.Gross < 12001 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("AllRows must expose the Livret tracked cash (12000)")
 	}
 }
