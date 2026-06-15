@@ -135,90 +135,46 @@ After `refresh`, any holding still showing **“counted as 0”** is one no sour
 
 ### Invest cash you already have
 
-The move you'll make most once set up: you have cash and you put it into the market.
-The one rule to internalize: **declaring a holding is never a gain.** A `buy` enters the
-performance series at that day's *market value* (capital deployed), so a position you
-just declared reads **0 %**, not +100 % — only its later moves count.
-
-Say you have 30 000 € sitting on your Livret A and you invest it through your CTO:
+Key rule: **a declared holding is never a gain** — a `buy` enters the series at that day's
+market value, so it reads 0 %, not +100 %. Say you invest 30 000 € of cash via your CTO:
 
 ```sh
-# Mandatory — just record the buys. This IS the whole operation.
+# MANDATORY — just record the buys. This IS the whole operation.
 finador asset buy world 200 @100 --account meridia    # 20 000 € into the world ETF
 finador asset buy apple 60 @166  --account meridia     # ~10 000 € into Apple
-```
 
-Each buy builds the position's cost basis and starts tracking its performance from the
-market value that day. Nothing else is required.
-
-**The cash side is optional** — only worth it if you want to *see idle, uninvested
-balances* (cash waiting at a broker, a savings account's interest). If you do, record
-the move as a **pair** (there's no “transfer” verb), which keeps both balances exact and
-stays neutral for performance:
-
-```sh
+# OPTIONAL — the cash side, only if you want to see idle / uninvested balances.
+# A move between accounts = a pair (no "transfer" verb), neutral for performance:
 finador cash withdraw livreta 30000   # leaves the Livret A
-finador cash deposit  meridia    30000    # lands on the CTO; the buys above then spend it down to ~0
+finador cash deposit  meridia    30000    # lands on the CTO; the buys above spend it down to ~0
+# Don't `cash set` to empty an account: a 30000→0 drop would be booked as a 30 000 € loss.
 ```
-
-Don't use `cash set` to empty the account here: `set` is an *observed balance*, so going
-from 30 000 to 0 would be booked as a 30 000 € loss. `withdraw` is the neutral move.
 
 ### Switch one holding for another (arbitrage)
 
-Selling one position to buy another **in the same account** is just two transactions —
-a `sell` then a `buy` on that account. Say you rotate 3 units of the world ETF into
-2 Apple shares inside your CTO (fake prices, ~300 € each side):
+Same account = a `sell` then a `buy`.
 
 ```sh
 finador asset sell world 3 @100 --account meridia   # 3 units out → 300 €
-finador asset buy  apple 2 @150  --account meridia    # 2 shares in → 300 €
+finador asset buy  apple 2 @150  --account meridia   # 2 shares in → 300 €; neutral for perf (a swap, not money in/out)
+finador asset fee  world 1.50    --account meridia    # any trading cost — this one DOES weigh on performance
+# the sell trims the world ETF's basis proportionally; the buy sets Apple's basis, tracked from there.
+# the sell also CREDITS the proceeds as cash on the account (unlike Finary/Yahoo, where a declared
+# sale just closes the position) — so a sale you don't reinvest stays visible as cash to redeploy later.
 ```
-
-- **It's neither a gain nor a loss.** You didn't add or remove money — you swapped one
-  holding for another — so the arbitrage is neutral for performance; only the *future*
-  moves of the new position count. (Under the hood the sell and the buy are equal,
-  opposite capital flows that cancel when you reinvest the full proceeds.)
-- **Cost basis follows.** The sell trims the world ETF's basis proportionally; the buy
-  sets Apple's basis at 300 €, tracked from there.
-- **No cash step needed** — both legs are on the same account. If that account's cash is
-  tracked, the sell credits it and the buy debits it (any small leftover stays as cash);
-  if it's untracked, there's nothing else to record.
-- **Trading fees**, if any: `finador asset fee world 1.50 --account meridia` — a cost that
-  *does* weigh on performance (unlike the neutral swap itself).
-
-> **The cash stays in the ledger — the main difference from Finary / Yahoo Finance.**
-> There, declaring a sale just closes the position; the proceeds aren't tracked
-> afterwards. finador is a real double-entry ledger: on a **cash-tracked** account a
-> `sell` *credits the proceeds as cash* (and a `buy` debits it), so a sale you don't
-> reinvest right away leaves the money visible as cash on the account — to withdraw,
-> reinvest later, or just hold. (On an account whose cash you don't track, finador
-> behaves like them: the `sell` simply reduces the holding, nothing is left to follow.)
 
 ### After selling a property (a house)
 
-In real life the sale and the cash landing on your bank account happen weeks apart,
-often on a different account — finador models exactly that: close the position when it's
-sold, record the cash when it actually arrives.
+Close the position when sold; record the cash when it actually lands (often weeks later,
+on another account).
 
 ```sh
-# 1. Close the position the day it's sold (its declared value goes to 0).
-finador asset set studio 0 --at 2026-05-20
-
-# 2. When the proceeds land, record the cash on the receiving account —
-#    `cash set` if you track that account by observed balance:
-finador cash set checking 285000 --at 2026-06-10
-#    …or `cash deposit checking 285000` if you track its flows instead (a neutral contribution).
+finador asset set studio 0 --at 2026-05-20         # sold → close the position (value goes to 0)
+finador cash set checking 285000 --at 2026-06-10   # proceeds when they land (or: cash deposit, if you track that account's flows)
+# Between the two dates net worth shows the money in transit (at the notary) — real, not a bug.
+# Don't `asset rm studio`: leaving it at 0 keeps its whole 220k→260k→0 trail; value/perf recompute from it.
+# Once closed, the envelope's latent-tax estimate drops to 0 (it estimates latent tax on what you still hold).
 ```
-
-- **The gap is real, not a bug.** Between the two dates your net worth shows the money
-  *in transit* — the property already at 0, the cash not yet recorded. That's the time it
-  spent at the notary.
-- **History is kept.** The property's whole valuation trail (220 000 → 260 000 → 0) stays
-  in the ledger, so `value` and `perf` recompute from it. Don't `asset rm` it — leaving it
-  at 0 preserves the record (and `rm` only works once it has no transactions).
-- **Tax.** Once the position is closed its envelope's latent-tax estimate drops to 0 —
-  finador estimates *latent* tax on what you still hold, not the tax actually due on a sale.
 
 ## Notes & good to know
 

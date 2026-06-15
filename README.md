@@ -153,101 +153,62 @@ approximate; for a euro account they don't change the basis.
 
 ### Invest cash into the market — the everyday move
 
-Once your portfolio is set up, this is the move you'll make most: you have cash and you
-put it into ETFs or shares. One thing to internalize first:
-
-**Declaring a holding is never a gain.** A `buy` is recorded as capital *deployed* at
-that day's market value, and performance is tracked from there — "bought 100 shares at
-10 €", now 12 € → **+20%**, not +120%. So you can just record your buys and trust the
-figures.
-
-Say you move 30,000 € of cash into 20,000 € of CW8.PA and 10,000 € of PE500.PA in your
-broker account (fake prices):
-
-**Mandatory — record the buys.** This is the whole operation:
+The move you make most once set up. Key rule: **a declared holding is never a gain** — a
+`buy` is capital deployed at that day's market value, so it reads 0 %, not +100 %.
 
 ```sh
-finador asset buy CW8.PA   200 @100 --account "CTO" --group equities/world
-finador asset buy PE500.PA 250 @40  --account "CTO" --group equities/us
-```
+# MANDATORY — just record the buys. This IS the whole operation (buy creates the asset
+# on the fly via its Yahoo ticker; @100 = unit price, a bare number = total).
+finador asset buy CW8.PA   200 @100 --account "CTO" --group equities/world   # 20 000 €
+finador asset buy PE500.PA 250 @40  --account "CTO" --group equities/us      # 10 000 €
 
-Each buy creates the security on the fly (resolved by Yahoo ticker — use the exact
-symbol, e.g. `.PA` / `.DE` / `.MI`), starts its cost basis, and begins tracking its
-performance. `@100` is a unit price (total = qty × price); a bare number is the total.
-
-**Optional — the cash side.** Recording cash flows is worth it *only* if you want to
-see **idle, uninvested balances** (cash parked at a broker, a savings account's
-interest). If you don't, skip it entirely — the buys above are complete and correct.
-
-If you do track cash, model the move out of the savings account as a **pair** (there's
-no "transfer" verb), which keeps both balances exact and stays neutral for performance:
-
-```sh
+# OPTIONAL — the cash side, only if you want to see idle / uninvested balances.
+# A move between accounts = a pair (no "transfer" verb), neutral for performance:
 finador cash withdraw "Livret A" 30000     # leaves the savings account
-finador cash deposit  "CTO"      30000     # lands on the broker — the buys then spend it down to ~0
+finador cash deposit  "CTO"      30000     # lands on the broker; the buys spend it down to ~0
+# Don't `cash set` to empty an account: a 30k→0 drop would be booked as a −30 000 € loss.
+# A money-market fund: treat as cash (above), or as a real holding (`asset sell` it) to capture its yield.
 ```
-
-Two gotchas:
-
-- **Never use `cash set` for this.** `set` records an *observed balance*, so dropping
-  the savings account from 30k to 0 with `set` would be booked as a −30,000 € loss.
-  `withdraw` is the neutral move.
-- A money-market fund can be treated as **cash** (`cash withdraw` as above), or as a
-  **real holding** if you want to capture its yield — then declare it as an asset and
-  `asset sell` it instead.
 
 On the **web and mobile**, the same move is: add the two buy transactions from the
 *Transactions* screen; the cash entries are equally optional.
 
 ### Switch one holding for another (arbitrage, same account)
 
-Rotating one position into another inside the same account is just a `sell` then a
-`buy` on that account — no cash step needed (both legs are in the same envelope). Say
-you swap 3 units of CW8.PA for 2 shares of AAPL in your broker account (fake prices,
-~300 € each side):
+Same account = a `sell` then a `buy`. No cash step needed (both legs are in the envelope).
 
 ```sh
-finador asset sell CW8.PA 3 @100 --account "CTO"
-finador asset buy  AAPL   2 @150 --account "CTO"
+finador asset sell CW8.PA 3 @100 --account "CTO"   # 3 out → 300 €
+finador asset buy  AAPL   2 @150 --account "CTO"   # 2 in → 300 €; neutral for perf (a swap, not money in/out)
+finador asset fee  CW8.PA 1.50  --account "CTO"    # any trading cost — this one DOES weigh on performance
+# the sell trims CW8.PA's basis proportionally; the buy sets AAPL's basis, tracked from there.
+# a sell also CREDITS the proceeds as cash on the account (unlike Finary/Yahoo, where a sale just
+# closes the position) — so a sale you don't reinvest stays visible as cash to redeploy later.
 ```
-
-It's **neutral for performance** — you swapped holdings, you didn't add or remove money
-(the sell and the buy are equal, opposite capital flows). The sell trims CW8.PA's cost
-basis proportionally; the buy sets AAPL's basis, tracked from there. Record any trading
-cost separately with `asset fee` — that one *does* weigh on performance.
-
-> **The cash stays in the ledger** — the main difference from Finary / Yahoo Finance,
-> where a declared sale just closes the position and the proceeds aren't tracked. On a
-> **cash-tracked** account finador credits a `sell`'s proceeds as cash (and a `buy`
-> debits it), so a sale you don't reinvest leaves the money visible as cash, to withdraw
-> or redeploy later. (On an account whose cash you don't track, it behaves like them:
-> the sell just reduces the holding.)
 
 ### Buy a real-estate property
 
-A property is valued by dated statements (the Statement model). The **first**
-valuation is the acquisition (an external contribution); **later** ones are
-performance.
+A property is valued by dated `asset set` statements: the **first** is the acquisition
+(a contribution), **later** ones are performance — it's all in the comments.
 
 ```sh
-finador account add "Patrimoine immo" --tax gains:36.2%
+finador account add "Patrimoine immo" --tax gains:36.2%   # --tax = your regime (private gain vs pro/BIC)
 finador asset add "Appart Lyon" --kind property --group realestate
 
-finador asset set "Appart Lyon" 250000 --account "Patrimoine immo" --at 2022-06-01  # acquisition
-finador asset set "Appart Lyon" 270000 --at 2024-01-01                              # revaluation = performance
+finador asset set "Appart Lyon" 250000 --account "Patrimoine immo" --at 2022-06-01  # acquisition basis = price + works + notaire fees
+finador asset set "Appart Lyon" 270000 --at 2024-01-01                              # revaluation → the gap is performance (no --account needed now)
 ```
 
-Once the asset is attached to an account, later `asset set` calls don't need
-`--account` again.
+A buy-renovate-resell (*marchand de biens*-style flip) records **identically** — only the
+tax regime differs:
 
-- **The acquisition basis is everything you put in** — not just the purchase price. Fold
-  the **renovation works and the notaire/acquisition fees** into that first `asset set`,
-  so the gain is measured against your true cost. A buy-renovate-resell (a *marchand de
-  biens*-style flip) records the **same way**: first `set` = purchase + works, a later
-  `set` = the revalued / market price (the gap is the operation's gain), and on resale you
-  close it to 0 and book the cash (see the next recipe). Only the **tax regime** differs —
-  a one-off private capital gain vs a habitual professional flip taxed as BIC — so set the
-  envelope's `--tax` to match yours; the recording is identical either way.
+```sh
+finador asset add "Maison à rénover" --kind property --alias renov --group immo
+finador asset set renov 280000 --account "Patrimoine immo" --at 2025-02-12   # purchase + works = basis
+finador asset set renov 350000 --at 2026-06-01                               # current value → +70 000 € gain
+finador asset set renov 0 --at 2026-09-15                                    # sold → close the position
+finador cash set "Compte courant" 350000 --at 2026-10-02                     # proceeds when they land
+```
 
 ### Sell a property (cash decoupled — the real-life flow)
 
