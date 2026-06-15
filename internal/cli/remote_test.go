@@ -145,7 +145,7 @@ func TestRemoteWritePushesUpdatedContent(t *testing.T) {
 
 	before, _ := fake.snapshot()
 
-	mustRunRemote(t, fake, "account", "add", "CTO IBKR")
+	mustRunRemote(t, fake, "account", "add", "CTO Meridia")
 	after, present := fake.snapshot()
 	if !present {
 		t.Fatal("backend lost its file after a write")
@@ -158,7 +158,7 @@ func TestRemoteWritePushesUpdatedContent(t *testing.T) {
 	mustRunRemote(t, fake, "asset", "add", "CW8.PA", "--alias", "cw8")
 	mustRunRemote(t, fake, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 	out := mustRunRemote(t, fake, "account", "list")
-	if !strings.Contains(out, "CTO IBKR") {
+	if !strings.Contains(out, "CTO Meridia") {
 		t.Errorf("second read missing the new account:\n%s", out)
 	}
 }
@@ -262,7 +262,7 @@ func TestRemoteCompactPushes(t *testing.T) {
 	configureRemote(t, fake)
 	mustRunRemote(t, fake, "init")
 	mustRunRemote(t, fake, "account", "add", "PEA Zephyr")
-	mustRunRemote(t, fake, "account", "add", "CTO IBKR")
+	mustRunRemote(t, fake, "account", "add", "CTO Meridia")
 
 	before, present := fake.snapshot()
 	if !present {
@@ -278,7 +278,7 @@ func TestRemoteCompactPushes(t *testing.T) {
 	if bytes.Equal(before, after) {
 		t.Fatal("compact did not push a rewritten file to the remote (write went unpushed)")
 	}
-	if out := mustRunRemote(t, fake, "account", "list"); !strings.Contains(out, "PEA Zephyr") || !strings.Contains(out, "CTO IBKR") {
+	if out := mustRunRemote(t, fake, "account", "list"); !strings.Contains(out, "PEA Zephyr") || !strings.Contains(out, "CTO Meridia") {
 		t.Errorf("accounts lost after compact:\n%s", out)
 	}
 }
