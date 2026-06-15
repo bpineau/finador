@@ -67,7 +67,7 @@ func valueCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			display, err := currencyOr(ccy, displayCurrency(b))
+			display, err := currencyOr(ccy, b.DisplayCurrency())
 			if err != nil {
 				return err
 			}
@@ -150,14 +150,6 @@ func printWhatIfDelta(cmd *cobra.Command, hyp, base portfolio.Valuation) {
 		fmt.Fprintf(out, " (%+.2f%%)", dn/base.Net*100)
 	}
 	fmt.Fprintln(out)
-}
-
-// displayCurrency: config "currency" si valide, sinon EUR.
-func displayCurrency(b *domain.Book) domain.Currency {
-	if c, err := domain.ParseCurrency(b.Config["currency"]); err == nil {
-		return c
-	}
-	return domain.EUR
 }
 
 func money(x float64, c domain.Currency) string {

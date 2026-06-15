@@ -88,7 +88,7 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 	b := s.file.Book
 	today := domain.Today()
 	fx := market.Converter{FX: b.Market.FX}
-	ccy := displayCurrency(b)
+	ccy := b.DisplayCurrency()
 	val, err := portfolio.Value(b, scope, today, ccy, fx)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
