@@ -7,7 +7,7 @@ all: build
 build: ## Compile the binary into bin/finador
 	go build -trimpath -o $(BIN) ./cmd/finador
 
-install: ## Install finador on your PATH (go install — honors GOBIN, else GOPATH/bin)
+install: ## Install finador on your PATH (go install - honors GOBIN, else GOPATH/bin)
 	go install -trimpath ./cmd/finador
 	@dir=$$(go env GOBIN); [ -n "$$dir" ] || dir=$$(go env GOPATH)/bin; echo "installed: $$dir/finador"
 
