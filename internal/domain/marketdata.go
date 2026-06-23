@@ -15,6 +15,10 @@ type PricePoint struct {
 type PriceSeries struct {
 	Points    []PricePoint `json:"points"`
 	FetchedAt Date         `json:"fetchedAt"`
+	// HistFrom is the earliest date we have ever requested a fetch from (not the
+	// earliest data point: a young security's history may start later). It lets
+	// the refresh back-fill deep history once without re-fetching it forever.
+	HistFrom Date `json:"histFrom,omitzero"`
 }
 
 // At returns the last close at or before d (forward-fill), with its date.
