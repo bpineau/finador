@@ -16,11 +16,9 @@ import (
 	"finador/internal/portfolio"
 )
 
-const (
-	sparkUp   = "#1e6e4e"
-	sparkDown = "#a3332e"
-	sparkFlat = "#1c1914"
-)
+// sparkInk is the sparkline stroke color: the body ink (= CSS --encre), so the
+// sparklines read as quiet text rather than green/red signals.
+const sparkInk = "#1c1914"
 
 type assetRow struct {
 	Name, URL, EditURL        string
@@ -342,19 +340,12 @@ func lastN(pts []perf.Point, n int) []perf.Point {
 	return pts[len(pts)-n:]
 }
 
-// spark renders a window, colored by its own drift.
+// spark renders a window as a quiet sparkline in the body ink color.
 func spark(pts []perf.Point) template.HTML {
 	if len(pts) < 2 {
 		return ""
 	}
-	color := sparkFlat
-	switch first, last := pts[0].Value, pts[len(pts)-1].Value; {
-	case last > first:
-		color = sparkUp
-	case last < first:
-		color = sparkDown
-	}
-	return template.HTML(chart.Sparkline(pts, 72, 20, color))
+	return template.HTML(chart.Sparkline(pts, 72, 20, sparkInk))
 }
 
 // sortSections sorts sections: non-property sections first (gross desc, then name),
