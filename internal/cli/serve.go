@@ -42,7 +42,9 @@ func serveCmd(a *app) *cobra.Command {
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			httpSrv := &http.Server{Addr: addr, Handler: web.NewServer(f, a.marketSource(), a.offline, wsync).Handler()}
+			srv := web.NewServer(f, a.marketSource(), a.offline, wsync)
+			go srv.AutoRefresh(ctx, 15*time.Minute) // keep day figures fresh while serving
+			httpSrv := &http.Server{Addr: addr, Handler: srv.Handler()}
 			errc := make(chan error, 1)
 			go func() { errc <- httpSrv.ListenAndServe() }()
 			fmt.Fprintf(cmd.OutOrStdout(), "finador on http://%s - Ctrl-C to stop\n", addr)
