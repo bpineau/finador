@@ -187,6 +187,10 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 }
 .assets-table tr:hover td { background: var(--papier-2); }
 .assets-table .section-row:hover td { background: none; }
+.assets-table .edit-cell { width: 22px; padding: .1rem .2rem; text-align: center; }
+.assets-table .edit-cell a { opacity: 0; font-size: .8rem; transition: opacity .12s; }
+.assets-table tr:hover .edit-cell a { opacity: .55; }
+.assets-table .edit-cell a:hover { opacity: 1; color: var(--garance); }
 
 /* ---- camembert d'allocation ---- */
 .camembert { display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; }

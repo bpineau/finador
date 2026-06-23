@@ -23,7 +23,7 @@ const (
 )
 
 type assetRow struct {
-	Name, URL                 string
+	Name, URL, EditURL        string
 	Spark1W, Spark1M, Spark1Y template.HTML
 	Gross, Net                float64
 }
@@ -80,6 +80,7 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 		row := assetRow{
 			Name:    asset.Name,
 			URL:     "/asset/" + url.PathEscape(string(asset.ID)),
+			EditURL: "/assets/" + url.PathEscape(string(asset.ID)) + "/edit",
 			Spark1W: spark(lastN(pts, 8)),
 			Spark1M: spark(lastN(pts, 31)),
 			Spark1Y: spark(pts),
