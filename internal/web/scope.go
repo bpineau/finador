@@ -41,7 +41,6 @@ type scopeData struct {
 	PriceCurve      template.HTML
 	PriceRange      string
 	PriceRangeLinks []tab
-	PriceCcy        domain.Currency
 }
 
 func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
@@ -169,10 +168,9 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 		data.IsAsset = true
 		data.PriceRange = pname
 		data.PriceRangeLinks = rangeLinks(r, "prange", pname, "1y")
-		data.PriceCcy = scope.Asset.Currency
 		if pts := pricePoints(b.Market.Price(scope.Asset.ID), pfrom); len(pts) >= 2 {
 			data.PriceCurve = template.HTML(chart.SVG([]chart.Line{
-				{Label: "price", Color: couleurEncre, Points: pts},
+				{Label: "price " + string(scope.Asset.Currency), Color: couleurEncre, Points: pts},
 			}, 860, 280))
 		}
 	}

@@ -140,7 +140,7 @@ main a:visited { color: var(--encre); }
 .onglets .actif-onglet { font-weight: 600; border-bottom: 2px solid var(--encre); }
 
 /* ---- courbe ---- */
-figure.courbe { margin: 0; border: 1px solid var(--filet); background: #fffdf6; padding: .6rem; }
+figure.courbe { margin: 0 0 1rem; border: 1px solid var(--filet); background: #fffdf6; padding: .6rem; }
 figure.courbe svg { display: block; width: 100%; height: auto; }
 
 /* ---- grille du dashboard ---- */
