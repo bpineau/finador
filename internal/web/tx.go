@@ -31,7 +31,10 @@ type ledgerEntry struct {
 	Seq     int
 	Ts      string      // formatted save timestamp
 	Kind    string      // display kind (buy/sell/account/asset/…)
+	Qty     string      // quantity (buy/sell only)
+	Amount  string      // monetary amount (all financial tx)
 	Desc    string      // one-line description
+	Diff    string      // field-level diff for edited entries; shown as hover tooltip
 	TxID    domain.TxID // non-empty for tx/tx-edit entries that still exist
 	CanEdit bool
 }
@@ -63,6 +66,10 @@ func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
 	for _, t := range b.Transactions {
 		txExists[t.ID] = true
 	}
+	prevTx := map[domain.TxID]*domain.Transaction{}
+	prevAsset := map[domain.AssetID]*domain.Asset{}
+	prevAcct := map[domain.AccountID]*domain.Account{}
+
 	out := make([]ledgerEntry, 0, len(raw))
 	for _, e := range raw {
 		row := ledgerEntry{Seq: e.Seq, Ts: e.Ts.Format("2006-01-02 15:04")}
@@ -70,6 +77,10 @@ func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
 		case "acct":
 			var a domain.Account
 			if json.Unmarshal(e.Data, &a) == nil {
+				if prev, ok := prevAcct[a.ID]; ok {
+					row.Diff = diffAccount(prev, &a)
+				}
+				prevAcct[a.ID] = &a
 				row.Kind = "account"
 				row.Desc = a.Name + " (" + a.Tax.String() + ", " + string(a.Currency) + ")"
 				if len(a.Aliases) > 0 {
@@ -82,11 +93,16 @@ func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
 				ID string `json:"id"`
 			}
 			if json.Unmarshal(e.Data, &ref) == nil {
+				delete(prevAcct, domain.AccountID(ref.ID))
 				row.Desc = "[" + ref.ID + "]"
 			}
 		case "asset":
 			var a domain.Asset
 			if json.Unmarshal(e.Data, &a) == nil {
+				if prev, ok := prevAsset[a.ID]; ok {
+					row.Diff = diffAsset(prev, &a)
+				}
+				prevAsset[a.ID] = &a
 				row.Kind = "asset"
 				row.Desc = a.Name
 				if a.Ticker != "" && a.Ticker != a.Name {
@@ -102,6 +118,7 @@ func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
 				ID string `json:"id"`
 			}
 			if json.Unmarshal(e.Data, &ref) == nil {
+				delete(prevAsset, domain.AssetID(ref.ID))
 				row.Desc = "[" + ref.ID + "]"
 			}
 		case "config":
@@ -119,6 +136,16 @@ func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
 				row.Kind = t.Kind.String()
 				if e.Kind == "tx-edit" {
 					row.Kind += " (edit)"
+					if prev, ok := prevTx[t.ID]; ok {
+						row.Diff = diffTransaction(b, prev, &t)
+					}
+				}
+				prevTx[t.ID] = &t
+				if !t.Quantity.IsZero() {
+					row.Qty = t.Quantity.String()
+				}
+				if !t.Amount.Amount.IsZero() {
+					row.Amount = t.Amount.String()
 				}
 				row.Desc = ledgerTxDesc(b, &t)
 				if txExists[t.ID] {
@@ -132,6 +159,7 @@ func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
 				ID domain.TxID `json:"id"`
 			}
 			if json.Unmarshal(e.Data, &ref) == nil {
+				delete(prevTx, ref.ID)
 				row.Desc = "[" + string(ref.ID) + "]"
 			}
 		case "label":
@@ -162,12 +190,9 @@ func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
 	return out
 }
 
-// ledgerTxDesc builds a one-line description for a financial transaction.
+// ledgerTxDesc builds the description for a financial transaction (qty/amount are separate columns).
 func ledgerTxDesc(b *domain.Book, t *domain.Transaction) string {
 	var parts []string
-	if !t.Quantity.IsZero() {
-		parts = append(parts, t.Quantity.String())
-	}
 	if t.Asset != "" {
 		name := string(t.Asset)
 		if a, err := b.Asset(string(t.Asset)); err == nil {
@@ -175,15 +200,88 @@ func ledgerTxDesc(b *domain.Book, t *domain.Transaction) string {
 		}
 		parts = append(parts, name)
 	}
-	if !t.Amount.Amount.IsZero() {
-		parts = append(parts, t.Amount.String())
-	}
 	parts = append(parts, t.Date.String())
 	parts = append(parts, accountName(b, t.Account))
 	if t.Note != "" {
 		parts = append(parts, "("+t.Note+")")
 	}
 	return strings.Join(parts, " | ")
+}
+
+func diffTransaction(b *domain.Book, prev, next *domain.Transaction) string {
+	var lines []string
+	if prev.Date != next.Date {
+		lines = append(lines, "date: "+prev.Date.String()+" -> "+next.Date.String())
+	}
+	if prev.Kind != next.Kind {
+		lines = append(lines, "kind: "+prev.Kind.String()+" -> "+next.Kind.String())
+	}
+	if prev.Account != next.Account {
+		lines = append(lines, "account: "+accountName(b, prev.Account)+" -> "+accountName(b, next.Account))
+	}
+	if prev.Asset != next.Asset {
+		pa, na := string(prev.Asset), string(next.Asset)
+		if a, err := b.Asset(string(prev.Asset)); err == nil {
+			pa = a.Name
+		}
+		if a, err := b.Asset(string(next.Asset)); err == nil {
+			na = a.Name
+		}
+		lines = append(lines, "asset: "+pa+" -> "+na)
+	}
+	if !prev.Quantity.Equal(next.Quantity) {
+		lines = append(lines, "qty: "+prev.Quantity.String()+" -> "+next.Quantity.String())
+	}
+	if prev.Amount.String() != next.Amount.String() {
+		lines = append(lines, "amount: "+prev.Amount.String()+" -> "+next.Amount.String())
+	}
+	if prev.Note != next.Note {
+		lines = append(lines, "note: \""+prev.Note+"\" -> \""+next.Note+"\"")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func diffAsset(prev, next *domain.Asset) string {
+	var lines []string
+	if prev.Name != next.Name {
+		lines = append(lines, "name: "+prev.Name+" -> "+next.Name)
+	}
+	if prev.Ticker != next.Ticker {
+		lines = append(lines, "ticker: "+prev.Ticker+" -> "+next.Ticker)
+	}
+	if prev.ISIN != next.ISIN {
+		lines = append(lines, "isin: "+prev.ISIN+" -> "+next.ISIN)
+	}
+	if prev.Group != next.Group {
+		lines = append(lines, "group: \""+prev.Group+"\" -> \""+next.Group+"\"")
+	}
+	if prev.Currency != next.Currency {
+		lines = append(lines, "ccy: "+string(prev.Currency)+" -> "+string(next.Currency))
+	}
+	if strings.Join(prev.Aliases, ",") != strings.Join(next.Aliases, ",") {
+		lines = append(lines, "aliases: ["+strings.Join(prev.Aliases, ", ")+"] -> ["+strings.Join(next.Aliases, ", ")+"]")
+	}
+	if prev.Withholding != next.Withholding {
+		lines = append(lines, fmt.Sprintf("withholding: %.4g%% -> %.4g%%", prev.Withholding*100, next.Withholding*100))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func diffAccount(prev, next *domain.Account) string {
+	var lines []string
+	if prev.Name != next.Name {
+		lines = append(lines, "name: "+prev.Name+" -> "+next.Name)
+	}
+	if prev.Tax.String() != next.Tax.String() {
+		lines = append(lines, "tax: "+prev.Tax.String()+" -> "+next.Tax.String())
+	}
+	if prev.Currency != next.Currency {
+		lines = append(lines, "ccy: "+string(prev.Currency)+" -> "+string(next.Currency))
+	}
+	if strings.Join(prev.Aliases, ",") != strings.Join(next.Aliases, ",") {
+		lines = append(lines, "aliases: ["+strings.Join(prev.Aliases, ", ")+"] -> ["+strings.Join(next.Aliases, ", ")+"]")
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s *Server) txCreate(w http.ResponseWriter, r *http.Request) {
