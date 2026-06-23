@@ -107,6 +107,22 @@ first, or for **ISIN-only funds** (no Yahoo ticker) and **properties**
 (`--kind property`) - which only `asset add` can create; reach for **B** for quick entry
 of a quoted security.
 
+### Fix a missing group or label after the fact
+
+If you traded an asset before declaring it (path B above), it shows up as "ungrouped".
+Fix it in one command; no transactions are touched.
+
+```sh
+# assign a group to an asset that landed ungrouped
+finador asset edit GTWR --group actions/world
+
+# tag a position (account x asset pair) with a label
+finador label add tech --asset GTWR --account "Mon CTO"
+```
+
+`asset edit` also accepts `--name`, `--ticker`, `--isin`, `--add-alias`, `--withholding`,
+`--ccy` - any combination, only the flags you pass change.
+
 ### Onboard a seasoned account (existing holdings, no history to backfill)
 
 You're starting with a **full PEA**: ~150,000 € contributed over the years, now

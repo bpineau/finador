@@ -25,6 +25,7 @@ var funcs = template.FuncMap{
 	"fmtPct":   fmtPct,
 	"fmtDate":  fmtDate,
 	"signe":    signe,
+	"arrow":    arrow,
 }
 
 // pages maps page filename → a clone of base with the page parsed in.
@@ -130,6 +131,16 @@ func signe(x float64) string {
 		return "pos"
 	case x < 0:
 		return "neg"
+	}
+	return ""
+}
+
+func arrow(x float64) string {
+	switch {
+	case x > 0:
+		return "➚"
+	case x < 0:
+		return "➘"
 	}
 	return ""
 }
