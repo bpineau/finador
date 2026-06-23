@@ -169,7 +169,7 @@ func (s *Server) assetCreate(w http.ResponseWriter, r *http.Request) {
 		s.renderAssetsPage(w, http.StatusBadRequest, "", err.Error())
 		return
 	}
-	if err := s.persist(r.Context(), "web: new asset "+asset.Name); err != nil {
+	if err := s.persist(r.Context(), "web: new asset"); err != nil {
 		s.renderAssetsPage(w, http.StatusInternalServerError, "", "could not save: "+err.Error())
 		return
 	}
@@ -241,7 +241,7 @@ func (s *Server) assetEditSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderAssetEdit(w, http.StatusInternalServerError, asset, "could not save: "+err.Error())
 		return
 	}
-	if err := s.syncSaved(r.Context(), "web: edit asset "+asset.Name); err != nil {
+	if err := s.syncSaved(r.Context(), "web: edit asset"); err != nil {
 		s.renderAssetEdit(w, http.StatusInternalServerError, asset, "saved locally, but could not sync to the remote: "+err.Error())
 		return
 	}

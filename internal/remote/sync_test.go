@@ -23,6 +23,7 @@ type fakeBackend struct {
 	fetches   int
 	pushes    int
 	authError bool
+	onPush    func() // called inside Push, before it mutates: lets a test observe on-disk state mid-push
 }
 
 func (f *fakeBackend) Describe() string { return "fake:remote" }
@@ -66,6 +67,9 @@ func (f *fakeBackend) Push(ctx context.Context, data []byte, base Version, messa
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pushes++
+	if f.onPush != nil {
+		f.onPush()
+	}
 	if f.offline {
 		return "", ErrOffline
 	}
@@ -229,6 +233,37 @@ func TestForReadStalePulls(t *testing.T) {
 }
 
 // --- Write: pull-before then push-after ---
+
+// DATA SAFETY (crash window): the dirty flag must be persisted to disk BEFORE
+// the network push, not only after. A crash mid-push (which can take seconds)
+// must not leave Dirty=false on disk, or the next read would pull and clobber
+// the unpushed working copy. We observe the on-disk state from inside Push.
+func TestDirtyPersistedBeforePush(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &fakeBackend{data: []byte("remote base"), sha: "shaR", counter: 9}
+	s := newSyncer(t, b, &now)
+
+	if _, err := s.ForWrite(context.Background(), (&stubMerge{}).fn); err != nil {
+		t.Fatalf("ForWrite: %v", err)
+	}
+	writeCopy(t, s, "mutated content")
+
+	var dirtyAtPushTime bool
+	b.onPush = func() {
+		st, _ := s.loadState()
+		dirtyAtPushTime = st.Dirty
+	}
+	if _, err := s.AfterWrite(context.Background(), "finador: add", (&stubMerge{}).fn); err != nil {
+		t.Fatalf("AfterWrite: %v", err)
+	}
+	if !dirtyAtPushTime {
+		t.Fatal("state was not marked Dirty on disk before the network push: a crash mid-push would lose the working copy")
+	}
+	st, _ := s.loadState()
+	if st.Dirty {
+		t.Fatal("expected dirty=false after a successful push")
+	}
+}
 
 func TestForWriteThenAfterWrite(t *testing.T) {
 	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
