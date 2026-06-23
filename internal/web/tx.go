@@ -1,26 +1,39 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/shopspring/decimal"
 
 	"finador/internal/domain"
 	"finador/internal/portfolio"
+	"finador/internal/store"
 )
 
 type txPageData struct {
 	Today    domain.Date
-	Txs      []txRow
+	Entries  []ledgerEntry
 	Accounts []*domain.Account
 	Assets   []*domain.Asset
 	Kinds    []string
 	Error    string
 	Flash    string
+}
+
+// ledgerEntry is one row in the full audit log table.
+type ledgerEntry struct {
+	Seq     int
+	Ts      string      // formatted save timestamp
+	Kind    string      // display kind (buy/sell/account/asset/…)
+	Desc    string      // one-line description
+	TxID    domain.TxID // non-empty for tx/tx-edit entries that still exist
+	CanEdit bool
 }
 
 func (s *Server) txPage(w http.ResponseWriter, r *http.Request) {
@@ -32,10 +45,9 @@ func (s *Server) txPage(w http.ResponseWriter, r *http.Request) {
 // renderTxPage is called with lock (R or W) already held.
 func (s *Server) renderTxPage(w http.ResponseWriter, status int, flash, errMsg string) {
 	b := s.file.Book
-	all, _ := portfolio.ParseScope(b, "")
 	data := txPageData{
 		Today:    domain.Today(),
-		Txs:      scopeTxs(b, all, 200),
+		Entries:  buildLedgerEntries(b, s.file.LogEntries()),
 		Accounts: b.Accounts,
 		Assets:   b.Assets,
 		Kinds:    []string{"buy", "sell", "deposit", "withdraw", "dividend", "fee", "statement"},
@@ -43,6 +55,135 @@ func (s *Server) renderTxPage(w http.ResponseWriter, status int, flash, errMsg s
 		Flash:    flash,
 	}
 	s.render(w, status, "tx.html", data)
+}
+
+// buildLedgerEntries converts raw log entries into display rows, newest first.
+func buildLedgerEntries(b *domain.Book, raw []store.LogEntry) []ledgerEntry {
+	txExists := map[domain.TxID]bool{}
+	for _, t := range b.Transactions {
+		txExists[t.ID] = true
+	}
+	out := make([]ledgerEntry, 0, len(raw))
+	for _, e := range raw {
+		row := ledgerEntry{Seq: e.Seq, Ts: e.Ts.Format("2006-01-02 15:04")}
+		switch e.Kind {
+		case "acct":
+			var a domain.Account
+			if json.Unmarshal(e.Data, &a) == nil {
+				row.Kind = "account"
+				row.Desc = a.Name + " (" + a.Tax.String() + ", " + string(a.Currency) + ")"
+				if len(a.Aliases) > 0 {
+					row.Desc += " | " + strings.Join(a.Aliases, ", ")
+				}
+			}
+		case "acct-del":
+			row.Kind = "account rm"
+			var ref struct {
+				ID string `json:"id"`
+			}
+			if json.Unmarshal(e.Data, &ref) == nil {
+				row.Desc = "[" + ref.ID + "]"
+			}
+		case "asset":
+			var a domain.Asset
+			if json.Unmarshal(e.Data, &a) == nil {
+				row.Kind = "asset"
+				row.Desc = a.Name
+				if a.Ticker != "" && a.Ticker != a.Name {
+					row.Desc += " (" + a.Ticker + ")"
+				}
+				if a.Group != "" {
+					row.Desc += " | " + a.Group
+				}
+			}
+		case "asset-del":
+			row.Kind = "asset rm"
+			var ref struct {
+				ID string `json:"id"`
+			}
+			if json.Unmarshal(e.Data, &ref) == nil {
+				row.Desc = "[" + ref.ID + "]"
+			}
+		case "config":
+			var kv struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			}
+			if json.Unmarshal(e.Data, &kv) == nil {
+				row.Kind = "config"
+				row.Desc = kv.Key + " = " + kv.Value
+			}
+		case "tx", "tx-edit":
+			var t domain.Transaction
+			if json.Unmarshal(e.Data, &t) == nil {
+				row.Kind = t.Kind.String()
+				if e.Kind == "tx-edit" {
+					row.Kind += " (edit)"
+				}
+				row.Desc = ledgerTxDesc(b, &t)
+				if txExists[t.ID] {
+					row.TxID = t.ID
+					row.CanEdit = true
+				}
+			}
+		case "tx-del":
+			row.Kind = "tx rm"
+			var ref struct {
+				ID domain.TxID `json:"id"`
+			}
+			if json.Unmarshal(e.Data, &ref) == nil {
+				row.Desc = "[" + string(ref.ID) + "]"
+			}
+		case "label":
+			var l domain.Label
+			if json.Unmarshal(e.Data, &l) == nil {
+				row.Kind = "label"
+				acc := accountName(b, l.Account)
+				ast := string(l.Asset)
+				if a, err := b.Asset(string(l.Asset)); err == nil {
+					ast = a.Name
+				}
+				row.Desc = l.Name + " | " + acc + " / " + ast
+			}
+		case "label-del":
+			row.Kind = "label rm"
+			var ref struct {
+				ID string `json:"id"`
+			}
+			if json.Unmarshal(e.Data, &ref) == nil {
+				row.Desc = "[" + ref.ID + "]"
+			}
+		default:
+			row.Kind = e.Kind
+		}
+		out = append(out, row)
+	}
+	slices.Reverse(out)
+	return out
+}
+
+// ledgerTxDesc builds a one-line description for a financial transaction.
+func ledgerTxDesc(b *domain.Book, t *domain.Transaction) string {
+	var parts []string
+	if !t.Quantity.IsZero() {
+		parts = append(parts, t.Quantity.String())
+	}
+	if t.Asset != "" {
+		name := string(t.Asset)
+		if a, err := b.Asset(string(t.Asset)); err == nil {
+			name = a.Name
+		}
+		parts = append(parts, name)
+	}
+	if !t.Amount.Amount.IsZero() {
+		parts = append(parts, t.Amount.String())
+	}
+	parts = append(parts, t.Date.String())
+	parts = append(parts, accountName(b, t.Account))
+	if t.Note != "" {
+		parts = append(parts, "("+t.Note+")")
+	}
+	return strings.Join(parts, " | ")
 }
 
 func (s *Server) txCreate(w http.ResponseWriter, r *http.Request) {

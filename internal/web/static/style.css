@@ -72,6 +72,13 @@ section > h2 { border-bottom: 1px solid var(--filet); padding-bottom: .35rem; }
 
 /* ---- tables ledger ---- */
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.ledger-table { table-layout: fixed; }
+.ledger-table td, .ledger-table th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ledger-table col.col-seq   { width: 3.5rem; }
+.ledger-table col.col-saved { width: 10rem; }
+.ledger-table col.col-kind  { width: 9rem; }
+.ledger-table col.col-desc  { width: auto; }
+.ledger-table col.col-act   { width: 7rem; }
 th {
   text-align: left; font-variant: small-caps; letter-spacing: .12em;
   font-weight: 600; font-size: .72rem; color: var(--encre-2);
