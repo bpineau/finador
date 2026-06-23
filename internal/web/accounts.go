@@ -53,7 +53,7 @@ func (s *Server) accountCreate(w http.ResponseWriter, r *http.Request) {
 		s.renderAccountsPage(w, http.StatusBadRequest, "", err.Error())
 		return
 	}
-	if err := s.file.Save(); err != nil {
+	if err := s.persist(r.Context(), "web: new account "+acc.Name); err != nil {
 		s.renderAccountsPage(w, http.StatusInternalServerError, "", "could not save: "+err.Error())
 		return
 	}
@@ -126,6 +126,10 @@ func (s *Server) accountEditSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderAccountEdit(w, http.StatusInternalServerError, acc, "could not save: "+err.Error())
 		return
 	}
+	if err := s.syncSaved(r.Context(), "web: edit account "+acc.Name); err != nil {
+		s.renderAccountEdit(w, http.StatusInternalServerError, acc, "saved locally, but could not sync to the remote: "+err.Error())
+		return
+	}
 	http.Redirect(w, r, "/accounts?flash="+url.QueryEscape("updated "+acc.Name), http.StatusSeeOther)
 }
 
@@ -138,7 +142,7 @@ func (s *Server) accountDelete(w http.ResponseWriter, r *http.Request) {
 		s.renderAccountsPage(w, http.StatusBadRequest, "", err.Error())
 		return
 	}
-	if err := s.file.Save(); err != nil {
+	if err := s.persist(r.Context(), "web: delete account"); err != nil {
 		s.renderAccountsPage(w, http.StatusInternalServerError, "", "could not save: "+err.Error())
 		return
 	}

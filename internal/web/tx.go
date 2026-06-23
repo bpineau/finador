@@ -294,7 +294,7 @@ func (s *Server) txCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.Add(tx)
-	if err := s.file.Save(); err != nil {
+	if err := s.persist(r.Context(), "web: new tx"); err != nil {
 		s.renderTxPage(w, http.StatusInternalServerError, "", "could not save: "+err.Error())
 		return
 	}
@@ -441,7 +441,7 @@ func (s *Server) txEditSubmit(w http.ResponseWriter, r *http.Request) {
 	// keep identity and import fingerprint (an edited line must not reappear on re-import)
 	parsed.ID, parsed.ImportHash = tx.ID, tx.ImportHash
 	*tx = parsed
-	if err := s.file.Save(); err != nil {
+	if err := s.persist(r.Context(), "web: edit tx"); err != nil {
 		s.renderTxEdit(w, http.StatusInternalServerError, tx, "could not save: "+err.Error())
 		return
 	}
@@ -479,6 +479,10 @@ func (s *Server) assetRename(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, "could not save: "+err.Error())
 		return
 	}
+	if err := s.syncSaved(r.Context(), "web: rename asset to "+name); err != nil {
+		s.renderError(w, http.StatusInternalServerError, "saved locally, but could not sync to the remote: "+err.Error())
+		return
+	}
 	http.Redirect(w, r, "/tx?flash="+url.QueryEscape("renamed to "+name), http.StatusSeeOther)
 }
 
@@ -494,7 +498,7 @@ func (s *Server) txDelete(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusNotFound, "transaction not found")
 		return
 	}
-	if err := s.file.Save(); err != nil {
+	if err := s.persist(r.Context(), "web: delete tx"); err != nil {
 		s.renderError(w, http.StatusInternalServerError, "could not save: "+err.Error())
 		return
 	}
