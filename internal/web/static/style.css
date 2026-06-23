@@ -188,10 +188,10 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 .assets-table td, .assets-table th { white-space: nowrap; overflow: hidden; }
 .assets-table .asset-name { text-overflow: ellipsis; max-width: 0; }
 .assets-table .asset-name { padding-left: 1.1rem; }
+/* 1D reads like the asset-name text (same font, size and ink): only tabular
+   figures so the percentages line up as a column. */
 .assets-table .daycell { width: 92px; text-align: right; padding-right: .4rem; }
-.assets-table td.daycell {
-  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .8rem;
-}
+.assets-table td.daycell { font-variant-numeric: tabular-nums; }
 /* Fixed-width slot so the percentages line up whether or not a row has an
    arrow (a flat +0.00% still reserves the arrow column). */
 .assets-table td.daycell .arr { display: inline-block; width: 1.3em; text-align: center; }
