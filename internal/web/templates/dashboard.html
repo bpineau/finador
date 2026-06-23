@@ -7,7 +7,7 @@
   <p class="libelle">net worth, after estimated tax</p>
   <p class="chiffre-une">{{fmtMoney .Val.Net .Val.Currency}}</p>
   <p class="sous-titre">
-    gross {{fmtMoney .Val.Gross .Val.Currency}} · estimated tax {{fmtMoney .Val.Tax .Val.Currency}}{{if .Val.TaxNote}}<sup>†</sup>{{end}}
+    gross {{fmtMoney .Val.Gross .Val.Currency}} · estimated tax {{fmtMoney .Val.Tax .Val.Currency}}{{if .Val.TaxNote}}<sup>†</sup>{{end}}{{if .HasDayTWR}} · day {{fmtPct .DayTWR}} {{arrow .DayTWR}}{{end}}
   </p>
   {{if .Val.TaxNote}}<p class="note-bas">† {{.Val.TaxNote}}</p>{{end}}
   {{range .Val.Stale}}<p class="approx">≈ {{.}}</p>{{end}}

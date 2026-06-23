@@ -35,6 +35,8 @@ type dashData struct {
 	Pie        template.HTML // SVG donut - generated server-side, safe
 	PieSlices  []pieSlice
 	Warnings   []string
+	DayTWR     float64
+	HasDayTWR  bool
 	Flash      string
 	Error      string
 }
@@ -150,6 +152,13 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// perf.Report always uses the full series
 		data.Rows, data.Met = perf.Report(grossAll, res.PerfFlows(), today, perf.RiskFreeFromConfig(b.Config))
 		data.Warnings = res.Warnings
+		for _, row := range data.Rows {
+			if row.Name == "1d" && row.HasTWR {
+				data.DayTWR = row.TWR
+				data.HasDayTWR = true
+				break
+			}
+		}
 	}
 
 	lines, err := portfolio.Breakdown(b, today, ccy, fx)
