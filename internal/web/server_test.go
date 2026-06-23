@@ -75,7 +75,7 @@ func testServer(t *testing.T) (*Server, *store.File) {
 	if err := f.Save(); err != nil {
 		t.Fatal(err)
 	}
-	srv := NewServer(f, fakeSource{}, true, nil) // offline, local mode (no push) in tests
+	srv := NewServer(f, fakeSource{}, true, nil) // offline, local mode (no sync) in tests
 	return srv, f
 }
 

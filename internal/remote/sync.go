@@ -257,10 +257,15 @@ func (s *Syncer) pull(ctx context.Context, st *state) (offline bool, err error) 
 //   - ErrRemoteAuth / other → returned.
 func (s *Syncer) pushCopy(ctx context.Context, st *state, message string, merge MergeFunc) (offline bool, err error) {
 	// DATA SAFETY: the working copy holds unpushed local content for the whole
-	// duration of this call. Mark it dirty up front and only clear that once a
-	// push (or merged re-push) actually lands. Callers persist *st even on the
-	// error return below, so a later read never clobbers these edits.
+	// duration of this call. Mark it dirty up front AND persist that to disk
+	// before the network push: the push can take seconds, and a crash mid-push
+	// must not leave Dirty=false on disk (a later read would then pull and
+	// clobber the unpushed copy). Callers persist *st again on return, so the
+	// flag is also cleared on success.
 	st.Dirty = true
+	if serr := s.saveState(*st); serr != nil {
+		return false, serr
+	}
 
 	base := st.SHA
 	for attempt := 0; attempt < maxPushRetries; attempt++ {

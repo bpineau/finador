@@ -13,32 +13,50 @@ import (
 	"finador/internal/store"
 )
 
-// PushFunc persists the just-saved working copy to the remote (commit + push),
-// reconciling conflicts. It is nil in local mode. It runs under the server's
-// write lock, so it must not call back into the Server.
-type PushFunc func(ctx context.Context, msg string) error
+// Sync wires the web server to the remote (nil in local mode). Push persists
+// the just-saved working copy (commit + push) and reports whether reconciling a
+// conflict rewrote the working copy - in which case the server must Reload its
+// in-memory File so it reflects the merged remote records (e.g. a transaction
+// added concurrently from the Android client) and its disk stamp is fresh
+// again. Both run under the server's write lock and must not call back in.
+type Sync struct {
+	Push   func(ctx context.Context, msg string) (reload bool, err error)
+	Reload func() (*store.File, error)
+}
 
 type Server struct {
 	mu      sync.RWMutex
 	file    *store.File
 	source  market.Source
 	offline bool
-	push    PushFunc
+	sync    *Sync
 }
 
-func NewServer(f *store.File, src market.Source, offline bool, push PushFunc) *Server {
-	return &Server{file: f, source: src, offline: offline, push: push}
+func NewServer(f *store.File, src market.Source, offline bool, sync *Sync) *Server {
+	return &Server{file: f, source: src, offline: offline, sync: sync}
 }
 
-// syncSaved pushes an already-saved working copy to the remote. In local mode
-// (no push hook) it is a no-op. Pushing inline (under the write lock) is what
-// makes a web edit durable: the sync layer marks the working copy dirty until
-// the push lands, so a later startup pull can no longer clobber an unpushed
-// edit. A push failure means the edit is saved locally but not yet on the
-// remote - surface it, but never roll the in-memory edit back over it.
+// syncSaved pushes an already-saved working copy to the remote, then reloads the
+// in-memory File if a merge rewrote the working copy. In local mode (no Sync) it
+// is a no-op. Pushing inline (under the write lock) is what makes a web edit
+// durable: the sync layer marks the working copy dirty until the push lands, so
+// a later startup pull can no longer clobber an unpushed edit. A push failure
+// means the edit is saved locally but not yet on the remote - surface it, but
+// never roll the in-memory edit back over it.
 func (s *Server) syncSaved(ctx context.Context, msg string) error {
-	if s.push != nil {
-		return s.push(ctx, msg)
+	if s.sync == nil {
+		return nil
+	}
+	reload, err := s.sync.Push(ctx, msg)
+	if err != nil {
+		return err
+	}
+	if reload && s.sync.Reload != nil {
+		f, rerr := s.sync.Reload()
+		if rerr != nil {
+			return rerr
+		}
+		s.file = f
 	}
 	return nil
 }
