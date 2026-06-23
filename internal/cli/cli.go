@@ -16,6 +16,7 @@ import (
 	"finador/internal/market"
 	"finador/internal/remote"
 	"finador/internal/store"
+	"finador/internal/web"
 )
 
 const defaultTTL = 12 * time.Hour
@@ -402,12 +403,17 @@ func (a *app) mutateFile(fn func(*store.File) error) error {
 	return nil
 }
 
-// webSync builds the push hook the web server runs after every ledger write, so
-// edits made in the browser reach the remote and are protected from a later
+// webSync builds the remote wiring the web server uses after every ledger
+// write, so browser edits reach the remote and are protected from a later
 // clobbering pull - the same fetch-after-write guarantee mutateFile gives the
 // CLI. Returns nil in local mode (the server then just saves). The password is
 // resolved once here, from the cache primed by open(), never per request.
-func (a *app) webSync() (func(ctx context.Context, msg string) error, error) {
+//
+// Push reports whether AfterWrite's conflict reconciliation rewrote the working
+// copy (detected by a stamp change): if so the server reloads its File via
+// Reload, picking up records merged in from a concurrent writer (e.g. Android).
+// Commit messages carry no entity names - they land in the remote's history.
+func (a *app) webSync() (*web.Sync, error) {
 	s, isRemote, err := a.dataSource()
 	if err != nil {
 		return nil, err
@@ -420,11 +426,32 @@ func (a *app) webSync() (func(ctx context.Context, msg string) error, error) {
 		return nil, err
 	}
 	merge := a.remoteMerge(staticPW(pw))
-	return func(ctx context.Context, msg string) error {
-		warnings, perr := s.AfterWrite(ctx, "finador "+msg, merge)
-		printWarnings(warnings)
-		return perr
+	copyPath := s.WorkingCopy()
+	return &web.Sync{
+		Push: func(ctx context.Context, msg string) (bool, error) {
+			before := statStamp(copyPath)
+			warnings, perr := s.AfterWrite(ctx, "finador "+msg, merge)
+			printWarnings(warnings)
+			if perr != nil {
+				return false, perr
+			}
+			return statStamp(copyPath) != before, nil // changed => a merge rewrote it
+		},
+		Reload: func() (*store.File, error) {
+			return store.Open(copyPath, pw)
+		},
 	}, nil
+}
+
+// statStamp returns a (size, mtime) fingerprint of a file, or the zero value if
+// it cannot be stat'd. Used to tell whether a push reconciliation rewrote the
+// working copy under us.
+func statStamp(path string) [2]int64 {
+	info, err := os.Stat(path)
+	if err != nil {
+		return [2]int64{}
+	}
+	return [2]int64{info.Size(), info.ModTime().UnixNano()}
 }
 
 // printWarnings emits sync warnings to stderr.
