@@ -41,7 +41,7 @@
     {{range .Rows}}
     <tr>
       <td class="asset-name"><a href="{{.URL}}">{{.Name}}</a></td>
-      <td class="daycell">{{if .HasDay1d}}{{fmtPct .Day1d}} {{arrow .Day1d}}{{end}}</td>
+      <td class="daycell">{{if .HasDay1d}}{{fmtPct .Day1d}}<span class="arr">{{arrow .Day1d}}</span>{{end}}</td>
       <td class="sparkcell">{{.Spark1W}}</td>
       <td class="sparkcell">{{.Spark1M}}</td>
       <td class="sparkcell">{{.Spark1Y}}</td>
