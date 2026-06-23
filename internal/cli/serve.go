@@ -31,6 +31,10 @@ func serveCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			push, err := a.webSync()
+			if err != nil {
+				return err
+			}
 			a.ensureFresh(cmd, f)
 			if host != "127.0.0.1" && host != "localhost" && host != "::1" {
 				fmt.Fprintf(cmd.ErrOrStderr(),
@@ -38,7 +42,7 @@ func serveCmd(a *app) *cobra.Command {
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			httpSrv := &http.Server{Addr: addr, Handler: web.NewServer(f, a.marketSource(), a.offline).Handler()}
+			httpSrv := &http.Server{Addr: addr, Handler: web.NewServer(f, a.marketSource(), a.offline, push).Handler()}
 			errc := make(chan error, 1)
 			go func() { errc <- httpSrv.ListenAndServe() }()
 			fmt.Fprintf(cmd.OutOrStdout(), "finador on http://%s - Ctrl-C to stop\n", addr)

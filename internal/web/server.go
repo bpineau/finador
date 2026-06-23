@@ -5,6 +5,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
@@ -12,15 +13,45 @@ import (
 	"finador/internal/store"
 )
 
+// PushFunc persists the just-saved working copy to the remote (commit + push),
+// reconciling conflicts. It is nil in local mode. It runs under the server's
+// write lock, so it must not call back into the Server.
+type PushFunc func(ctx context.Context, msg string) error
+
 type Server struct {
 	mu      sync.RWMutex
 	file    *store.File
 	source  market.Source
 	offline bool
+	push    PushFunc
 }
 
-func NewServer(f *store.File, src market.Source, offline bool) *Server {
-	return &Server{file: f, source: src, offline: offline}
+func NewServer(f *store.File, src market.Source, offline bool, push PushFunc) *Server {
+	return &Server{file: f, source: src, offline: offline, push: push}
+}
+
+// syncSaved pushes an already-saved working copy to the remote. In local mode
+// (no push hook) it is a no-op. Pushing inline (under the write lock) is what
+// makes a web edit durable: the sync layer marks the working copy dirty until
+// the push lands, so a later startup pull can no longer clobber an unpushed
+// edit. A push failure means the edit is saved locally but not yet on the
+// remote - surface it, but never roll the in-memory edit back over it.
+func (s *Server) syncSaved(ctx context.Context, msg string) error {
+	if s.push != nil {
+		return s.push(ctx, msg)
+	}
+	return nil
+}
+
+// persist saves the ledger then pushes it. Used by writes that have no
+// in-memory rollback step; handlers that revert the book on save failure call
+// s.file.Save() and s.syncSaved() separately, so a push error does not trigger
+// a rollback that would diverge memory from the saved-and-dirty working copy.
+func (s *Server) persist(ctx context.Context, msg string) error {
+	if err := s.file.Save(); err != nil {
+		return err
+	}
+	return s.syncSaved(ctx, msg)
 }
 
 // Handler routes the five views. Mutating routes are POST-only.

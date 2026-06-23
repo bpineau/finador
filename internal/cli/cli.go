@@ -402,6 +402,31 @@ func (a *app) mutateFile(fn func(*store.File) error) error {
 	return nil
 }
 
+// webSync builds the push hook the web server runs after every ledger write, so
+// edits made in the browser reach the remote and are protected from a later
+// clobbering pull - the same fetch-after-write guarantee mutateFile gives the
+// CLI. Returns nil in local mode (the server then just saves). The password is
+// resolved once here, from the cache primed by open(), never per request.
+func (a *app) webSync() (func(ctx context.Context, msg string) error, error) {
+	s, isRemote, err := a.dataSource()
+	if err != nil {
+		return nil, err
+	}
+	if !isRemote {
+		return nil, nil
+	}
+	pw, _, err := keyring.PasswordFor(s.WorkingCopy(), a.cache(), keyring.Prompt)
+	if err != nil {
+		return nil, err
+	}
+	merge := a.remoteMerge(staticPW(pw))
+	return func(ctx context.Context, msg string) error {
+		warnings, perr := s.AfterWrite(ctx, "finador "+msg, merge)
+		printWarnings(warnings)
+		return perr
+	}, nil
+}
+
 // printWarnings emits sync warnings to stderr.
 func printWarnings(warnings []string) {
 	for _, w := range warnings {
