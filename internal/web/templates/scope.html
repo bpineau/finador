@@ -11,14 +11,6 @@
 </section>
 
 <section>
-  <h2>history</h2>
-  <div class="ranges">
-    {{range .RangeLinks}}{{if .Active}}<span class="active-range">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
-  </div>
-  {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">not enough history yet...</p>{{end}}
-</section>
-
-<section>
   <h2>holdings</h2>
   <table>
     <tr><th>line</th><th class="nombre">gross</th><th class="nombre">tax</th><th class="nombre">net</th></tr>
@@ -31,6 +23,10 @@
 
 <section>
   <h2>performance</h2>
+  <div class="ranges">
+    {{range .RangeLinks}}{{if .Active}}<span class="active-range">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
+  </div>
+  {{if .Curve}}<figure class="courbe">{{.Curve}}</figure>{{else}}<p class="approx">not enough history yet...</p>{{end}}
   {{if .Rows}}
   <table>
     <tr><th>period</th><th class="nombre">TWR</th><th class="nombre">XIRR</th><th class="nombre">gain</th></tr>
