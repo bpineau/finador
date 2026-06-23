@@ -49,7 +49,7 @@ func (s *Server) importUpload(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/import?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	if err := s.file.Save(); err != nil {
+	if err := s.persist(r.Context(), "web: import CSV"); err != nil {
 		http.Redirect(w, r, "/import?error="+url.QueryEscape("could not save: "+err.Error()), http.StatusSeeOther)
 		return
 	}
