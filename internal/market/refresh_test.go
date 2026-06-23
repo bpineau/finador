@@ -46,7 +46,7 @@ func bookWithTrade(t *testing.T) *domain.Book {
 	return b
 }
 
-func TestRefreshFetchesFromFirstTx(t *testing.T) {
+func TestRefreshBackfillsDeepPriceHistory(t *testing.T) {
 	b := bookWithTrade(t)
 	src := &fakeSource{daily: map[string]DailyData{
 		"CW8.PA":   {Currency: domain.EUR, Closes: []domain.PricePoint{{Date: mustDate("2026-05-15"), Close: 550}}},
@@ -56,10 +56,15 @@ func TestRefreshFetchesFromFirstTx(t *testing.T) {
 	if len(sum.Warnings) != 0 {
 		t.Fatalf("warnings: %v", sum.Warnings)
 	}
-	// prices requested from the first transaction − 7 days
-	wantCall := "DAILY CW8.PA " + mustDate("2026-05-15").AddDays(-7).String()
+	// prices requested from the deep history floor (years back), not just from
+	// the first transaction, so the price chart has real history to show.
+	floor := domain.DateOf(domain.Today().Time().AddDate(-priceHistoryYears, 0, 0))
+	wantCall := "DAILY CW8.PA " + floor.String()
 	if !contains(src.calls, wantCall) {
 		t.Errorf("appels = %v, attendu %q", src.calls, wantCall)
+	}
+	if b.Market.Price("cw8").HistFrom != floor {
+		t.Errorf("HistFrom = %v, attendu %v", b.Market.Price("cw8").HistFrom, floor)
 	}
 	// series and FX cached, FetchedAt set to today
 	if _, _, ok := b.Market.Price("cw8").At(mustDate("2026-05-15")); !ok {
@@ -92,10 +97,12 @@ func TestRefreshSkipsFreshSeries(t *testing.T) {
 
 func TestRefreshIncrementalFrom(t *testing.T) {
 	b := bookWithTrade(t)
-	b.Market.Price("cw8").Merge([]domain.PricePoint{{Date: mustDate("2026-06-01"), Close: 550}})
+	series := b.Market.Price("cw8")
+	series.Merge([]domain.PricePoint{{Date: mustDate("2026-06-01"), Close: 550}})
+	series.HistFrom = mustDate("2010-01-01") // already back-filled deep
 	src := &fakeSource{daily: map[string]DailyData{"CW8.PA": {}, "EURUSD=X": {}}}
 	Refresh(context.Background(), b, src, false)
-	// restarts from the LAST known close (it may have moved during the session)
+	// already deep enough: restarts from the LAST known close (it moves intraday)
 	if !contains(src.calls, "DAILY CW8.PA 2026-06-01") {
 		t.Errorf("appels = %v", src.calls)
 	}

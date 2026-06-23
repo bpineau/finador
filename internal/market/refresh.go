@@ -31,13 +31,17 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		if !force && !series.FetchedAt.Before(today) {
 			continue
 		}
-		data, err := src.Daily(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN}, priceFetchFrom(b, asset.ID, series))
+		from := priceFetchFrom(b, asset.ID, series)
+		data, err := src.Daily(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN}, from)
 		if err != nil {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", asset.Ticker, err))
 			continue
 		}
 		series.Merge(data.Closes)
 		series.FetchedAt = today
+		if series.HistFrom.IsZero() || from.Before(series.HistFrom) {
+			series.HistFrom = from // remember how deep we have fetched
+		}
 		mergeDividends(&b.Market, asset.ID, data.Dividends)
 		if data.Currency != "" && data.Currency != asset.Currency {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
@@ -65,17 +69,41 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 	return sum
 }
 
-// priceFetchFrom picks the start of an incremental fetch: the last cached
-// close (it may have moved during the session), else a week before the
-// asset's first transaction, else a month back.
+// priceHistoryYears is how far back a price series reaches, so the asset page's
+// price chart shows years of quotes even for a recently-bought security.
+const priceHistoryYears = 10
+
+// priceFetchFrom picks the start of a fetch. We want each price series to cover
+// a deep history floor (for the price chart), then refresh incrementally:
+//   - not yet back-filled to the floor (HistFrom) → fetch from the floor;
+//   - already deep enough → fetch from the last close (it moves intraday).
+//
+// HistFrom (the floor already requested, not the earliest data point) guards
+// against re-fetching deep history forever when a security is younger than the
+// floor.
 func priceFetchFrom(b *domain.Book, id domain.AssetID, s *domain.PriceSeries) domain.Date {
+	floor := priceHistoryFloor(b, id)
+	if s.HistFrom.IsZero() || floor.Before(s.HistFrom) {
+		return floor // (back-)fill deep history once
+	}
 	if last, ok := s.Last(); ok {
 		return last.Date
 	}
+	return floor
+}
+
+// priceHistoryFloor is the earliest date we want a price series to cover: a
+// generous lookback, but reaching at least a week before the first transaction
+// when that is older.
+func priceHistoryFloor(b *domain.Book, id domain.AssetID) domain.Date {
+	deep := domain.Today().Time().AddDate(-priceHistoryYears, 0, 0)
+	floor := domain.DateOf(deep)
 	if first, ok := firstTxDate(b, func(t *domain.Transaction) bool { return t.Asset == id }); ok {
-		return first.AddDays(-7)
+		if early := first.AddDays(-7); early.Before(floor) {
+			return early
+		}
 	}
-	return domain.Today().AddDays(-30)
+	return floor
 }
 
 func fxFetchFrom(b *domain.Book, s *domain.PriceSeries) domain.Date {
