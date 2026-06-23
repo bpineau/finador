@@ -35,6 +35,13 @@ type scopeData struct {
 	Range      string
 	Warnings   []string
 	Txs        []txRow
+
+	// Price history: only for a single-asset scope (a security with a quote).
+	IsAsset         bool
+	PriceCurve      template.HTML
+	PriceRange      string
+	PriceRangeLinks []tab
+	PriceCcy        domain.Currency
 }
 
 func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
@@ -66,20 +73,60 @@ func (s *Server) intersectPage(w http.ResponseWriter, r *http.Request) {
 	s.renderScope(w, r, scope)
 }
 
-// scopeRangeLinks builds simple ?range= links for scope pages (no by= to preserve).
-func scopeRangeLinks(activeRange string) []tab {
-	labels := []string{"1m", "3m", "1y", "all"}
-	links := make([]tab, len(labels))
-	for i, r := range labels {
-		var u string
-		if r == "all" {
-			u = "?"
+// rangeLabels are the period shortcuts shown under each scope chart.
+var rangeLabels = []string{"1m", "3m", "1y", "all"}
+
+// rangeLinks builds a chart's period selector, preserving every OTHER query
+// param so the page's two selectors (value via ?range, price via ?prange) stay
+// independent. key is the param it drives; def is the label mapped to "no
+// param" (the default view).
+func rangeLinks(r *http.Request, key, active, def string) []tab {
+	links := make([]tab, len(rangeLabels))
+	for i, lab := range rangeLabels {
+		q := r.URL.Query() // a fresh copy each call
+		if lab == def {
+			q.Del(key)
 		} else {
-			u = "?range=" + r
+			q.Set(key, lab)
 		}
-		links[i] = tab{Label: r, URL: u, Active: r == activeRange}
+		u := "?"
+		if enc := q.Encode(); enc != "" {
+			u += enc
+		}
+		links[i] = tab{Label: lab, URL: u, Active: lab == active}
 	}
 	return links
+}
+
+// priceRange resolves ?prange= for the price chart. Default (absent or "1y") is
+// one year; "all" is the whole series. No "1d" yet: a daily series is a single
+// point over a day - that shortcut waits for intraday data.
+func priceRange(r *http.Request, today domain.Date) (domain.Date, string) {
+	switch r.URL.Query().Get("prange") {
+	case "1m":
+		return domain.DateOf(today.Time().AddDate(0, -1, 0)), "1m"
+	case "3m":
+		return domain.DateOf(today.Time().AddDate(0, -3, 0)), "3m"
+	case "all":
+		return domain.Date{}, "all"
+	}
+	return domain.DateOf(today.Time().AddDate(-1, 0, 0)), "1y"
+}
+
+// pricePoints converts a cached daily close series to chart points, keeping only
+// those at or after `from` (zero from = the whole series).
+func pricePoints(series *domain.PriceSeries, from domain.Date) []perf.Point {
+	if series == nil {
+		return nil
+	}
+	pts := make([]perf.Point, 0, len(series.Points))
+	for _, p := range series.Points {
+		if !from.IsZero() && p.Date.Before(from) {
+			continue
+		}
+		pts = append(pts, perf.Point{Date: p.Date, Value: p.Close})
+	}
+	return pts
 }
 
 // renderScope renders the scope.html view for any Scope. The caller must hold
@@ -102,7 +149,7 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 		Label:      scope.Label,
 		Val:        val,
 		Range:      rangeName,
-		RangeLinks: scopeRangeLinks(rangeName),
+		RangeLinks: rangeLinks(r, "range", rangeName, "all"),
 	}
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
 		grossAll := res.PerfPoints(false)
@@ -114,6 +161,20 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 		// perf.Report always uses the full series
 		data.Rows, data.Met = perf.Report(grossAll, res.PerfFlows(), today, perf.RiskFreeFromConfig(b.Config))
 		data.Warnings = res.Warnings
+	}
+	// Price history is asset-specific: a single security has a quote series; an
+	// account or a group does not.
+	if scope.Kind == portfolio.ByAsset && scope.Asset != nil {
+		pfrom, pname := priceRange(r, today)
+		data.IsAsset = true
+		data.PriceRange = pname
+		data.PriceRangeLinks = rangeLinks(r, "prange", pname, "1y")
+		data.PriceCcy = scope.Asset.Currency
+		if pts := pricePoints(b.Market.Price(scope.Asset.ID), pfrom); len(pts) >= 2 {
+			data.PriceCurve = template.HTML(chart.SVG([]chart.Line{
+				{Label: "price", Color: couleurEncre, Points: pts},
+			}, 860, 280))
+		}
 	}
 	data.Txs = scopeTxs(b, scope, 15)
 	s.render(w, http.StatusOK, "scope.html", data)
