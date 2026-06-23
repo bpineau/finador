@@ -21,8 +21,8 @@ func TestAssetPageHasPriceHistory(t *testing.T) {
 	if !strings.Contains(body, "prange=") {
 		t.Fatal("asset page missing the price-range selector")
 	}
-	if !strings.Contains(body, "price in EUR") {
-		t.Fatalf("asset page missing the price curve caption: %q", body)
+	if !strings.Contains(body, "price EUR") {
+		t.Fatalf("asset page missing the price curve legend: %q", body)
 	}
 
 	code, body = get(t, srv, "/account/pea")
