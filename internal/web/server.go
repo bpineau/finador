@@ -6,8 +6,10 @@ package web
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"finador/internal/market"
 	"finador/internal/store"
@@ -70,6 +72,44 @@ func (s *Server) persist(ctx context.Context, msg string) error {
 		return err
 	}
 	return s.syncSaved(ctx, msg)
+}
+
+// AutoRefresh refreshes the market cache every interval until ctx is done, so a
+// long-running server keeps the day figures (overview day TWR, the /assets 1D
+// column, valuations) fresh without a manual click - today's daily candle from
+// Yahoo carries the live price, so a periodic force-refresh is enough. Quote
+// data lives in a local cache sidecar, so this never touches the ledger or the
+// remote. A no-op in offline mode.
+func (s *Server) AutoRefresh(ctx context.Context, interval time.Duration) {
+	if s.offline || interval <= 0 {
+		return
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.refreshOnce(ctx)
+		}
+	}
+}
+
+// refreshOnce force-refreshes the market cache once, in place, under the write
+// lock. Exposed for AutoRefresh and tests.
+func (s *Server) refreshOnce(ctx context.Context) {
+	if s.offline {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sum := market.Refresh(ctx, s.file.Book, s.source, true)
+	if len(sum.Fetched) > 0 {
+		if err := s.file.SaveCache(); err != nil {
+			log.Printf("auto-refresh: cache not saved: %v", err)
+		}
+	}
 }
 
 // Handler routes the five views. Mutating routes are POST-only.
