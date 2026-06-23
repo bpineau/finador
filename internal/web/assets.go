@@ -24,6 +24,8 @@ const (
 
 type assetRow struct {
 	Name, URL, EditURL        string
+	Day1d                     float64
+	HasDay1d                  bool
 	Spark1W, Spark1M, Spark1Y template.HTML
 	Gross, Net                float64
 }
@@ -62,6 +64,7 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 	data := assetsData{Today: today, Ccy: ccy, Assets: b.Assets, Flash: flash, Error: errMsg}
 	bySection := map[string]*assetSection{}
 	var rawWarnings []string
+	rf := perf.RiskFreeFromConfig(b.Config)
 
 	for _, asset := range b.Assets {
 		scope, err := portfolio.ParseScope(b, string(asset.ID))
@@ -77,15 +80,18 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 			continue
 		}
 		pts := res.PerfPoints(false)
+		day1d, hasDay1d := perfDay1d(res, today, rf)
 		row := assetRow{
-			Name:    asset.Name,
-			URL:     "/asset/" + url.PathEscape(string(asset.ID)),
-			EditURL: "/assets/" + url.PathEscape(string(asset.ID)) + "/edit",
-			Spark1W: spark(lastN(pts, 8)),
-			Spark1M: spark(lastN(pts, 31)),
-			Spark1Y: spark(pts),
-			Gross:   val.Gross,
-			Net:     val.Net,
+			Name:     asset.Name,
+			URL:      "/asset/" + url.PathEscape(string(asset.ID)),
+			EditURL:  "/assets/" + url.PathEscape(string(asset.ID)) + "/edit",
+			Day1d:    day1d,
+			HasDay1d: hasDay1d,
+			Spark1W:  spark(lastN(pts, 8)),
+			Spark1M:  spark(lastN(pts, 31)),
+			Spark1Y:  spark(pts),
+			Gross:    val.Gross,
+			Net:      val.Net,
 		}
 		g := asset.Group
 		if g == "" {
@@ -309,6 +315,19 @@ func withholdPct(w float64) string {
 		return ""
 	}
 	return strconv.FormatFloat(w*100, 'f', -1, 64)
+}
+
+// perfDay1d returns the asset's flow-neutralized 1-day return (the "1d" perf
+// row), so a buy that lands today reads as deployed capital, not a gain.
+// Same machinery as the overview day TWR, hence the same number per asset.
+func perfDay1d(res portfolio.SeriesResult, today domain.Date, rf float64) (float64, bool) {
+	rows, _ := perf.Report(res.PerfPoints(false), res.PerfFlows(), today, rf)
+	for _, r := range rows {
+		if r.Name == "1d" && r.HasTWR {
+			return r.TWR, true
+		}
+	}
+	return 0, false
 }
 
 // lastN keeps the trailing n points of a daily series.
