@@ -30,14 +30,16 @@
 
 <section>
   <h2>ledger</h2>
-  <table>
-    <tr><th>id</th><th>date</th><th>kind</th><th>account</th><th>asset</th><th class="nombre">qty</th><th class="nombre">amount</th><th>note</th><th></th></tr>
-    {{range .Txs}}
+  <table class="ledger-table">
+    <colgroup><col class="col-seq"><col class="col-saved"><col class="col-kind"><col class="col-desc"><col class="col-act"></colgroup>
+    <tr><th class="nombre">#</th><th>saved</th><th>kind</th><th>description</th><th></th></tr>
+    {{range .Entries}}
     <tr>
-      <td class="nombre">{{.ID}}</td><td class="nombre">{{.Date}}</td><td>{{.Kind}}</td>
-      <td>{{.Account}}</td><td>{{.Asset}}</td>
-      <td class="nombre">{{.Qty}}</td><td class="nombre">{{.Amount}}</td><td>{{.Note}}</td>
-      <td class="actions"><a href="/tx/{{.ID}}/edit">edit</a> <form method="post" action="/tx/{{.ID}}/delete"><button class="lien" type="submit">delete</button></form></td>
+      <td class="nombre">{{.Seq}}</td>
+      <td class="nombre">{{.Ts}}</td>
+      <td>{{.Kind}}</td>
+      <td>{{.Desc}}</td>
+      <td class="actions">{{if .CanEdit}}<a href="/tx/{{.TxID}}/edit">edit</a> <form method="post" action="/tx/{{.TxID}}/delete"><button class="lien" type="submit">delete</button></form>{{end}}</td>
     </tr>
     {{end}}
   </table>
