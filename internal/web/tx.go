@@ -479,7 +479,7 @@ func (s *Server) assetRename(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusInternalServerError, "could not save: "+err.Error())
 		return
 	}
-	if err := s.syncSaved(r.Context(), "web: rename asset to "+name); err != nil {
+	if err := s.syncSaved(r.Context(), "web: rename asset"); err != nil {
 		s.renderError(w, http.StatusInternalServerError, "saved locally, but could not sync to the remote: "+err.Error())
 		return
 	}
