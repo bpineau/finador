@@ -81,16 +81,13 @@ table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .ledger-table col.col-amount { width: 9rem; }
 .ledger-table col.col-desc   { width: auto; }
 .ledger-table col.col-act    { width: 7rem; }
-td.ledger-desc { position: relative; }
-.diff-tip {
-  display: none; position: absolute; left: 0; top: 100%;
-  background: var(--papier); border: 1px solid var(--encre-2);
-  border-radius: 2px; padding: .35rem .7rem;
-  font-size: .78rem; font-family: var(--mono); line-height: 1.6;
-  white-space: pre; z-index: 10; pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,.1);
+/* Edited entries carry a field-by-field diff in the cell's title attribute
+   (native multi-line tooltip): a styled box can't be used here because the
+   cell's overflow:hidden (needed for the ellipsis) would clip it. */
+td.ledger-desc.has-diff {
+  text-decoration: underline dotted var(--encre-2);
+  text-underline-offset: 3px; cursor: help;
 }
-tr:hover .diff-tip { display: block; }
 th {
   text-align: left; font-variant: small-caps; letter-spacing: .12em;
   font-weight: 600; font-size: .72rem; color: var(--encre-2);

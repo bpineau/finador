@@ -40,7 +40,7 @@
       <td>{{.Kind}}</td>
       <td class="nombre">{{.Qty}}</td>
       <td class="nombre">{{.Amount}}</td>
-      <td class="ledger-desc">{{.Desc}}{{if .Diff}}<span class="diff-tip">{{.Diff}}</span>{{end}}</td>
+      <td class="ledger-desc{{if .Diff}} has-diff{{end}}"{{if .Diff}} title="{{.Diff}}"{{end}}>{{.Desc}}</td>
       <td class="actions">{{if .CanEdit}}<a href="/tx/{{.TxID}}/edit">edit</a> <form method="post" action="/tx/{{.TxID}}/delete"><button class="lien" type="submit">delete</button></form>{{end}}</td>
     </tr>
     {{end}}
