@@ -31,10 +31,10 @@
   <h2>assets</h2>
   {{range .Warnings}}<p class="approx">≈ {{.}}</p>{{end}}
   <table class="assets-table">
-    <tr><th>asset</th><th class="daycell">1D</th><th class="sparkcell">1W</th><th class="sparkcell">1M</th><th class="sparkcell">1Y</th><th class="edit-cell"></th><th class="nombre">GROSS</th><th class="nombre">NET</th></tr>
+    <tr><th>asset</th><th class="daycell">1D</th><th class="sparkcell">1M</th><th class="sparkcell">1Y</th><th class="edit-cell"></th><th class="nombre">GROSS</th><th class="nombre">NET</th></tr>
     {{range .Sections}}
     <tr class="section-row">
-      <td colspan="6">{{if .URL}}<a href="{{.URL}}">{{.Group}}</a>{{else}}{{.Group}}{{end}}</td>
+      <td colspan="5">{{if .URL}}<a href="{{.URL}}">{{.Group}}</a>{{else}}{{.Group}}{{end}}</td>
       <td class="nombre">{{fmtMoney .Gross $.Ccy}}</td>
       <td class="nombre">{{fmtMoney .Net $.Ccy}}</td>
     </tr>
@@ -42,7 +42,6 @@
     <tr>
       <td class="asset-name"><a href="{{.URL}}">{{.Name}}</a></td>
       <td class="daycell">{{if .HasDay1d}}{{fmtPct .Day1d}}<span class="arr">{{arrow .Day1d}}</span>{{end}}</td>
-      <td class="sparkcell">{{.Spark1W}}</td>
       <td class="sparkcell">{{.Spark1M}}</td>
       <td class="sparkcell">{{.Spark1Y}}</td>
       <td class="edit-cell"><a href="{{.EditURL}}" title="edit asset">✎</a></td>
