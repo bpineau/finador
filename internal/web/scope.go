@@ -39,6 +39,7 @@ type scopeData struct {
 	// Price history: only for a single-asset scope (a security with a quote).
 	IsAsset         bool
 	PriceCurve      template.HTML
+	PriceFallback   string // non-empty when intraday is unavailable (shown as a note)
 	PriceRange      string
 	PriceRangeLinks []tab
 }
@@ -72,16 +73,19 @@ func (s *Server) intersectPage(w http.ResponseWriter, r *http.Request) {
 	s.renderScope(w, r, scope)
 }
 
-// rangeLabels are the period shortcuts shown under each scope chart.
+// rangeLabels are the period shortcuts shown under the portfolio value chart.
 var rangeLabels = []string{"1m", "3m", "1y", "all"}
+
+// priceRangeLabels are the period shortcuts shown under the per-asset price chart.
+var priceRangeLabels = []string{"1d", "1m", "3m", "1y", "all"}
 
 // rangeLinks builds a chart's period selector, preserving every OTHER query
 // param so the page's two selectors (value via ?range, price via ?prange) stay
-// independent. key is the param it drives; def is the label mapped to "no
-// param" (the default view).
-func rangeLinks(r *http.Request, key, active, def string) []tab {
-	links := make([]tab, len(rangeLabels))
-	for i, lab := range rangeLabels {
+// independent. labels is the set of shortcuts for this selector; key is the
+// param it drives; def is the label mapped to "no param" (the default view).
+func rangeLinks(labels []string, r *http.Request, key, active, def string) []tab {
+	links := make([]tab, len(labels))
+	for i, lab := range labels {
 		q := r.URL.Query() // a fresh copy each call
 		if lab == def {
 			q.Del(key)
@@ -97,19 +101,20 @@ func rangeLinks(r *http.Request, key, active, def string) []tab {
 	return links
 }
 
-// priceRange resolves ?prange= for the price chart. Default (absent or "1y") is
-// one year; "all" is the whole series. No "1d" yet: a daily series is a single
-// point over a day - that shortcut waits for intraday data.
+// priceRange resolves ?prange= for the price chart. Default (absent or "1d")
+// is the intraday view; other shortcuts select a daily history window.
 func priceRange(r *http.Request, today domain.Date) (domain.Date, string) {
 	switch r.URL.Query().Get("prange") {
 	case "1m":
 		return domain.DateOf(today.Time().AddDate(0, -1, 0)), "1m"
 	case "3m":
 		return domain.DateOf(today.Time().AddDate(0, -3, 0)), "3m"
+	case "1y":
+		return domain.DateOf(today.Time().AddDate(-1, 0, 0)), "1y"
 	case "all":
 		return domain.Date{}, "all"
 	}
-	return domain.DateOf(today.Time().AddDate(-1, 0, 0)), "1y"
+	return domain.Date{}, "1d"
 }
 
 // pricePoints converts a cached daily close series to chart points, keeping only
@@ -148,7 +153,7 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 		Label:      scope.Label,
 		Val:        val,
 		Range:      rangeName,
-		RangeLinks: rangeLinks(r, "range", rangeName, "all"),
+		RangeLinks: rangeLinks(rangeLabels, r, "range", rangeName, "all"),
 	}
 	if res, err := portfolio.Series(b, scope, domain.Date{}, today, ccy, fx); err == nil && len(res.Points) >= 2 {
 		grossAll := res.PerfPoints(false)
@@ -167,11 +172,31 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 		pfrom, pname := priceRange(r, today)
 		data.IsAsset = true
 		data.PriceRange = pname
-		data.PriceRangeLinks = rangeLinks(r, "prange", pname, "1y")
-		if pts := pricePoints(b.Market.Price(scope.Asset.ID), pfrom); len(pts) >= 2 {
-			data.PriceCurve = template.HTML(chart.SVG([]chart.Line{
-				{Label: "price " + string(scope.Asset.Currency), Color: couleurEncre, Points: pts},
-			}, 860, 280))
+		data.PriceRangeLinks = rangeLinks(priceRangeLabels, r, "prange", pname, "1d")
+		ccy := string(scope.Asset.Currency)
+		if pname == "1d" {
+			if pts, ok := s.intradayFor(r.Context(), scope.Asset); ok && len(pts) >= 2 {
+				tpts := make([]chart.TimePoint, len(pts))
+				for i, p := range pts {
+					tpts[i] = chart.TimePoint{Time: p.Time, Value: p.Close}
+				}
+				data.PriceCurve = template.HTML(chart.IntradaySVG(tpts, 860, 280,
+					"price "+ccy, couleurEncre))
+			} else {
+				data.PriceFallback = "intraday unavailable"
+				fallbackFrom := domain.DateOf(today.Time().AddDate(0, -1, 0))
+				if dpts := pricePoints(b.Market.Price(scope.Asset.ID), fallbackFrom); len(dpts) >= 2 {
+					data.PriceCurve = template.HTML(chart.SVG([]chart.Line{
+						{Label: "price " + ccy, Color: couleurEncre, Points: dpts},
+					}, 860, 280))
+				}
+			}
+		} else {
+			if pts := pricePoints(b.Market.Price(scope.Asset.ID), pfrom); len(pts) >= 2 {
+				data.PriceCurve = template.HTML(chart.SVG([]chart.Line{
+					{Label: "price " + ccy, Color: couleurEncre, Points: pts},
+				}, 860, 280))
+			}
 		}
 	}
 	data.Txs = scopeTxs(b, scope, 15)

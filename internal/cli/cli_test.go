@@ -195,6 +195,10 @@ func (fakeSource) Resolve(_ context.Context, q string) (market.SymbolInfo, error
 	return market.SymbolInfo{}, domain.ErrNotFound
 }
 
+func (fakeSource) Intraday(_ context.Context, _ market.Ref) (market.IntradayData, error) {
+	return market.IntradayData{}, market.ErrNotCovered
+}
+
 func (fakeSource) Daily(_ context.Context, ref market.Ref, _ domain.Date) (market.DailyData, error) {
 	day := func(s string) domain.Date {
 		d, err := domain.ParseDate(s)

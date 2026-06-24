@@ -5,6 +5,7 @@ package market
 import (
 	"context"
 	"errors"
+	"time"
 
 	"finador/internal/domain"
 )
@@ -20,12 +21,26 @@ type Ref struct {
 	Symbol, ISIN string
 }
 
+// IntradayPoint is one 5-minute tick in an intraday price series.
+type IntradayPoint struct {
+	Time  time.Time
+	Close float64
+}
+
+// IntradayData carries an intraday series for one instrument.
+type IntradayData struct {
+	Currency domain.Currency
+	Points   []IntradayPoint
+}
+
 // Source provides daily market data. finador fetches serially, politely.
 type Source interface {
 	// Resolve finds the best symbol for a free query: ticker, ISIN or name.
 	Resolve(ctx context.Context, query string) (SymbolInfo, error)
 	// Daily returns closes and dividends from `from` (inclusive) to today.
 	Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error)
+	// Intraday returns 5-minute ticks for the current trading day.
+	Intraday(ctx context.Context, ref Ref) (IntradayData, error)
 }
 
 // Provider supplies a daily series for the Refs it understands. It returns

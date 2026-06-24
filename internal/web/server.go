@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"finador/internal/domain"
 	"finador/internal/market"
 	"finador/internal/store"
 )
@@ -26,16 +27,67 @@ type Sync struct {
 	Reload func() (*store.File, error)
 }
 
+const intradayTTL = 3 * time.Minute
+
+type intradayEntry struct {
+	day domain.Date
+	at  time.Time
+	pts []market.IntradayPoint
+}
+
 type Server struct {
-	mu      sync.RWMutex
-	file    *store.File
-	source  market.Source
-	offline bool
-	sync    *Sync
+	mu         sync.RWMutex
+	file       *store.File
+	source     market.Source
+	offline    bool
+	sync       *Sync
+	intradayMu sync.Mutex
+	intraday   map[domain.AssetID]intradayEntry
 }
 
 func NewServer(f *store.File, src market.Source, offline bool, sync *Sync) *Server {
-	return &Server{file: f, source: src, offline: offline, sync: sync}
+	return &Server{
+		file:     f,
+		source:   src,
+		offline:  offline,
+		sync:     sync,
+		intraday: make(map[domain.AssetID]intradayEntry),
+	}
+}
+
+// intradayFor returns the 5-minute intraday series for the current day. It
+// reads from an in-memory cache (protected by intradayMu, separate from mu)
+// and fetches from the network only when the cache is stale or absent. Never
+// holds intradayMu across a network call.
+func (s *Server) intradayFor(ctx context.Context, asset *domain.Asset) ([]market.IntradayPoint, bool) {
+	today := domain.Today()
+
+	s.intradayMu.Lock()
+	e, cached := s.intraday[asset.ID]
+	fresh := cached && e.day == today && time.Since(e.at) < intradayTTL
+	s.intradayMu.Unlock()
+
+	if fresh {
+		return e.pts, true
+	}
+	if s.offline {
+		if cached && e.day == today {
+			return e.pts, true
+		}
+		return nil, false
+	}
+
+	ref := market.Ref{Symbol: asset.Ticker, ISIN: asset.ISIN}
+	data, err := s.source.Intraday(ctx, ref)
+	if err != nil {
+		return nil, false
+	}
+
+	s.intradayMu.Lock()
+	s.intraday[asset.ID] = intradayEntry{day: today, at: time.Now(), pts: data.Points}
+	s.intradayMu.Unlock()
+
+	return data.Points, true
 }
 
 // syncSaved pushes an already-saved working copy to the remote, then reloads the

@@ -43,3 +43,30 @@ func TestRangeSelectorsAreIndependent(t *testing.T) {
 		t.Fatalf("prange links did not preserve the value range param: %q", body)
 	}
 }
+
+// The default price range is 1d (intraday) and the selector shows all 5 labels.
+func TestPriceRangeDefault(t *testing.T) {
+	srv, _ := testServer(t)
+	_, body := get(t, srv, "/asset/cw8")
+	for _, label := range []string{"1d", "1m", "3m", "1y", "all"} {
+		if !strings.Contains(body, label) {
+			t.Errorf("price range selector missing label %q", label)
+		}
+	}
+	// "1d" is active (no prange param → default is 1d)
+	if !strings.Contains(body, "active-range") {
+		t.Error("no active-range marker on asset page")
+	}
+}
+
+// Explicit prange=1y falls through to the daily chart path.
+func TestPriceRangeExplicit(t *testing.T) {
+	srv, _ := testServer(t)
+	code, body := get(t, srv, "/asset/cw8?prange=1y")
+	if code != 200 {
+		t.Fatalf("prange=1y = %d", code)
+	}
+	if !strings.Contains(body, "price EUR") {
+		t.Errorf("1y daily chart legend missing:\n%s", excerpt(body))
+	}
+}
