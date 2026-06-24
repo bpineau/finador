@@ -3,11 +3,13 @@ package portfolio
 import "finador/internal/domain"
 
 // PositionLine is one valued position - or one envelope's cash when Asset is
-// nil. The raw material of the web's hierarchical allocation trees.
+// nil. The raw material of the web's hierarchical allocation trees. Net is the
+// after-tax value under the per-position rule (a documented approximation: the
+// exact net follows the per-envelope rule, see Value).
 type PositionLine struct {
-	Account *domain.Account
-	Asset   *domain.Asset
-	Gross   float64
+	Account    *domain.Account
+	Asset      *domain.Asset
+	Gross, Net float64
 }
 
 // Breakdown values every security position, property and tracked cash at
@@ -23,7 +25,11 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, PositionLine{Account: h.Account, Asset: h.Asset, Gross: gross})
+		tax, err := v.positionTax(h.Account, h.Asset, gross)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, PositionLine{Account: h.Account, Asset: h.Asset, Gross: gross, Net: gross - tax})
 	}
 	for _, p := range statementPairs(b, at) {
 		if p.asset.Kind != domain.Property {
@@ -33,7 +39,11 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, PositionLine{Account: p.account, Asset: p.asset, Gross: gross})
+		tax, err := v.propertyTax(p.account, p.asset, gross)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, PositionLine{Account: p.account, Asset: p.asset, Gross: gross, Net: gross - tax})
 	}
 	for _, acc := range b.Accounts {
 		if !CashTracked(b, acc.ID) {
@@ -44,7 +54,11 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 			return nil, err
 		}
 		if gross != 0 {
-			out = append(out, PositionLine{Account: acc, Gross: gross})
+			net := gross
+			if acc.Tax.Mode == domain.TaxOnValue {
+				net = gross - gross*rate(acc.Tax)
+			}
+			out = append(out, PositionLine{Account: acc, Gross: gross, Net: net})
 		}
 	}
 	return out, nil
