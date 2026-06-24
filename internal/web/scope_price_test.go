@@ -44,7 +44,7 @@ func TestRangeSelectorsAreIndependent(t *testing.T) {
 	}
 }
 
-// The default price range is 1d (intraday) and the selector shows all 5 labels.
+// The default price range is 1y and the selector shows all 5 labels including 1d.
 func TestPriceRangeDefault(t *testing.T) {
 	srv, _ := testServer(t)
 	_, body := get(t, srv, "/asset/cw8")
@@ -53,9 +53,13 @@ func TestPriceRangeDefault(t *testing.T) {
 			t.Errorf("price range selector missing label %q", label)
 		}
 	}
-	// "1d" is active (no prange param → default is 1d)
+	// "1y" is active by default
 	if !strings.Contains(body, "active-range") {
 		t.Error("no active-range marker on asset page")
+	}
+	// "1d" link must exist (uses prange=1d since it's not the default)
+	if !strings.Contains(body, "prange=1d") {
+		t.Error("1d link must carry prange=1d param")
 	}
 }
 
