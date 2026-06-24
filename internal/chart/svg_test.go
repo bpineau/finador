@@ -3,7 +3,17 @@ package chart
 import (
 	"strings"
 	"testing"
+	"time"
 )
+
+func intradayRamp(n int) []TimePoint {
+	base := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	pts := make([]TimePoint, n)
+	for i := range pts {
+		pts[i] = TimePoint{Time: base.Add(time.Duration(i) * 5 * time.Minute), Value: float64(100 + i)}
+	}
+	return pts
+}
 
 func TestSVGStructure(t *testing.T) {
 	gross := Line{Label: "brut", Color: "#0a7d4b", Points: ramp(60)}
@@ -48,6 +58,47 @@ func TestSVGDeterministic(t *testing.T) {
 	b := SVG(lines, 800, 300)
 	if a != b {
 		t.Error("sortie SVG non déterministe")
+	}
+}
+
+func TestIntradaySVGStructure(t *testing.T) {
+	pts := intradayRamp(20)
+	out := IntradaySVG(pts, 800, 300, "price EUR", "#1c1914")
+	// HH:MM labels
+	first := pts[0].Time.Format("15:04")
+	last := pts[len(pts)-1].Time.Format("15:04")
+	if !strings.Contains(out, first) {
+		t.Errorf("first time label %q missing:\n%s", first, out[:min(len(out), 400)])
+	}
+	if !strings.Contains(out, last) {
+		t.Errorf("last time label %q missing:\n%s", last, out[:min(len(out), 400)])
+	}
+	// legend
+	if !strings.Contains(out, "price EUR") {
+		t.Errorf("legend missing:\n%s", out[:min(len(out), 400)])
+	}
+	// polyline present
+	if !strings.Contains(out, "<polyline") {
+		t.Errorf("polyline missing")
+	}
+	// no date strings (no YYYY-MM-DD)
+	if strings.Contains(out, "2026-") {
+		t.Errorf("date string must not appear in intraday SVG")
+	}
+	// no NaN/Inf
+	for _, bad := range []string{"NaN", "Inf"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("%s in intraday SVG", bad)
+		}
+	}
+}
+
+func TestIntradaySVGEmpty(t *testing.T) {
+	if out := IntradaySVG(nil, 800, 300, "price EUR", "#000"); out != "" {
+		t.Errorf("empty: %q", out)
+	}
+	if out := IntradaySVG(intradayRamp(1), 800, 300, "price EUR", "#000"); out != "" {
+		t.Errorf("single point: %q", out)
 	}
 }
 

@@ -5,9 +5,16 @@ import (
 	"html"
 	"math"
 	"strings"
+	"time"
 
 	"finador/internal/perf"
 )
+
+// TimePoint is one tick in an intraday chart (time-stamped, not date-stamped).
+type TimePoint struct {
+	Time  time.Time
+	Value float64
+}
 
 // Line is one curve of an SVG chart. Label is escaped before rendering;
 // Color is written verbatim and must stay a trusted constant.
@@ -95,4 +102,64 @@ func nonEmpty(lines []Line) []Line {
 		}
 	}
 	return out
+}
+
+// IntradaySVG renders a single intraday price curve. The x-axis labels show
+// HH:MM of the first and last point rather than dates.
+func IntradaySVG(points []TimePoint, w, h int, label, color string) string {
+	if len(points) < 2 {
+		return ""
+	}
+	w = max(w, 320)
+	h = max(h, 120)
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, p := range points {
+		lo = math.Min(lo, p.Value)
+		hi = math.Max(hi, p.Value)
+	}
+	if hi == lo {
+		hi = lo + 1
+	}
+	plotW, plotH := float64(w-padL-padR), float64(h-padT-padB)
+	x := func(i, n int) float64 { return float64(padL) + float64(i)/float64(max(n-1, 1))*plotW }
+	y := func(v float64) float64 { return float64(padT) + (hi-v)/(hi-lo)*plotH }
+	f := func(v float64) string { return fmt.Sprintf("%.1f", v) }
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" font-family="ui-monospace,monospace" font-size="11">`+"\n", w, h)
+	// scale labels
+	for i := range 4 {
+		gv := lo + (hi-lo)*float64(3-i)/3
+		gy := y(gv)
+		fmt.Fprintf(&b, `<text x="%d" y="%s" text-anchor="end" fill="#666666">%s</text>`+"\n",
+			padL-6, f(gy+4), formatCompact(gv))
+	}
+	// area under the curve
+	var area strings.Builder
+	for i, p := range points {
+		fmt.Fprintf(&area, "%s,%s ", f(x(i, len(points))), f(y(p.Value)))
+	}
+	fmt.Fprintf(&b, `<polygon points="%s%s,%s %s,%s" fill="%s" fill-opacity="0.07"/>`+"\n",
+		area.String(),
+		f(x(len(points)-1, len(points))), f(float64(padT)+plotH),
+		f(x(0, len(points))), f(float64(padT)+plotH),
+		color)
+	// curve
+	var pts strings.Builder
+	for i, p := range points {
+		fmt.Fprintf(&pts, "%s,%s ", f(x(i, len(points))), f(y(p.Value)))
+	}
+	fmt.Fprintf(&b, `<polyline points="%s" fill="none" stroke="%s" stroke-width="1.8"/>`+"\n",
+		strings.TrimSpace(pts.String()), color)
+	// legend
+	lx := padL
+	fmt.Fprintf(&b, `<rect x="%d" y="4" width="10" height="3" fill="%s"/><text x="%d" y="10" fill="#444444">%s</text>`+"\n",
+		lx, color, lx+14, html.EscapeString(label))
+	// HH:MM labels at first and last point
+	fmt.Fprintf(&b, `<text x="%d" y="%d" fill="#666666">%s</text>`+"\n",
+		padL, h-8, points[0].Time.Format("15:04"))
+	fmt.Fprintf(&b, `<text x="%d" y="%d" text-anchor="end" fill="#666666">%s</text>`+"\n",
+		w-padR, h-8, points[len(points)-1].Time.Format("15:04"))
+	b.WriteString("</svg>\n")
+	return b.String()
 }

@@ -30,6 +30,10 @@ func (f *fakeSource) Daily(_ context.Context, ref Ref, from domain.Date) (DailyD
 	return f.daily[ref.Symbol], nil
 }
 
+func (f *fakeSource) Intraday(_ context.Context, _ Ref) (IntradayData, error) {
+	return IntradayData{}, ErrNotCovered
+}
+
 func bookWithTrade(t *testing.T) *domain.Book {
 	t.Helper()
 	b := domain.NewBook()

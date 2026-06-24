@@ -16,6 +16,7 @@
   <div class="ranges">
     {{range .PriceRangeLinks}}{{if .Active}}<span class="active-range">{{.Label}}</span>{{else}}<a href="{{.URL}}">{{.Label}}</a>{{end}}{{end}}
   </div>
+  {{if .PriceFallback}}<p class="approx">{{.PriceFallback}}</p>{{end}}
   {{if .PriceCurve}}<figure class="courbe">{{.PriceCurve}}</figure>{{else}}<p class="approx">not enough price history yet...</p>{{end}}
 </section>
 {{end}}

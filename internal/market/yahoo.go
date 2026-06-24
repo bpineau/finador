@@ -90,6 +90,57 @@ func (y *Yahoo) Resolve(ctx context.Context, query string) (SymbolInfo, error) {
 	return SymbolInfo{}, fmt.Errorf("symbol for %q: %w", query, domain.ErrNotFound)
 }
 
+func (y *Yahoo) Intraday(ctx context.Context, ref Ref) (IntradayData, error) {
+	symbol := ref.Symbol
+	if symbol == "" {
+		return IntradayData{}, ErrNotCovered
+	}
+	var resp struct {
+		Chart struct {
+			Result []struct {
+				Meta struct {
+					Currency             string `json:"currency"`
+					ExchangeTimezoneName string `json:"exchangeTimezoneName"`
+				} `json:"meta"`
+				Timestamp  []int64 `json:"timestamp"`
+				Indicators struct {
+					Quote []struct {
+						Close []*float64 `json:"close"`
+					} `json:"quote"`
+				} `json:"indicators"`
+			} `json:"result"`
+			Error any `json:"error"`
+		} `json:"chart"`
+	}
+	q := url.Values{"interval": {"5m"}, "range": {"1d"}}
+	if err := y.get(ctx, "/v8/finance/chart/"+url.PathEscape(symbol), q, &resp); err != nil {
+		return IntradayData{}, err
+	}
+	if len(resp.Chart.Result) == 0 {
+		return IntradayData{}, ErrNotCovered
+	}
+	r := resp.Chart.Result[0]
+	loc, err := time.LoadLocation(r.Meta.ExchangeTimezoneName)
+	if err != nil {
+		loc = time.UTC
+	}
+	out := IntradayData{Currency: domain.Currency(r.Meta.Currency)}
+	var closes []*float64
+	if len(r.Indicators.Quote) > 0 {
+		closes = r.Indicators.Quote[0].Close
+	}
+	for i, ts := range r.Timestamp {
+		if i >= len(closes) || closes[i] == nil {
+			continue
+		}
+		out.Points = append(out.Points, IntradayPoint{
+			Time:  time.Unix(ts, 0).In(loc),
+			Close: *closes[i],
+		})
+	}
+	return out, nil
+}
+
 func (y *Yahoo) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {
 	symbol := ref.Symbol
 	if symbol == "" {
