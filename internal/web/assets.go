@@ -77,8 +77,16 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 		if err != nil {
 			continue
 		}
-		day1d, hasDay1d := perfDay1d(res, today, rf)
 		ps := b.Market.Price(asset.ID)
+		day1d, hasDay1d := perfDay1d(res, today, rf)
+		// For instruments whose latest published price predates today (e.g. NAV
+		// funds with a 1-day publication lag), forward-fill makes V(today) equal
+		// V(yesterday), producing a spurious 0%. Suppress it.
+		if hasDay1d {
+			if last, ok := ps.Last(); !ok || last.Date.Before(today) {
+				hasDay1d = false
+			}
+		}
 		row := assetRow{
 			Name:     asset.Name,
 			URL:      "/asset/" + url.PathEscape(string(asset.ID)),
