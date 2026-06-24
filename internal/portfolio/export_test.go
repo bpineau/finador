@@ -3,6 +3,7 @@ package portfolio
 import (
 	"bytes"
 	"encoding/csv"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -78,6 +79,59 @@ func TestWriteAssetCSV(t *testing.T) {
 	// the cash row carries kind=cash and no ticker/isin
 	if recs[2][0] != "cash" || recs[2][1] != "" || recs[2][3] != "" {
 		t.Errorf("cash row malformed: %v", recs[2])
+	}
+}
+
+func TestWriteAssetTree(t *testing.T) {
+	b := valuationBook(t)
+	at := mustDate("2026-06-05")
+	cw8, _ := b.Asset("cw8")
+	cw8.ISIN = "LU1681043599"
+	lines, err := Breakdown(b, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := WriteAssetTree(&buf, lines, domain.EUR, at); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+
+	// header advertises the currency and valuation date
+	if !strings.Contains(out, "Holdings in EUR at 2026-06-05") {
+		t.Errorf("missing header:\n%s", out)
+	}
+	// the PEA envelope holds the cw8 position (with its ISIN) AND cash: not
+	// collapsed, so a child line carries "CW8 (LU1681043599)".
+	if !strings.Contains(out, "CW8 (LU1681043599)") {
+		t.Errorf("expected the held asset with its ISIN:\n%s", out)
+	}
+	if !strings.Contains(out, "cash") {
+		t.Errorf("tracked cash must surface as a child line:\n%s", out)
+	}
+	// the Immo envelope holds a single property: collapsed onto the account
+	// name (a property carries no ISIN).
+	if !strings.Contains(out, "Immo") {
+		t.Errorf("single-position envelope should collapse onto its name:\n%s", out)
+	}
+	// a TOTAL footer with a net below the gross (latent tax on the house gain)
+	var totG, totN float64
+	for _, l := range lines {
+		totG += l.Gross
+		totN += l.Net
+	}
+	if totN >= totG {
+		t.Fatalf("net %.0f should sit below gross %.0f", totN, totG)
+	}
+	want := "TOTAL"
+	i := strings.LastIndex(out, want)
+	if i < 0 {
+		t.Fatalf("no TOTAL footer:\n%s", out)
+	}
+	footer := out[i:]
+	if !strings.Contains(footer, strconv.FormatFloat(totG, 'f', 0, 64)) ||
+		!strings.Contains(footer, strconv.FormatFloat(totN, 'f', 0, 64)) {
+		t.Errorf("TOTAL must show Σgross and Σnet (%s):\n%s", want, footer)
 	}
 }
 
