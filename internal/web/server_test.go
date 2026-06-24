@@ -497,15 +497,15 @@ func TestAssetsPage(t *testing.T) {
 		"Amundi MSCI World",    // an asset row
 		"/asset/cw8",           // clickable name
 		"assets-table",         // dense table
-		"GROSS", "NET", "1W", "1M", "1Y",
+		"GROSS", "NET", "1M", "1Y",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/assets: %q missing", want)
 		}
 	}
-	// three sparklines for the single valued asset
-	if got := strings.Count(body, "<polyline"); got != 3 {
-		t.Errorf("polylines = %d, want 3", got)
+	// two price-based sparklines (1M, 1Y) for the single valued asset
+	if got := strings.Count(body, "<polyline"); got != 2 {
+		t.Errorf("polylines = %d, want 2", got)
 	}
 	// gross and net amounts of the position (10×560 = 5600 ; base 5500 → gain 100
 	// → tax 17.20 if gains:17.2% → net 5582.80)
@@ -519,7 +519,7 @@ func TestAssetsPage(t *testing.T) {
 		t.Error("sparklines should be 72x20")
 	}
 	// table-layout:fixed reads the FIRST row: the th cells must carry the class
-	if !strings.Contains(body, `<th class="sparkcell">1W</th>`) {
+	if !strings.Contains(body, `<th class="sparkcell">1M</th>`) {
 		t.Error("header cells must carry sparkcell so fixed layout sizes the columns")
 	}
 	if !strings.Contains(body, `class="refresh-quiet"`) {
