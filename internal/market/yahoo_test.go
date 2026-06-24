@@ -15,6 +15,11 @@ import (
 // dividend, Europe/Paris time zone (timestamps at 09:00 local → 07:00 UTC).
 const chartCW8 = `{"chart":{"result":[{"meta":{"currency":"EUR","symbol":"CW8.PA","exchangeTimezoneName":"Europe/Paris"},"timestamp":[1780297200,1780383600,1780470000],"events":{"dividends":{"1780297200":{"amount":1.5,"date":1780297200}}},"indicators":{"quote":[{"close":[550.0,null,553.25]}]}}],"error":null}}`
 
+// Intraday fixture: 4 timestamps at 5-min intervals on 2026-06-01 in Europe/Paris,
+// one null close (gap), yielding 3 valid points.
+// 1780297200 = 2026-06-01 09:00 Europe/Paris
+const intradayCW8 = `{"chart":{"result":[{"meta":{"currency":"EUR","symbol":"CW8.PA","exchangeTimezoneName":"Europe/Paris"},"timestamp":[1780297200,1780297500,1780297800,1780298100],"indicators":{"quote":[{"close":[550.0,550.5,null,551.0]}]}}],"error":null}}`
+
 const searchCW8 = `{"quotes":[{"symbol":"CW8.PA","longname":"Amundi MSCI World UCITS ETF","quoteType":"ETF"},{"symbol":"CW8.MI","longname":"Amundi MSCI World (Milan)","quoteType":"ETF"}]}`
 
 const chartNotFound = `{"chart":{"result":null,"error":{"code":"Not Found","description":"No data found, symbol may be delisted"}}}`
@@ -119,6 +124,49 @@ func mustDate(s string) domain.Date {
 		panic(err)
 	}
 	return d
+}
+
+func TestYahooIntraday(t *testing.T) {
+	y := testYahoo(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v8/finance/chart/CW8.PA" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("interval") != "5m" || r.URL.Query().Get("range") != "1d" {
+			t.Errorf("query = %s", r.URL.RawQuery)
+		}
+		w.Write([]byte(intradayCW8))
+	})
+	got, err := y.Intraday(context.Background(), Ref{Symbol: "CW8.PA"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Currency != domain.EUR {
+		t.Errorf("ccy = %s", got.Currency)
+	}
+	// null close at index 2 is skipped: 3 valid points
+	if len(got.Points) != 3 {
+		t.Fatalf("points = %+v", got.Points)
+	}
+	// 1780297200 = 2026-06-01 09:00 Europe/Paris (CEST = UTC+2)
+	want0 := "09:00"
+	if got.Points[0].Time.Format("15:04") != want0 {
+		t.Errorf("points[0].Time = %s, want %s", got.Points[0].Time.Format("15:04"), want0)
+	}
+	if got.Points[0].Close != 550.0 {
+		t.Errorf("points[0].Close = %v", got.Points[0].Close)
+	}
+	if got.Points[2].Close != 551.0 {
+		t.Errorf("points[2].Close = %v", got.Points[2].Close)
+	}
+}
+
+func TestYahooIntradayNoSymbol(t *testing.T) {
+	y := testYahoo(t, func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("should not reach the network with no symbol")
+	})
+	if _, err := y.Intraday(context.Background(), Ref{ISIN: "LU1832174962"}); err != ErrNotCovered {
+		t.Fatalf("err = %v, want ErrNotCovered", err)
+	}
 }
 
 func TestYahooDailyEmptyQuote(t *testing.T) {

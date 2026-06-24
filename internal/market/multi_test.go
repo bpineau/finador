@@ -3,6 +3,7 @@ package market
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"finador/internal/domain"
@@ -100,6 +101,23 @@ func TestMultiNotFoundWhenOnlyNotCovered(t *testing.T) {
 	_, err := multi(yahoo, ft).Daily(context.Background(), Ref{}, mustDate("2026-06-01"))
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMultiIntraday(t *testing.T) {
+	// covered: symbol present → delegates to Yahoo resolver
+	y := testYahoo(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(intradayCW8))
+	})
+	m := &Multi{resolver: y, providers: []Provider{y}}
+	data, err := m.Intraday(context.Background(), Ref{Symbol: "CW8.PA"})
+	if err != nil || len(data.Points) == 0 {
+		t.Fatalf("intraday = %+v err %v", data, err)
+	}
+	// ISIN-only ref (FT/Morningstar territory): Yahoo returns ErrNotCovered
+	_, err = m.Intraday(context.Background(), Ref{ISIN: "LU1832174962"})
+	if err != ErrNotCovered {
+		t.Fatalf("err = %v, want ErrNotCovered", err)
 	}
 }
 

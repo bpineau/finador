@@ -27,6 +27,10 @@ func (fakeSource) Resolve(context.Context, string) (market.SymbolInfo, error) {
 	return market.SymbolInfo{}, domain.ErrNotFound
 }
 
+func (fakeSource) Intraday(_ context.Context, _ market.Ref) (market.IntradayData, error) {
+	return market.IntradayData{}, market.ErrNotCovered
+}
+
 func (fakeSource) Daily(_ context.Context, ref market.Ref, _ domain.Date) (market.DailyData, error) {
 	day := func(s string) domain.Date { d, _ := domain.ParseDate(s); return d }
 	if ref.Symbol == "CW8.PA" {

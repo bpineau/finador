@@ -30,6 +30,12 @@ func (m *Multi) Resolve(ctx context.Context, query string) (SymbolInfo, error) {
 	return m.resolver.Resolve(ctx, query)
 }
 
+// Intraday returns 5-minute ticks for the current day. Only Yahoo supports
+// intraday; ISIN-only refs (FT/Morningstar territory) return ErrNotCovered.
+func (m *Multi) Intraday(ctx context.Context, ref Ref) (IntradayData, error) {
+	return m.resolver.Intraday(ctx, ref)
+}
+
 // Daily walks the provider chain and returns the first usable series. It
 // remembers the last meaningful error (anything but ErrNotCovered) and
 // returns it if no provider produces data; ErrNotFound when none even tried.
