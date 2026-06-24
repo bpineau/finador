@@ -134,8 +134,8 @@ func TestAssetPageIntraday(t *testing.T) {
 	srv.source = src
 	srv.offline = false
 
-	// covered asset: intraday available → page renders intraday SVG with HH:MM labels
-	code, body := get(t, srv, "/asset/cw8")
+	// covered asset: intraday available via explicit prange=1d
+	code, body := get(t, srv, "/asset/cw8?prange=1d")
 	if code != 200 {
 		t.Fatalf("asset page = %d", code)
 	}
@@ -153,7 +153,7 @@ func TestAssetPageIntraday(t *testing.T) {
 		offline:  false,
 		intraday: make(map[domain.AssetID]intradayEntry),
 	}
-	code2, body2 := get(t, srv2, "/asset/cw8")
+	code2, body2 := get(t, srv2, "/asset/cw8?prange=1d")
 	if code2 != 200 {
 		t.Fatalf("fallback page = %d", code2)
 	}

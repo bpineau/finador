@@ -101,20 +101,20 @@ func rangeLinks(labels []string, r *http.Request, key, active, def string) []tab
 	return links
 }
 
-// priceRange resolves ?prange= for the price chart. Default (absent or "1d")
-// is the intraday view; other shortcuts select a daily history window.
+// priceRange resolves ?prange= for the price chart. Default (absent) is one
+// year; "1d" selects the intraday view.
 func priceRange(r *http.Request, today domain.Date) (domain.Date, string) {
 	switch r.URL.Query().Get("prange") {
+	case "1d":
+		return domain.Date{}, "1d"
 	case "1m":
 		return domain.DateOf(today.Time().AddDate(0, -1, 0)), "1m"
 	case "3m":
 		return domain.DateOf(today.Time().AddDate(0, -3, 0)), "3m"
-	case "1y":
-		return domain.DateOf(today.Time().AddDate(-1, 0, 0)), "1y"
 	case "all":
 		return domain.Date{}, "all"
 	}
-	return domain.Date{}, "1d"
+	return domain.DateOf(today.Time().AddDate(-1, 0, 0)), "1y"
 }
 
 // pricePoints converts a cached daily close series to chart points, keeping only
@@ -172,7 +172,7 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 		pfrom, pname := priceRange(r, today)
 		data.IsAsset = true
 		data.PriceRange = pname
-		data.PriceRangeLinks = rangeLinks(priceRangeLabels, r, "prange", pname, "1d")
+		data.PriceRangeLinks = rangeLinks(priceRangeLabels, r, "prange", pname, "1y")
 		ccy := string(scope.Asset.Currency)
 		if pname == "1d" {
 			if pts, ok := s.intradayFor(r.Context(), scope.Asset); ok && len(pts) >= 2 {
