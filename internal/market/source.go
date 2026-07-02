@@ -32,6 +32,17 @@ type IntradayData struct {
 	Points   []IntradayPoint
 }
 
+// Quote is the most recent known price of an instrument. Live reports how
+// fresh it is: true means a real-time market price whose Time is an intraday
+// instant; false means the last daily close (a fund NAV), whose Time is that
+// close's date.
+type Quote struct {
+	Price    float64
+	Time     time.Time
+	Currency domain.Currency
+	Live     bool
+}
+
 // Source provides daily market data. finador fetches serially, politely.
 // The standard implementation is Pofo (see Default).
 type Source interface {
@@ -41,6 +52,9 @@ type Source interface {
 	Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error)
 	// Intraday returns 5-minute ticks for the current trading day.
 	Intraday(ctx context.Context, ref Ref) (IntradayData, error)
+	// Latest returns the freshest available price: live when the market
+	// quotes one, otherwise the last daily close.
+	Latest(ctx context.Context, ref Ref) (Quote, error)
 }
 
 type SymbolInfo struct {

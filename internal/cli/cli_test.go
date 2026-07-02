@@ -199,6 +199,10 @@ func (fakeSource) Intraday(_ context.Context, _ market.Ref) (market.IntradayData
 	return market.IntradayData{}, market.ErrNotCovered
 }
 
+func (fakeSource) Latest(_ context.Context, _ market.Ref) (market.Quote, error) {
+	return market.Quote{}, market.ErrNotCovered
+}
+
 func (fakeSource) Daily(_ context.Context, ref market.Ref, _ domain.Date) (market.DailyData, error) {
 	day := func(s string) domain.Date {
 		d, err := domain.ParseDate(s)
