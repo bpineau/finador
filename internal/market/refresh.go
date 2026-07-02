@@ -69,6 +69,44 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 	return sum
 }
 
+// SpotSummary reports what a spot pass observed: the freshest quote per
+// asset (so the UI can show how live each price is) and warnings.
+type SpotSummary struct {
+	Quotes   map[domain.AssetID]Quote
+	Warnings []string
+}
+
+// SpotRefresh updates today's price of every quoted security and FX rate from
+// the source's latest quote: one light call per instrument, no history depth,
+// no dividends. It complements Refresh (which must still run once a day) and
+// keeps valuations live between two daily refreshes. Like Refresh it never
+// fails hard: a failed quote degrades to a warning.
+func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
+	sum := SpotSummary{Quotes: map[domain.AssetID]Quote{}}
+	for _, asset := range b.Assets {
+		if asset.Kind != domain.Security || asset.Ticker == "" {
+			continue
+		}
+		q, err := src.Latest(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN})
+		if err != nil {
+			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", asset.Ticker, err))
+			continue
+		}
+		b.Market.Price(asset.ID).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
+		sum.Quotes[asset.ID] = q
+	}
+	for _, ccy := range neededCurrencies(b) {
+		symbol := string(ccy) + "USD=X"
+		q, err := src.Latest(ctx, Ref{Symbol: symbol})
+		if err != nil {
+			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", symbol, err))
+			continue
+		}
+		b.Market.FXSeries(ccy).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
+	}
+	return sum
+}
+
 // priceHistoryYears is how far back a price series reaches, so the asset page's
 // price chart shows years of quotes even for a recently-bought security.
 const priceHistoryYears = 10

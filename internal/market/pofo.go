@@ -91,6 +91,37 @@ func (p *Pofo) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData,
 	return DailyData{}, lastErr
 }
 
+// Latest returns the freshest available price: the live Yahoo market price
+// when the instrument is Yahoo-quoted, otherwise its last daily close (a
+// fund NAV). The ISIN is tried first (most precise), then the symbol.
+func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
+	ids := make([]string, 0, 2)
+	if ref.ISIN != "" {
+		ids = append(ids, ref.ISIN)
+	}
+	if ref.Symbol != "" {
+		ids = append(ids, ref.Symbol)
+	}
+	if len(ids) == 0 {
+		return Quote{}, ErrNotCovered
+	}
+	lastErr := error(ErrNotCovered)
+	for _, id := range ids {
+		q, err := p.Client.Latest(ctx, id)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return Quote{
+			Price:    q.Price,
+			Time:     q.Time,
+			Currency: domain.Currency(q.Currency),
+			Live:     q.Live,
+		}, nil
+	}
+	return Quote{}, lastErr
+}
+
 // Intraday returns 5-minute ticks for the current trading day. Yahoo is
 // the only intraday source; unknown symbols map to ErrNotCovered.
 func (p *Pofo) Intraday(ctx context.Context, ref Ref) (IntradayData, error) {

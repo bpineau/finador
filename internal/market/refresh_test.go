@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/shopspring/decimal"
 
@@ -12,9 +13,10 @@ import (
 
 // fakeSource scripts the responses and records the calls.
 type fakeSource struct {
-	calls []string // "DAILY sym from", "RESOLVE q"
-	daily map[string]DailyData
-	fail  map[string]bool
+	calls  []string // "DAILY sym from", "RESOLVE q", "LATEST sym"
+	daily  map[string]DailyData
+	latest map[string]Quote
+	fail   map[string]bool
 }
 
 func (f *fakeSource) Resolve(_ context.Context, q string) (SymbolInfo, error) {
@@ -32,6 +34,18 @@ func (f *fakeSource) Daily(_ context.Context, ref Ref, from domain.Date) (DailyD
 
 func (f *fakeSource) Intraday(_ context.Context, _ Ref) (IntradayData, error) {
 	return IntradayData{}, ErrNotCovered
+}
+
+func (f *fakeSource) Latest(_ context.Context, ref Ref) (Quote, error) {
+	f.calls = append(f.calls, "LATEST "+ref.Symbol)
+	if f.fail[ref.Symbol] {
+		return Quote{}, domain.ErrNotFound
+	}
+	q, ok := f.latest[ref.Symbol]
+	if !ok {
+		return Quote{}, ErrNotCovered
+	}
+	return q, nil
 }
 
 func bookWithTrade(t *testing.T) *domain.Book {
@@ -96,6 +110,49 @@ func TestRefreshSkipsFreshSeries(t *testing.T) {
 	Refresh(context.Background(), b, src, true)
 	if len(src.calls) != 2 {
 		t.Fatalf("force inopérant: %v", src.calls)
+	}
+}
+
+func TestSpotRefreshMergesTodayAndReportsQuotes(t *testing.T) {
+	b := bookWithTrade(t)
+	series := b.Market.Price("cw8")
+	series.Merge([]domain.PricePoint{{Date: domain.Today(), Close: 550}})
+	at := domain.Today().Time().Add(15 * time.Hour) // an intraday instant
+	src := &fakeSource{latest: map[string]Quote{
+		"CW8.PA":   {Price: 555.5, Time: at, Currency: domain.EUR, Live: true},
+		"EURUSD=X": {Price: 1.12, Time: at, Currency: domain.USD, Live: true},
+	}}
+
+	sum := SpotRefresh(context.Background(), b, src)
+
+	if len(sum.Warnings) != 0 {
+		t.Fatalf("warnings: %v", sum.Warnings)
+	}
+	if close, _, ok := series.At(domain.Today()); !ok || close != 555.5 {
+		t.Errorf("today's close = %v, want the live spot 555.5", close)
+	}
+	if rate, _, ok := b.Market.FXSeries(domain.EUR).At(domain.Today()); !ok || rate != 1.12 {
+		t.Errorf("today's FX = %v, want the live spot 1.12", rate)
+	}
+	q, ok := sum.Quotes["cw8"]
+	if !ok || !q.Live || !q.Time.Equal(at) {
+		t.Errorf("quote metadata: %+v (ok=%v)", q, ok)
+	}
+	// A spot pass never stamps the daily fetch: Refresh stays due.
+	if !b.Market.Price("cw8").FetchedAt.IsZero() {
+		t.Error("SpotRefresh must not stamp FetchedAt")
+	}
+}
+
+func TestSpotRefreshDegradesToWarnings(t *testing.T) {
+	b := bookWithTrade(t)
+	src := &fakeSource{fail: map[string]bool{"CW8.PA": true}}
+	sum := SpotRefresh(context.Background(), b, src)
+	if len(sum.Warnings) != 2 { // asset failed, FX not scripted (not covered)
+		t.Fatalf("warnings = %v, want 2", sum.Warnings)
+	}
+	if len(sum.Quotes) != 0 {
+		t.Fatalf("quotes = %v, want none", sum.Quotes)
 	}
 }
 
