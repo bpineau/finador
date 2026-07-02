@@ -73,8 +73,11 @@ func testServer(t *testing.T) (*Server, *store.File) {
 		Amount: domain.Money{Amount: dec("5000"), Currency: domain.EUR}})
 	b.Add(domain.Transaction{Date: day(t, "2026-06-01"), Account: "pea", Asset: "cw8", Kind: domain.Buy,
 		Quantity: dec("10"), Amount: domain.Money{Amount: dec("5500"), Currency: domain.EUR}})
+	// Price dates are relative to today so windowed views (the 1M
+	// sparklines of /assets) always see at least two quotes, whatever the
+	// wall-clock date the suite runs on.
 	b.Market.Price("cw8").Merge([]domain.PricePoint{
-		{Date: day(t, "2026-06-01"), Close: 550}, {Date: day(t, "2026-06-05"), Close: 560},
+		{Date: domain.Today().AddDays(-20), Close: 550}, {Date: domain.Today().AddDays(-5), Close: 560},
 	})
 	if err := f.Save(); err != nil {
 		t.Fatal(err)
