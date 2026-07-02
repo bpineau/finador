@@ -38,6 +38,7 @@ type scopeData struct {
 
 	// Price history: only for a single-asset scope (a security with a quote).
 	IsAsset         bool
+	QuoteNote       string // price freshness: live spot time or last close date
 	PriceCurve      template.HTML
 	PriceFallback   string // non-empty when intraday is unavailable (shown as a note)
 	PriceRange      string
@@ -171,6 +172,7 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 	if scope.Kind == portfolio.ByAsset && scope.Asset != nil {
 		pfrom, pname := priceRange(r, today)
 		data.IsAsset = true
+		data.QuoteNote = s.quoteNote(scope.Asset)
 		data.PriceRange = pname
 		data.PriceRangeLinks = rangeLinks(priceRangeLabels, r, "prange", pname, "1y")
 		ccy := string(scope.Asset.Currency)

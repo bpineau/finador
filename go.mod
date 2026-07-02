@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/bpineau/pofo v0.0.0-20260702124232-0564ca3db694 // indirect
+	github.com/bpineau/pofo v0.0.0-20260702165917-beb16227246a // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	golang.org/x/sys v0.46.0 // indirect

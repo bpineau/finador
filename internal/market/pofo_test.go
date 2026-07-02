@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"finador/internal/domain"
 )
 
 // stubPofo points every pofo data source at the test server: no test can
@@ -116,6 +118,63 @@ func TestPofoIntradayNotCovered(t *testing.T) {
 	}
 	if _, err := p.Intraday(context.Background(), Ref{Symbol: "NOPE"}); !errors.Is(err, ErrNotCovered) {
 		t.Errorf("an unquotable symbol should be ErrNotCovered, got %v", err)
+	}
+}
+
+func TestPofoLatestLiveSpot(t *testing.T) {
+	at := time.Date(2026, 7, 2, 18, 0, 0, 0, time.UTC)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v8/finance/chart/CW8.PA", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"chart":{"result":[{"meta":{"currency":"EUR","exchangeTimezoneName":"Europe/Paris","regularMarketPrice":561.5,"regularMarketTime":%d}}],"error":null}}`, at.Unix())
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	q, err := p.Latest(context.Background(), Ref{Symbol: "CW8.PA"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !q.Live || q.Price != 561.5 || q.Currency != domain.EUR {
+		t.Errorf("quote: %+v", q)
+	}
+	if !q.Time.Equal(at) {
+		t.Errorf("time: %v, want %v", q.Time, at)
+	}
+}
+
+func TestPofoLatestFallsBackToClose(t *testing.T) {
+	day := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	mux := http.NewServeMux()
+	// The daily fixture carries no regularMarketPrice: the spot step is not
+	// covered and Latest degrades to the last daily close, Live false.
+	mux.HandleFunc("/v8/finance/chart/CW8.PA", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, pofoChartJSON("CW8.PA", day))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	q, err := p.Latest(context.Background(), Ref{Symbol: "CW8.PA"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Live || q.Currency != domain.EUR {
+		t.Errorf("quote: %+v", q)
+	}
+	// pofo serves ADJUSTED closes on this path; at the last bar the adjusted
+	// close equals the raw close, so the fixture's final adjclose is expected.
+	if q.Price != 96 {
+		t.Errorf("price = %v, want the last close 96", q.Price)
+	}
+}
+
+func TestPofoLatestEmptyRef(t *testing.T) {
+	p := NewPofo()
+	if _, err := p.Latest(context.Background(), Ref{}); !errors.Is(err, ErrNotCovered) {
+		t.Errorf("empty ref should be ErrNotCovered, got %v", err)
 	}
 }
 

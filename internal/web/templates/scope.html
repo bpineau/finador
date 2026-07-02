@@ -6,6 +6,7 @@
   <p class="libelle">{{.Label}} - net worth, after estimated tax</p>
   <p class="chiffre-une">{{fmtMoney .Val.Net .Val.Currency}}</p>
   <p class="sous-titre">gross {{fmtMoney .Val.Gross .Val.Currency}} · estimated tax {{fmtMoney .Val.Tax .Val.Currency}}</p>
+  {{if .QuoteNote}}<p class="sous-titre">{{.QuoteNote}}</p>{{end}}
   {{range .Val.Stale}}<p class="approx">≈ {{.}}</p>{{end}}
   {{range .Warnings}}<p class="approx">≈ {{.}}</p>{{end}}
 </section>
