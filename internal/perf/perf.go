@@ -1,5 +1,7 @@
 // Package perf computes performance figures on value series: pure math,
-// no I/O, no market access. Inputs come from portfolio.Series.
+// no I/O, no market access. Inputs come from portfolio.Series; the math
+// itself is pofo's metrics package, adapted to finador's domain types
+// (its 0-instead-of-NaN convention for undefined ratios included).
 package perf
 
 import (
@@ -8,6 +10,8 @@ import (
 	"time"
 
 	"finador/internal/domain"
+
+	"github.com/bpineau/pofo/pkg/metrics"
 )
 
 // Point is one day of a value series.
@@ -23,142 +27,92 @@ type Flow struct {
 	Amount float64
 }
 
-// TWR chain-links daily returns r_t = (V_t − F_t)/V_{t−1}, neutralizing
-// external flows: it measures the strategy, not the saver. Days with a
-// non-positive base are skipped.
-func TWR(points []Point, flows []Flow) float64 {
-	byDay := flowsByDay(flows)
-	total := 1.0
-	for i := 1; i < len(points); i++ {
-		prev := points[i-1].Value
-		if prev <= 0 {
-			continue
-		}
-		total *= (points[i].Value - byDay[points[i].Date]) / prev
+// toSeries converts points to the parallel dates/values slices pofo's
+// metrics operate on (dates as midnight UTC, matching domain.Date.Time).
+func toSeries(points []Point) ([]time.Time, []float64) {
+	dates := make([]time.Time, len(points))
+	values := make([]float64, len(points))
+	for i, p := range points {
+		dates[i] = p.Date.Time()
+		values[i] = p.Value
 	}
-	return total - 1
+	return dates, values
+}
+
+func toFlows(flows []Flow) []metrics.Flow {
+	out := make([]metrics.Flow, len(flows))
+	for i, f := range flows {
+		out[i] = metrics.Flow{Date: f.Date.Time(), Amount: f.Amount}
+	}
+	return out
+}
+
+// orZero maps pofo's NaN (undefined) convention to finador's 0.
+func orZero(v float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0
+	}
+	return v
+}
+
+// TWR chain-links daily returns r_t = (V_t − F_t)/V_{t−1}, neutralizing
+// external flows: it measures the strategy, not the saver.
+func TWR(points []Point, flows []Flow) float64 {
+	dates, values := toSeries(points)
+	r, _ := metrics.TWR(dates, values, toFlows(flows))
+	return r
 }
 
 // DailyReturns yields the flow-adjusted weekday returns of a calendar-daily
 // series. Week-ends are forward-filled flats: keeping them would dilute the
 // volatility, so they are dropped (≈252 returns a year, annualized with √252).
 func DailyReturns(points []Point, flows []Flow) []float64 {
-	byDay := flowsByDay(flows)
-	var out []float64
-	for i := 1; i < len(points); i++ {
-		prev := points[i-1].Value
-		if prev <= 0 {
-			continue
-		}
-		if wd := points[i].Date.Time().Weekday(); wd == time.Saturday || wd == time.Sunday {
-			continue
-		}
-		out = append(out, (points[i].Value-byDay[points[i].Date])/prev-1)
-	}
-	return out
+	dates, values := toSeries(points)
+	return metrics.FlowReturns(dates, values, toFlows(flows))
 }
 
-func flowsByDay(flows []Flow) map[domain.Date]float64 {
-	byDay := map[domain.Date]float64{}
-	for _, f := range flows {
-		byDay[f.Date] += f.Amount
-	}
-	return byDay
-}
-
-// XIRR solves the money-weighted annual rate by bisection. Cashflows follow
-// the investor's convention: invested money negative, final value positive.
-// For flows with several sign changes the NPV may have multiple roots:
-// bisection returns one of them - an accepted convention for typical
-// savings flows.
+// XIRR solves the money-weighted annual rate. Cashflows follow the
+// investor's convention: invested money negative, final value positive
+// (the last cashflow is the terminal value).
 func XIRR(cashflows []Flow) (float64, error) {
 	if len(cashflows) < 2 {
 		return 0, errors.New("XIRR: at least two cashflows required")
 	}
-	t0 := cashflows[0].Date.Time()
-	npv := func(r float64) float64 {
-		sum := 0.0
-		for _, f := range cashflows {
-			years := f.Date.Time().Sub(t0).Hours() / 24 / 365.25
-			sum += f.Amount * math.Pow(1+r, -years)
-		}
-		return sum
+	n := len(cashflows) - 1
+	dates := make([]time.Time, n)
+	flows := make([]float64, n)
+	for i, f := range cashflows[:n] {
+		dates[i] = f.Date.Time()
+		flows[i] = f.Amount
 	}
-	lo, hi := -0.9999, 100.0
-	flo, fhi := npv(lo), npv(hi)
-	if math.IsNaN(flo) || math.IsNaN(fhi) || flo*fhi > 0 {
+	final := cashflows[n]
+	r, ok := metrics.IRR(dates, flows, final.Date.Time(), final.Amount)
+	if !ok {
 		return 0, errors.New("XIRR undefined for these cashflows (no sign change)")
 	}
-	for range 200 {
-		mid := (lo + hi) / 2
-		if fm := npv(mid); fm == 0 || hi-lo < 1e-10 {
-			return mid, nil
-		} else if fm*flo < 0 {
-			hi = mid
-		} else {
-			lo, flo = mid, fm
-		}
-	}
-	return (lo + hi) / 2, nil
+	return r, nil
 }
 
 // CAGR annualizes a total return over a calendar-day span.
 func CAGR(totalReturn float64, days int) float64 {
-	if days <= 0 || totalReturn <= -1 {
-		return 0
-	}
-	return math.Pow(1+totalReturn, 365.25/float64(days)) - 1
+	return metrics.Annualize(totalReturn, days)
 }
 
 // Vol is the annualized sample standard deviation of daily returns.
 func Vol(returns []float64) float64 {
-	if len(returns) < 2 {
-		return 0
-	}
-	m := mean(returns)
-	ss := 0.0
-	for _, r := range returns {
-		ss += (r - m) * (r - m)
-	}
-	return math.Sqrt(ss/float64(len(returns)-1)) * math.Sqrt(252)
+	return orZero(metrics.Volatility(returns))
 }
 
 // Sharpe uses arithmetic annualization of the mean daily excess return -
 // the usual simple convention, documented in the plan.
 func Sharpe(returns []float64, rfAnnual float64) float64 {
-	v := Vol(returns)
-	if v == 0 {
-		return 0
-	}
-	return (mean(returns)*252 - rfAnnual) / v
+	return orZero(metrics.Sharpe(returns, rfAnnual))
 }
 
 // Sortino replaces the denominator with the downside deviation against the
 // daily risk-free target.
 func Sortino(returns []float64, rfAnnual float64) float64 {
-	if len(returns) == 0 {
-		return 0
-	}
-	target := rfAnnual / 252
-	ss := 0.0
-	for _, r := range returns {
-		if r < target {
-			ss += (r - target) * (r - target)
-		}
-	}
-	down := math.Sqrt(ss/float64(len(returns))) * math.Sqrt(252)
-	if down == 0 {
-		return 0
-	}
-	return (mean(returns)*252 - rfAnnual) / down
-}
-
-func mean(xs []float64) float64 {
-	s := 0.0
-	for _, x := range xs {
-		s += x
-	}
-	return s / float64(len(xs))
+	return orZero(metrics.Sortino(returns, rfAnnual))
 }
 
 // Drawdown describes the worst peak-to-trough loss of a series.
@@ -168,48 +122,19 @@ type Drawdown struct {
 	Recovered    *domain.Date // nil if the peak is never regained
 }
 
+// MaxDrawdown returns the deepest drawdown episode of the series.
 func MaxDrawdown(points []Point) Drawdown {
+	dates, values := toSeries(points)
 	var dd Drawdown
-	if len(points) == 0 {
-		return dd
-	}
-	peak := points[0]
-	for _, p := range points[1:] {
-		// a value that exactly regains the peak re-anchors the peak:
-		// a drawdown must not straddle a full recovery
-		if p.Value >= peak.Value {
-			peak = p
+	for _, ep := range metrics.DrawdownEpisodes(dates, values) {
+		if ep.Depth >= dd.Depth {
 			continue
 		}
-		if peak.Value <= 0 {
-			continue
-		}
-		if depth := (p.Value - peak.Value) / peak.Value; depth < dd.Depth {
-			dd.Depth, dd.Peak, dd.Trough = depth, peak.Date, p.Date
-			dd.Recovered = nil
-		}
-	}
-	// first date on which the max drawdown's peak is regained
-	inDD := false
-	for _, p := range points {
-		if p.Date == dd.Peak {
-			inDD = true
-			continue
-		}
-		if inDD && p.Date.Time().After(dd.Trough.Time()) && p.Value >= valueAt(points, dd.Peak) {
-			rec := p.Date
+		dd = Drawdown{Depth: ep.Depth, Peak: domain.DateOf(ep.PeakDate), Trough: domain.DateOf(ep.TroughDate)}
+		if !ep.Ongoing && !ep.RecoverDate.IsZero() {
+			rec := domain.DateOf(ep.RecoverDate)
 			dd.Recovered = &rec
-			break
 		}
 	}
 	return dd
-}
-
-func valueAt(points []Point, d domain.Date) float64 {
-	for _, p := range points {
-		if p.Date == d {
-			return p.Value
-		}
-	}
-	return math.Inf(1)
 }
