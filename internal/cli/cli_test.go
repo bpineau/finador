@@ -378,7 +378,8 @@ func TestChartEndToEnd(t *testing.T) {
 	if !hasBraille {
 		t.Errorf("no braille character:\n%s", out)
 	}
-	for _, want := range []string{"2026-01-10", "2026-06-05", "5.1k"} {
+	// The frame: value labels in the gutter, axes, month time labels.
+	for _, want := range []string{"5100", "┤", "└", "2026-01", "2026-06"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("chart: %q manquant dans:\n%s", want, out)
 		}
