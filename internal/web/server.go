@@ -6,6 +6,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -43,6 +44,7 @@ type Server struct {
 	sync       *Sync
 	intradayMu sync.Mutex
 	intraday   map[domain.AssetID]intradayEntry
+	spot       map[domain.AssetID]market.Quote // freshest quotes; written under mu
 }
 
 func NewServer(f *store.File, src market.Source, offline bool, sync *Sync) *Server {
@@ -128,14 +130,17 @@ func (s *Server) persist(ctx context.Context, msg string) error {
 
 // AutoRefresh refreshes the market cache every interval until ctx is done, so a
 // long-running server keeps the day figures (overview day TWR, the /assets 1D
-// column, valuations) fresh without a manual click - today's daily candle from
-// Yahoo carries the live price, so a periodic force-refresh is enough. Quote
-// data lives in a local cache sidecar, so this never touches the ledger or the
-// remote. A no-op in offline mode.
+// column, valuations) fresh without a manual click. Each tick runs the full
+// daily fetch only when a series has not been fetched today (history depth,
+// dividends), then a light spot pass (market.SpotRefresh) so today's prices
+// and FX follow the market in between; the observed quotes also tell the UI
+// how live each price is. Quote data lives in a local cache sidecar, so this
+// never touches the ledger or the remote. A no-op in offline mode.
 func (s *Server) AutoRefresh(ctx context.Context, interval time.Duration) {
 	if s.offline || interval <= 0 {
 		return
 	}
+	s.refreshOnce(ctx) // immediate first pass: live figures from the first page
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -148,20 +153,39 @@ func (s *Server) AutoRefresh(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// refreshOnce force-refreshes the market cache once, in place, under the write
-// lock. Exposed for AutoRefresh and tests.
+// refreshOnce refreshes the market cache once, in place, under the write
+// lock: the daily fetch when due, then the spot pass. Exposed for AutoRefresh
+// and tests.
 func (s *Server) refreshOnce(ctx context.Context) {
 	if s.offline {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sum := market.Refresh(ctx, s.file.Book, s.source, true)
-	if len(sum.Fetched) > 0 {
+	daily := market.Refresh(ctx, s.file.Book, s.source, false)
+	spot := market.SpotRefresh(ctx, s.file.Book, s.source)
+	s.spot = spot.Quotes
+	if len(daily.Fetched) > 0 || len(spot.Quotes) > 0 {
 		if err := s.file.SaveCache(); err != nil {
 			log.Printf("auto-refresh: cache not saved: %v", err)
 		}
 	}
+}
+
+// quoteNote describes the freshness of an asset's price for the UI: the spot
+// observed by the last refresh when there is one, otherwise the last stored
+// close. Callers hold at least the read lock.
+func (s *Server) quoteNote(asset *domain.Asset) string {
+	if q, ok := s.spot[asset.ID]; ok {
+		if q.Live {
+			return fmt.Sprintf("last quote %.2f %s · live at %s", q.Price, q.Currency, q.Time.Format("15:04 MST"))
+		}
+		return fmt.Sprintf("last quote %.2f %s · close of %s", q.Price, q.Currency, q.Time.Format("2006-01-02"))
+	}
+	if last, ok := s.file.Book.Market.Price(asset.ID).Last(); ok {
+		return fmt.Sprintf("last quote %.2f %s · close of %s", last.Close, asset.Currency, last.Date)
+	}
+	return ""
 }
 
 // Handler routes the five views. Mutating routes are POST-only.
