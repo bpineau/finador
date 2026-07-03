@@ -240,13 +240,42 @@ func TestRefreshWarnsAndContinues(t *testing.T) {
 	}
 }
 
-func TestRefreshCurrencyMismatchWarning(t *testing.T) {
+// A currency mismatch (the source served a twin listing on another
+// exchange) must never poison the series: one foreign-currency point makes
+// valuations and day moves wrong by the FX rate. Warn, skip, retry later.
+func TestRefreshCurrencyMismatchSkipsMerge(t *testing.T) {
 	b := bookWithTrade(t)
 	src := &fakeSource{daily: map[string]DailyData{
-		"CW8.PA":   {Currency: domain.USD}, // the asset is declared EUR
+		"CW8.PA": { // the asset is declared EUR
+			Currency: domain.USD,
+			Closes:   []domain.PricePoint{{Date: domain.Today(), Close: 599}},
+		},
 		"EURUSD=X": {},
 	}}
 	sum := Refresh(context.Background(), b, src, false)
+	if len(sum.Warnings) != 1 || !strings.Contains(sum.Warnings[0], "USD") {
+		t.Fatalf("warnings = %v", sum.Warnings)
+	}
+	if len(b.Market.Price("cw8").Points) != 0 {
+		t.Fatal("mismatched-currency closes were merged into the series")
+	}
+	if !b.Market.Price("cw8").FetchedAt.IsZero() {
+		t.Fatal("a skipped merge must not stamp FetchedAt (retry later)")
+	}
+}
+
+// The spot pass applies the same guard: a live quote in the wrong currency
+// (a twin listing) is dropped, not merged.
+func TestSpotRefreshCurrencyMismatchSkipsMerge(t *testing.T) {
+	b := bookWithTrade(t)
+	at := domain.Today().Time().Add(15 * time.Hour)
+	src := &batchSource{batch: map[Ref]Quote{
+		{Symbol: "CW8.PA"}: {Price: 25.44, Time: at, Currency: domain.USD, Live: true},
+	}}
+	sum := SpotRefresh(context.Background(), b, src)
+	if len(b.Market.Price("cw8").Points) != 0 {
+		t.Fatal("mismatched-currency spot was merged into the series")
+	}
 	if len(sum.Warnings) != 1 || !strings.Contains(sum.Warnings[0], "USD") {
 		t.Fatalf("warnings = %v", sum.Warnings)
 	}
