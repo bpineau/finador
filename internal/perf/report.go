@@ -64,6 +64,7 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 	origin := points[0].Date
 
 	var rows []Row
+	var last *Row // last kept today-anchored row, the dedup base
 	for _, name := range Names() {
 		pf, pt, err := PeriodRange(name, evalTo)
 		if err != nil {
@@ -72,7 +73,21 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 		if pf.Before(origin) {
 			continue // window predates the track record - the inception row covers it
 		}
-		rows = append(rows, periodRow(name, points, flows, pf, pt))
+		row := periodRow(name, points, flows, pf, pt)
+		// A longer window that measures exactly what a shorter one already
+		// showed (bit-equal TWR and gain: the signature of a series flat
+		// before the shorter window) adds no information and reads as "a
+		// year measured" when only a month really moved - skip it. Only
+		// today-anchored windows compare; "prev-yr" ends elsewhere.
+		anchored := name != "prev-yr"
+		if anchored && last != nil && row.HasTWR && last.HasTWR &&
+			row.TWR == last.TWR && row.Gain == last.Gain {
+			continue
+		}
+		rows = append(rows, row)
+		if anchored {
+			last = &rows[len(rows)-1]
+		}
 	}
 	rows = append(rows, periodRow("inception", points, flows, origin, evalTo))
 

@@ -257,3 +257,18 @@ par instrument FT/Morningstar/closes) derrière la capacité optionnelle `market
 fait foi) ; seuls les vrais échecs warnent.
 **Écarté :** afficher l'âge des cours (ergotage, l'utilisateur veut du frais, pas des excuses) ;
 spot à chaque commande sans garde (throttling Yahoo pour zéro information nouvelle).
+
+## D21 - Tableau perf : masquer les fenêtres qui ne mesurent rien de plus
+
+**Contexte :** un livre plat 11 mois puis actif 1 mois affichait 1m = 3m = ytd = 1y =
++1.96% / +49 227.53 (au bit près) : exact mathématiquement, mais se lit « +1.96% sur un an »
+alors que la vraie info est « finador ne mesure que depuis un mois ». Même dégât de confiance
+que le XIRR annualisé (retiré, même session).
+**Choix :** dans `perf.Report`, une fenêtre ancrée sur aujourd'hui est omise quand son TWR **et**
+son gain sont **bit-identiques** à ceux de la fenêtre plus courte déjà retenue (signature d'une
+série plate entre les deux bornes). `prev-yr` (autre ancrage) et `inception` ne dédupliquent
+jamais ; `tracking since <date>` donne toujours l'étendue réelle. CLI et web, même règle
+(le filtre vit dans Report).
+**Pourquoi l'égalité bit-à-bit :** faux positif quasi impossible et bénin (on masquerait une
+ligne redondante) ; faux négatif impossible (tout vrai mouvement de marché ou de FX change les
+flottants, la ligne s'affiche).
