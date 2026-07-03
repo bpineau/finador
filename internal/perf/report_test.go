@@ -2,6 +2,7 @@ package perf
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"finador/internal/domain"
@@ -40,6 +41,37 @@ func TestReportOrigineHasTWR(t *testing.T) {
 		t.Fatal("inception.HasTWR should be true")
 	}
 	approx(t, "TWR inception", origRow.TWR, 0.02, 1e-9)
+}
+
+// TestReportSkipsFlatDuplicates: a book flat for months then active one
+// month must not print 3m/ytd/1y rows identical to the 1m row - they would
+// read as "one year measured" when only one month really moved.
+func TestReportSkipsFlatDuplicates(t *testing.T) {
+	today := domain.Date{Year: 2026, Month: 7, Day: 3}
+	var pts []Point
+	// 400 flat days at 1000, then a single +5% step ~20 days ago: every
+	// today-anchored window from 1m up measures exactly the same move.
+	for d := today.AddDays(-400); !today.Before(d); d = d.AddDays(1) {
+		v := 1000.0
+		if today.AddDays(-20).Before(d) {
+			v = 1050.0
+		}
+		pts = append(pts, Point{Date: d, Value: v})
+	}
+	rows, _ := Report(pts, nil, today, 0)
+	names := make([]string, 0, len(rows))
+	for _, r := range rows {
+		names = append(names, r.Name)
+	}
+	got := strings.Join(names, ",")
+	for _, dup := range []string{"3m", "ytd", "1y"} {
+		if strings.Contains(got, dup) {
+			t.Fatalf("flat duplicate %q kept: %s", dup, got)
+		}
+	}
+	if !strings.Contains(got, "1m") || !strings.Contains(got, "inception") {
+		t.Fatalf("informative rows missing: %s", got)
+	}
 }
 
 // Gain is the value change net of contributions: declaring/adding money is
