@@ -191,10 +191,14 @@ func ensureDisplayFX(cmd *cobra.Command, a *app, f *store.File, display domain.C
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning:", err)
 		return
 	}
+	if data.Currency != "" && data.Currency != domain.USD {
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: %sUSD=X quotes in %s but USD expected: quotes ignored\n", display, data.Currency)
+		return
+	}
 	s := f.Book.Market.FXSeries(display)
 	s.Merge(data.Closes)
 	s.FetchedAt = domain.Today()
-	if err := f.Save(); err != nil {
+	if err := f.SaveCache(); err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)
 	}
 }
