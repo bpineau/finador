@@ -239,3 +239,21 @@ sidecar **inchangé** (les séries y vivent déjà) ; pas de cache de résolutio
 refresh, acceptable). `Refresh` « never fails hard » préservé (fallback périmé naturel).
 **Hors scope (documenté) :** l'**Selia `990000000000`** (code AMF FCPE/PEE) n'est coté par aucun
 provider (portfodor non plus) → `asset set` manuel ; Stooq (ticker-only) ; pin de catalogue xid.
+
+## D20 - Fraîcheur CLI : des cours < 1h, pas d'affichage de fraîcheur
+
+**Contexte :** la CLI ne rafraîchissait les cours qu'une fois par jour (`Refresh` saute toute
+série déjà fetchée aujourd'hui) : un `perf` à 18h affichait le cours du matin sans le dire.
+Retour utilisateur : « je veux des données fraîches (< 1h), pas ergoter sur la fraîcheur »
+(la sensation Yahoo Finance / Finary : le chiffre du jour est du jour).
+**Choix :** (1) `MarketData.SpotAt` (timestamp complet, sidecar chiffré uniquement, jamais le
+ledger) ; `SpotRefresh` le tamponne, y compris sur échec (une panne ne transforme pas chaque
+commande en retry-marteau, on réessaie à l'heure suivante). (2) `ensureFresh` = fetch quotidien
+habituel + passe spot si `SpotAt` > 1h ; `finador refresh` spotte toujours. (3) La passe spot est
+**batchée** : pofo `LatestBatch` (un appel Yahoo v7/quote multi-symboles, cookie+crumb, fallback
+par instrument FT/Morningstar/closes) derrière la capacité optionnelle `market.BatchSource`.
+(4) Marché fermé : le spot = dernier cours de séance (ce que Yahoo affiche) → « 1d » veut dire
+« maintenant ». (5) Un instrument non couvert en spot est **silencieux** (son close quotidien
+fait foi) ; seuls les vrais échecs warnent.
+**Écarté :** afficher l'âge des cours (ergotage, l'utilisateur veut du frais, pas des excuses) ;
+spot à chaque commande sans garde (throttling Yahoo pour zéro information nouvelle).

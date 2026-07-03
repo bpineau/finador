@@ -157,8 +157,12 @@ func (a *app) marketSource() market.Source {
 	return a.source
 }
 
-// ensureFresh refreshes the market cache when needed. It never fails hard:
-// offline or network trouble degrade to warnings, stale data stays usable.
+// ensureFresh keeps the market cache serving current numbers: the daily
+// fetch when a series has not been fetched today (history depth, dividends),
+// then a light spot pass when the last one is older than an hour, so every
+// figure a command prints reflects the market of the last hour, not this
+// morning's cache. It never fails hard: offline is a no-op and network
+// trouble degrades to warnings, stale data stays usable.
 func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
 	if a.offline {
 		return
@@ -167,7 +171,15 @@ func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
 	for _, w := range sum.Warnings {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
 	}
-	if len(sum.Fetched) > 0 {
+	spotted := false
+	if time.Since(f.Book.Market.SpotAt) > time.Hour {
+		spot := market.SpotRefresh(cmd.Context(), f.Book, a.marketSource())
+		for _, w := range spot.Warnings {
+			fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
+		}
+		spotted = true
+	}
+	if len(sum.Fetched) > 0 || spotted {
 		if err := f.SaveCache(); err != nil {
 			fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)
 		}
