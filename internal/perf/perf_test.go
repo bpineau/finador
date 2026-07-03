@@ -2,7 +2,6 @@ package perf
 
 import (
 	"math"
-	"strings"
 	"testing"
 
 	"finador/internal/domain"
@@ -61,42 +60,6 @@ func TestDailyReturnsWeekdaysOnly(t *testing.T) {
 	}
 	approx(t, "r[0]", rs[0], 0.02, 1e-9)
 	approx(t, "r[1]", rs[1], 104.0/102.0-1, 1e-9)
-}
-
-func TestXIRRKnownValue(t *testing.T) {
-	// Verifiable reference: −1000 on Jan 1, +1100 on Dec 31 2026
-	// (364 days). 1100/1000 = 1.10 over 364/365.25 years → r ≈ 10.03%
-	r, err := XIRR([]Flow{{d("2026-01-01"), -1000}, {d("2026-12-31"), 1100}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	approx(t, "XIRR", r, math.Pow(1.10, 365.25/364)-1, 1e-6)
-}
-
-func TestXIRRWithIntermediateFlow(t *testing.T) {
-	// −1000 at the start, −500 mid-year, +1600 after a year.
-	// Independent ground truth: NPV(r)=0; check that NPV(XIRR)≈0.
-	flows := []Flow{{d("2026-01-01"), -1000}, {d("2026-07-01"), -500}, {d("2027-01-01"), 1600}}
-	r, err := XIRR(flows)
-	if err != nil {
-		t.Fatal(err)
-	}
-	npv := 0.0
-	for _, f := range flows {
-		days := f.Date.Time().Sub(d("2026-01-01").Time()).Hours() / 24
-		npv += f.Amount * math.Pow(1+r, -days/365.25)
-	}
-	approx(t, "NPV(XIRR)", npv, 0, 1e-6)
-	if r < 0.05 || r > 0.10 {
-		t.Errorf("XIRR = %v, hors de la plage plausible [5%%, 10%%]", r)
-	}
-}
-
-func TestXIRRNoSolution(t *testing.T) {
-	if _, err := XIRR([]Flow{{d("2026-01-01"), -100}, {d("2026-06-01"), -50}}); err == nil ||
-		!strings.Contains(err.Error(), "XIRR") {
-		t.Fatalf("err = %v", err)
-	}
 }
 
 func TestCAGR(t *testing.T) {

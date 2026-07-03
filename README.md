@@ -23,9 +23,9 @@ TOTAL     486060.00 EUR   9361.20 EUR  476698.80 EUR
 - **Any asset.** Listed securities (Yahoo quotes, automatic dividends, FX crossed
   through USD), cash balances by dated statements, and arbitrary properties by
   dated estimates.
-- **Real performance.** TWR (strategy performance, flows neutralized) and XIRR
-  (what your money actually earned), CAGR, volatility, Sharpe, Sortino, max
-  drawdown - per period, per scope.
+- **Real performance.** TWR (the growth of your assets, deposits and
+  withdrawals neutralized - the figure Yahoo or Finary would show), CAGR,
+  volatility, Sharpe, Sortino, max drawdown - per period, per scope.
 - **Curves everywhere.** Braille charts in the terminal, server-rendered SVG on the
   web. Zero JavaScript, zero external resources.
 
@@ -51,7 +51,7 @@ finador asset add "Country house" --kind property --group property
 finador asset set "Country house" 450000 --account Savings
 
 finador value              # gross, estimated tax and net (the default)
-finador perf equities      # TWR, XIRR, CAGR, vol, Sharpe, Sortino, maxDD
+finador perf equities      # TWR, gain, CAGR, vol, Sharpe, Sortino, maxDD
 finador chart --net        # braille curve in the terminal
 finador serve              # full web app on http://127.0.0.1:8451
 ```
@@ -324,7 +324,8 @@ untracked account, finador assumes you don't care about its cash: buys and sells
 treated as external flows in performance.
 
 **`cash deposit` ≠ `cash set`.** A *contribution* is entered with
-`cash deposit`/`cash withdraw` (it feeds the tax basis and XIRR). `cash set`
+`cash deposit`/`cash withdraw` (it feeds the tax basis and the performance
+flows). `cash set`
 records an *observed balance*, and the gap between two statements counts as
 performance - that's how savings-account interest is captured. The first statement
 of an account or property is treated as an *acquisition* (an external flow), not as
@@ -443,18 +444,19 @@ finador perf [scope] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c] [--exclude 
 ```
 
 Prints a period table - `1d 5d 1m 3m ytd 1y prev-yr inception` (plus a `window`
-row when `--from` is given) - with three complementary measures:
+row when `--from` is given) - with two complementary measures:
 
-- **TWR** chains daily returns with external flows neutralized: the performance of
-  the *strategy*, comparable across scopes.
-- **XIRR** is the money-weighted annual rate of *your* euros, contributions
-  included. Shown only for windows ≥ 30 days (annualizing a daily move is noise).
+- **TWR** chains daily returns with external flows neutralized: the real growth
+  percentage of what you hold, comparable across scopes and to any index. It is
+  the same figure Yahoo Finance shows for a price, extended to a portfolio.
 - **GAIN** is the money made or lost over the window, *net of contributions* - the
   value change your deposits and onboarding declarations don't explain. Declaring
   "I hold 1000 € of X" is not a 1000 € gain; only what it earns afterwards counts.
 
 Periods that predate your first transaction are omitted (a fresh portfolio has no
-"1y") - the `inception` row always shows the real, full span.
+"1y"), and a longer window that would just repeat a shorter one (nothing moved in
+between: same TWR, same gain to the cent) is omitted too - the `inception` row
+always shows the real, full span.
 
 Below the table: `tracking since <date> (N d)`, then the annualized figures, each
 gated by how much history backs it - **vol, Sharpe, Sortino** appear from ~90 days,
@@ -688,7 +690,7 @@ tagged with that label, regardless of envelope). Combine with `--exclude` to dro
 specific assets: `finador perf --label retraite --exclude CW8` works. Labels are
 attached to (account, asset) pairs via `finador label add`. Exclusions accept any
 asset reference (ticker, ISIN, name) and remove the assets *and their flows* from
-TWR/XIRR, labelling the output `(excluding …)`.
+the TWR, labelling the output `(excluding …)`.
 
 **What-if analysis.**
 

@@ -27,8 +27,6 @@ type Row struct {
 	Name    string
 	TWR     float64
 	HasTWR  bool
-	XIRR    float64
-	HasXIRR bool
 	Gain    float64 // money gained/lost over the window, net of contributions (display ccy)
 	HasGain bool
 }
@@ -122,18 +120,6 @@ func periodRow(name string, points []Point, flows []Flow, from, to domain.Date) 
 		}
 		row.Gain = pts[len(pts)-1].Value - pts[0].Value - netFlow
 		row.HasGain = true
-	}
-	// XIRR: windows < 30 days or V0 ≤ 0 → dash
-	if to.Time().Sub(from.Time()).Hours() >= 30*24 && len(pts) >= 2 && pts[0].Value > 0 {
-		cfs := []Flow{{Date: pts[0].Date, Amount: -pts[0].Value}}
-		for _, fl := range fls {
-			cfs = append(cfs, Flow{Date: fl.Date, Amount: -fl.Amount})
-		}
-		cfs = append(cfs, Flow{Date: pts[len(pts)-1].Date, Amount: pts[len(pts)-1].Value})
-		if r, err := XIRR(cfs); err == nil {
-			row.XIRR = r
-			row.HasXIRR = true
-		}
 	}
 	return row
 }
