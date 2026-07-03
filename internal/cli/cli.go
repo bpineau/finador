@@ -48,6 +48,9 @@ type app struct {
 	runName string
 }
 
+// New assembles the root cobra command with every subcommand wired to a
+// shared app (global flags, market source, remote backend). main executes it;
+// tests execute it too, with WithSource/WithRemoteBackend fakes.
 func New(opts ...Option) *cobra.Command {
 	a := &app{}
 	for _, opt := range opts {

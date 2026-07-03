@@ -36,6 +36,9 @@ type intradayEntry struct {
 	pts []market.IntradayPoint
 }
 
+// Server serves the whole web app over one open store.File. All state lives
+// behind mu (writers save then redirect); the intraday quote cache has its own
+// lock so a slow fetch never blocks page reads.
 type Server struct {
 	mu         sync.RWMutex
 	file       *store.File
@@ -47,6 +50,8 @@ type Server struct {
 	spot       map[domain.AssetID]market.Quote // freshest quotes; written under mu
 }
 
+// NewServer wraps an already-unlocked file. sync is nil in local mode;
+// offline disables every network fetch (quotes come from the cache only).
 func NewServer(f *store.File, src market.Source, offline bool, sync *Sync) *Server {
 	return &Server{
 		file:     f,

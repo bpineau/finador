@@ -8,6 +8,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// TxKind is the nature of a ledger line. It carries the direction of the
+// money: quantities and amounts are always positive.
 type TxKind uint8
 
 const (
@@ -27,6 +29,7 @@ var txKindNames = map[TxKind]string{
 
 var txKindByName = lo.Invert(txKindNames)
 
+// ParseTxKind reads a kind name ("buy", "statement", …), case-insensitive.
 func ParseTxKind(s string) (TxKind, error) {
 	k, ok := txKindByName[strings.ToLower(s)]
 	if !ok {
@@ -54,6 +57,8 @@ func (k *TxKind) UnmarshalText(b []byte) error {
 	return nil
 }
 
+// TxID is a transaction's stable identifier (a NewID): random, time-sortable,
+// never reused. Users may refer to it by unique prefix, like short git SHAs.
 type TxID string
 
 // Transaction is one immutable-by-default ledger line; everything derived

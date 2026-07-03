@@ -53,6 +53,7 @@ func (s *PriceSeries) Merge(pts []PricePoint) {
 	}
 }
 
+// Last returns the most recent point, if any. Nil-safe.
 func (s *PriceSeries) Last() (PricePoint, bool) {
 	if s == nil || len(s.Points) == 0 {
 		return PricePoint{}, false
@@ -66,8 +67,10 @@ type DividendEvent struct {
 	Amount float64 `json:"amount"`
 }
 
-// MarketData is the cached public market state. It lives inside the encrypted
-// Book: the list of held tickers is sensitive metadata. Everything here is
+// MarketData is the cached public market state. It rides along in the Book in
+// memory but is persisted in a separate encrypted local sidecar (store's
+// SaveCache), never in the synced ledger: the list of held tickers is
+// sensitive metadata, so it is encrypted too, yet everything here is
 // refetchable - losing it costs one refresh, never user data.
 type MarketData struct {
 	Prices    map[AssetID]*PriceSeries    `json:"prices,omitempty"`

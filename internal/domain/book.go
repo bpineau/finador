@@ -18,6 +18,7 @@ type Book struct {
 	Market       MarketData        `json:"market"`
 }
 
+// NewBook returns an empty Book with its config map ready.
 func NewBook() *Book { return &Book{Config: map[string]string{}} }
 
 // DisplayCurrency is the currency values are shown in: the configured "currency"
@@ -228,6 +229,8 @@ func (b *Book) Add(t Transaction) *Transaction {
 	return stored
 }
 
+// Tx returns the transaction with exactly this id; ErrNotFound otherwise.
+// User-typed references go through ResolveTx (unique-prefix) instead.
 func (b *Book) Tx(id TxID) (*Transaction, error) {
 	tx, ok := lo.Find(b.Transactions, func(t *Transaction) bool { return t.ID == id })
 	if !ok {
@@ -263,6 +266,7 @@ func (b *Book) ResolveTx(ref string) (*Transaction, error) {
 	}
 }
 
+// RemoveTx deletes a transaction by exact id; ErrNotFound if absent.
 func (b *Book) RemoveTx(id TxID) error {
 	if _, err := b.Tx(id); err != nil {
 		return err
@@ -271,6 +275,8 @@ func (b *Book) RemoveTx(id TxID) error {
 	return nil
 }
 
+// HasImportHash reports whether a transaction already carries this CSV-import
+// fingerprint - what makes re-importing the same file idempotent.
 func (b *Book) HasImportHash(h string) bool {
 	return h != "" && lo.SomeBy(b.Transactions, func(t *Transaction) bool { return t.ImportHash == h })
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// TaxMode selects what part of an envelope's value its TaxRule applies to.
 type TaxMode uint8
 
 const (
