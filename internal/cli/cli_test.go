@@ -1027,3 +1027,48 @@ func TestExportCSV(t *testing.T) {
 		t.Errorf("asset row missing/incorrect:\n%s", out)
 	}
 }
+
+// lineContaining returns the first output line containing needle.
+func lineContaining(t *testing.T, out, needle string) string {
+	t.Helper()
+	for line := range strings.SplitSeq(out, "\n") {
+		if strings.Contains(line, needle) {
+			return line
+		}
+	}
+	t.Fatalf("no line containing %q in:\n%s", needle, out)
+	return ""
+}
+
+// TestPerfTree: the tree shows an envelope row per account, an asset line
+// with period returns, dashes for cash-only envelopes and for windows the
+// line's history does not cover, and a TOTAL row.
+func TestPerfTree(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "CTO Meridia")
+	run(t, db, "account", "add", "Livret")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--name", "Amundi MSCI World", "--group", "actions")
+	run(t, db, "cash", "deposit", "CTO Meridia", "5000", "2026-06-01")
+	run(t, db, "asset", "buy", "cw8", "2", "@550", "2026-06-02", "--account", "CTO Meridia")
+	run(t, db, "cash", "set", "Livret", "23000", "--at", "2026-06-01")
+
+	out := runNet(t, db, "perf", "--tree", "--to", "2026-06-05")
+	for _, want := range []string{"CTO Meridia", "Amundi MSCI World", "Livret", "TOTAL", "NET", "1d", "5d", "1m", "3m"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("perf --tree: %q manquant dans:\n%s", want, out)
+		}
+	}
+	// CW8 bought 2026-06-02, evaluated 2026-06-05: the 1m and 3m windows
+	// predate the pair's history → dashes on the asset line.
+	if l := lineContaining(t, out, "Amundi"); strings.Count(l, " -") < 2 {
+		t.Errorf("expected dashed long windows on the asset line: %q", l)
+	}
+	// Livret is cash-only: all four period cells dashed.
+	if l := lineContaining(t, out, "Livret"); strings.Count(l, " -") < 4 {
+		t.Errorf("cash-only envelope must be dashed: %q", l)
+	}
+	// --from is incompatible with the fixed tree windows.
+	if _, err := tryRunNet(t, db, "perf", "--tree", "--from", "2026-06-01"); err == nil {
+		t.Fatal("perf --tree --from devrait échouer")
+	}
+}

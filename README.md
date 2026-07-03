@@ -441,6 +441,8 @@ finador value [scope] [--at YYYY-MM-DD] [--ccy USD] [--gross]
 
 ```sh
 finador perf [scope] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c] [--exclude refs]...
+finador perf --tree        # per-envelope tree: net value, 1d/5d/1m/3m returns
+finador perf pea --tree    # same, scoped to one envelope, group or label
 ```
 
 Prints a period table - `1d 5d 1m 3m ytd 1y prev-yr inception` (plus a `window`
@@ -472,6 +474,12 @@ Likewise, a property (or any hand-valued holding) is priced by *declaration*, no
 market: each `asset set` re-bases its value as an adjustment, so entering an old
 acquisition price and today's value never books years of appreciation as a single
 day's return.
+
+`--tree` swaps the period table for the envelope-grouped holdings tree: one line
+per envelope and per position, with the after-tax net value and the 1d/5d/1m/3m
+returns of that line's own series (flows neutralized, like everywhere else). A
+dash means the line's history does not cover the window; cash lines leave the
+returns to their envelope row.
 
 ### Charts: `chart`
 
