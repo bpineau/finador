@@ -114,72 +114,83 @@ func WriteAssetCSV(w io.Writer, rows []AssetRow) error {
 	return cw.Error()
 }
 
-// treeItem is one line under an envelope: a position (Name + ISIN) or its cash.
-type treeItem struct {
-	name, isin string
-	gross, net float64
+// TreeItem is one line under an envelope: a valued position, or the
+// envelope's cash when Asset is nil.
+type TreeItem struct {
+	Asset      *domain.Asset // nil: the envelope's cash line
+	Gross, Net float64
 }
 
-// treeEnvelope is one account and the line-items it holds.
-type treeEnvelope struct {
-	name       string
-	gross, net float64
-	items      []treeItem
+// TreeEnvelope is one account and the line-items it holds
+// (Σ Items == envelope).
+type TreeEnvelope struct {
+	Account    *domain.Account
+	Gross, Net float64
+	Items      []TreeItem
 }
 
-// assetTree groups Breakdown lines by envelope, summing gross/net, with every
-// level sorted by gross descending (Σ children == parent).
-func assetTree(lines []PositionLine) []treeEnvelope {
-	byID := map[domain.AccountID]*treeEnvelope{}
+// AssetTree groups Breakdown lines by envelope, summing gross/net, with
+// every level sorted by gross descending then name. The raw material of the
+// tree views (export --tree, value --tree, perf --tree).
+func AssetTree(lines []PositionLine) []TreeEnvelope {
+	byID := map[domain.AccountID]*TreeEnvelope{}
 	var order []domain.AccountID
 	for _, l := range lines {
 		env, ok := byID[l.Account.ID]
 		if !ok {
-			env = &treeEnvelope{name: l.Account.Name}
+			env = &TreeEnvelope{Account: l.Account}
 			byID[l.Account.ID] = env
 			order = append(order, l.Account.ID)
 		}
-		env.gross += l.Gross
-		env.net += l.Net
-		it := treeItem{name: "cash", gross: l.Gross, net: l.Net}
-		if l.Asset != nil {
-			it.name, it.isin = l.Asset.Name, l.Asset.ISIN
-		}
-		env.items = append(env.items, it)
+		env.Gross += l.Gross
+		env.Net += l.Net
+		env.Items = append(env.Items, TreeItem{Asset: l.Asset, Gross: l.Gross, Net: l.Net})
 	}
-	out := make([]treeEnvelope, 0, len(order))
+	out := make([]TreeEnvelope, 0, len(order))
 	for _, id := range order {
 		env := byID[id]
-		sort.SliceStable(env.items, func(i, j int) bool {
-			if env.items[i].gross != env.items[j].gross {
-				return env.items[i].gross > env.items[j].gross
+		sort.SliceStable(env.Items, func(i, j int) bool {
+			if env.Items[i].Gross != env.Items[j].Gross {
+				return env.Items[i].Gross > env.Items[j].Gross
 			}
-			return env.items[i].name < env.items[j].name
+			return env.Items[i].name() < env.Items[j].name()
 		})
 		out = append(out, *env)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].gross != out[j].gross {
-			return out[i].gross > out[j].gross
+		if out[i].Gross != out[j].Gross {
+			return out[i].Gross > out[j].Gross
 		}
-		return out[i].name < out[j].name
+		return out[i].Account.Name < out[j].Account.Name
 	})
 	return out
 }
 
-// label renders a line-item as "Name (ISIN)", or just "Name" without an ISIN.
-func (it treeItem) label() string {
-	if it.isin == "" {
-		return it.name
+// name is the item's sort key: the asset name, "cash" for a cash line.
+func (it TreeItem) name() string {
+	if it.Asset == nil {
+		return "cash"
 	}
-	return fmt.Sprintf("%s (%s)", it.name, it.isin)
+	return it.Asset.Name
+}
+
+// Label renders a line-item as "Name (ISIN)", "Name" without an ISIN, or
+// "cash" for a cash line.
+func (it TreeItem) Label() string {
+	if it.Asset == nil {
+		return "cash"
+	}
+	if it.Asset.ISIN == "" {
+		return it.Asset.Name
+	}
+	return fmt.Sprintf("%s (%s)", it.Asset.Name, it.Asset.ISIN)
 }
 
 // WriteAssetTree renders the holdings as an indented, envelope-grouped tree with
 // two right-aligned columns (gross, after-tax net) in ccy at `at`. An envelope
 // holding a single line-item is collapsed onto one row (its ISIN kept, if any).
 func WriteAssetTree(w io.Writer, lines []PositionLine, ccy domain.Currency, at domain.Date) error {
-	envs := assetTree(lines)
+	envs := AssetTree(lines)
 
 	// Materialize every printable row first, to size the columns to content.
 	type row struct {
@@ -190,20 +201,20 @@ func WriteAssetTree(w io.Writer, lines []PositionLine, ccy domain.Currency, at d
 	var rows []row
 	var totGross, totNet float64
 	for _, env := range envs {
-		totGross += env.gross
-		totNet += env.net
-		if len(env.items) == 1 {
-			it := env.items[0]
-			text := env.name
-			if it.isin != "" {
-				text = fmt.Sprintf("%s (%s)", env.name, it.isin)
+		totGross += env.Gross
+		totNet += env.Net
+		if len(env.Items) == 1 {
+			it := env.Items[0]
+			text := env.Account.Name
+			if it.Asset != nil && it.Asset.ISIN != "" {
+				text = fmt.Sprintf("%s (%s)", env.Account.Name, it.Asset.ISIN)
 			}
-			rows = append(rows, row{text: text, gross: env.gross, net: env.net, hasNum: true})
+			rows = append(rows, row{text: text, gross: env.Gross, net: env.Net, hasNum: true})
 			continue
 		}
-		rows = append(rows, row{text: env.name, gross: env.gross, net: env.net, hasNum: true})
-		for _, it := range env.items {
-			rows = append(rows, row{text: "  " + it.label(), gross: it.gross, net: it.net, hasNum: true})
+		rows = append(rows, row{text: env.Account.Name, gross: env.Gross, net: env.Net, hasNum: true})
+		for _, it := range env.Items {
+			rows = append(rows, row{text: "  " + it.Label(), gross: it.Gross, net: it.Net, hasNum: true})
 		}
 	}
 
