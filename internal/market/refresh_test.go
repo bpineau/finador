@@ -178,15 +178,15 @@ func (b *batchSource) LatestBatch(_ context.Context, refs []Ref) map[Ref]Quote {
 	return out
 }
 
-// TestSpotRefreshBatch: one batch call serves the covered instruments; only
-// the misses fall back to Latest, and a not-covered miss stays silent.
+// TestSpotRefreshBatch: one batch call serves every ref; a miss is final
+// (the batch already exhausted the source's fallbacks) - no per-ref retry,
+// no warning, the last stored close stands.
 func TestSpotRefreshBatch(t *testing.T) {
 	b := bookWithTrade(t) // cw8 (CW8.PA) + the EUR account → EURUSD=X ref
 	at := domain.Today().Time().Add(15 * time.Hour)
 	src := &batchSource{batch: map[Ref]Quote{
 		{Symbol: "CW8.PA"}: {Price: 555.5, Time: at, Currency: domain.EUR, Live: true},
-		// EURUSD=X deliberately absent from the batch: per-ref fallback,
-		// which the embedded fakeSource answers with ErrNotCovered.
+		// EURUSD=X deliberately absent from the batch: an authoritative miss.
 	}}
 
 	sum := SpotRefresh(context.Background(), b, src)
@@ -194,8 +194,8 @@ func TestSpotRefreshBatch(t *testing.T) {
 	if src.batchCalls != 1 || src.batchRefs != 2 {
 		t.Fatalf("batch calls = %d (refs %d), want 1 call covering both refs", src.batchCalls, src.batchRefs)
 	}
-	if got := src.calls; len(got) != 1 || got[0] != "LATEST EURUSD=X" {
-		t.Fatalf("fallback calls = %v, want only the batch miss", got)
+	if len(src.calls) != 0 {
+		t.Fatalf("per-ref calls behind a batch = %v, want none", src.calls)
 	}
 	if len(sum.Warnings) != 0 {
 		t.Fatalf("warnings: %v", sum.Warnings)
