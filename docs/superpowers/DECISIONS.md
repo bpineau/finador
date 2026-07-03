@@ -272,3 +272,17 @@ jamais ; `tracking since <date>` donne toujours l'étendue réelle. CLI et web, 
 **Pourquoi l'égalité bit-à-bit :** faux positif quasi impossible et bénin (on masquerait une
 ligne redondante) ; faux négatif impossible (tout vrai mouvement de marché ou de FX change les
 flottants, la ligne s'affiche).
+
+## D22 - perf --tree : un TWR par ligne, cash muet
+
+**Contexte :** vue arborescente demandée (enveloppes → positions) avec valeur nette et
+rendements 1d/5d/1m/3m par ligne, cohérente avec le `perf` plat et D8.
+**Choix :** chaque ligne calcule le TWR de **sa propre série** (`portfolio.Series` sur un scope
+réduit : `PairScope` pour une position, `EnvelopeScope` pour un compte, le scope de la commande
+pour TOTAL) : flux neutralisés partout, un achat n'est jamais un gain, et chaque cellule est
+vérifiable en lançant `finador perf` sur le même sous-scope. Fenêtre antérieure au premier
+point de la ligne → tiret (même règle que le tableau plat). Lignes cash et enveloppes
+tout-cash → tirets (leur effet, FX compris, appartient à la ligne enveloppe). Coût : une
+replay par ligne, négligeable à l'échelle d'un portefeuille personnel.
+**Écarté :** la variation de cours pure (à la façon d'un courtier) : pas de neutralisation des
+flux, agrégation par enveloppe bancale, FX à refaire ; incohérente avec le reste de finador.
