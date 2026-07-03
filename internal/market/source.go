@@ -57,6 +57,13 @@ type Source interface {
 	Latest(ctx context.Context, ref Ref) (Quote, error)
 }
 
+// BatchSource is an optional Source capability: the freshest price of many
+// instruments in one call. SpotRefresh uses it when the source implements it
+// and falls back to per-instrument Latest for anything the batch missed.
+type BatchSource interface {
+	LatestBatch(ctx context.Context, refs []Ref) map[Ref]Quote
+}
+
 // SymbolInfo is what Resolve learns about a free query: the canonical
 // quotable symbol and the instrument's full name.
 type SymbolInfo struct {
