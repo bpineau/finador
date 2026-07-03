@@ -296,6 +296,9 @@ func contains(ss []string, want string) bool {
 type twinSource struct{ fakeSource }
 
 func (s *twinSource) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {
+	if strings.HasSuffix(ref.Symbol, "=X") {
+		return DailyData{Currency: domain.USD}, nil
+	}
 	if ref.ISIN != "" {
 		return DailyData{Currency: domain.USD, Closes: []domain.PricePoint{{Date: domain.Today(), Close: 33.44}}}, nil
 	}

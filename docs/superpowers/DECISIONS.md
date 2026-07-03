@@ -286,3 +286,27 @@ tout-cash → tirets (leur effet, FX compris, appartient à la ligne enveloppe).
 replay par ligne, négligeable à l'échelle d'un portefeuille personnel.
 **Écarté :** la variation de cours pure (à la façon d'un courtier) : pas de neutralisation des
 flux, agrégation par enveloppe bancale, FX à refaire ; incohérente avec le reste de finador.
+
+## D23 - Une cote n'entre jamais dans le cache sans vérification d'unité
+
+**Contexte :** incident GTWR/VIZR (2026-07-04) : sur un raté réseau transitoire, la résolution
+pofo a servi des cotations jumelles d'autres places (GTWR.L en USD, une ligne EUR pour VIZR) ;
+finador warnait sur le mismatch de devise mais mergeait quand même. Un seul point dans la
+mauvaise devise fausse valorisation et variations du taux de change (VIZR affiché -12%,
+GTWR +15%). Classe du bug : une valeur traverse une frontière avec une unité implicite que
+le récepteur suppose au lieu de vérifier.
+**Choix :** (1) chaque point d'ingestion du cache marché (daily titres, daily FX, spot titres,
+spot FX, ensureDisplayFX) **vérifie la devise déclarée et refuse** le lot en cas de mismatch,
+sans tamponner FetchedAt (retry plus tard). (2) Les séries FX exigent USD (pivot). (3) Sur
+mismatch d'un titre, retenter **le ticker déclaré en direct** (la ligne autoritaire) avant
+d'abandonner : la résolution ISIN privilégie l'historique le plus profond, qui peut vivre sur
+une autre place dans une autre devise (GTWR : FT sert la ligne USD de Londres). (4) Le spot
+batché est keyé sur les **tickers exacts** (l'API quote Yahoo répond symbole pour symbole,
+aucune substitution possible) ; le repli par instrument passe par l'ISIN (FT/Morningstar).
+(5) pofo `Quote.Symbol` expose l'instrument réellement servi pour de futurs refus de
+substitution. Au passage : `ensureDisplayFX` persistait via `Save()` (ledger, sans effet sur
+le cache) au lieu de `SaveCache()` - corrigé.
+**Résiduel accepté :** un jumeau dans la même devise à un autre niveau de prix (autre classe
+de part, ex. GTWR.MI) passerait le contrôle de devise ; vecteur estimé rare depuis que les
+fenêtres courtes se règlent sur la réponse directe du ticker (fix pofo goodFor) et que le spot
+est keyé exact. Piste future si besoin : contrôle de continuité (saut aberrant) en avertissement.

@@ -122,30 +122,28 @@ func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
 	return Quote{}, lastErr
 }
 
-// LatestBatch fetches the freshest price of many instruments in one pofo
-// call (one Yahoo quote request for the Yahoo-quoted ones). Refs are keyed
-// like Latest resolves them: ISIN preferred, symbol otherwise.
+// LatestBatch fetches the freshest price of many instruments: one live
+// Yahoo quote call keyed on the declared tickers (the quote API answers
+// exact symbols - no resolution, no twin-listing substitution), then the
+// per-ref Latest fallback (ISIN first: FT/Morningstar NAV) for the rest.
 func (p *Pofo) LatestBatch(ctx context.Context, refs []Ref) map[Ref]Quote {
-	ids := make([]string, 0, len(refs))
-	byID := make(map[string][]Ref, len(refs))
+	symbols := make([]string, 0, len(refs))
+	seen := map[string]bool{}
 	for _, ref := range refs {
-		id := ref.ISIN
-		if id == "" {
-			id = ref.Symbol
+		if ref.Symbol != "" && !seen[ref.Symbol] {
+			seen[ref.Symbol] = true
+			symbols = append(symbols, ref.Symbol)
 		}
-		if id == "" {
+	}
+	live := p.Client.LatestBatchLive(ctx, symbols)
+	out := make(map[Ref]Quote, len(refs))
+	for _, ref := range refs {
+		if q, ok := live[ref.Symbol]; ok {
+			out[ref] = Quote{Price: q.Price, Time: q.Time, Currency: domain.Currency(q.Currency), Live: q.Live}
 			continue
 		}
-		if len(byID[id]) == 0 {
-			ids = append(ids, id)
-		}
-		byID[id] = append(byID[id], ref)
-	}
-	quotes := p.Client.LatestBatch(ctx, ids)
-	out := make(map[Ref]Quote, len(quotes))
-	for id, q := range quotes {
-		for _, ref := range byID[id] {
-			out[ref] = Quote{Price: q.Price, Time: q.Time, Currency: domain.Currency(q.Currency), Live: q.Live}
+		if q, err := p.Latest(ctx, ref); err == nil {
+			out[ref] = q
 		}
 	}
 	return out
