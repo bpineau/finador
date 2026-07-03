@@ -195,6 +195,10 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 /* Fixed-width slot so the percentages line up whether or not a row has an
    arrow (a flat +0.00% still reserves the arrow column). */
 .assets-table td.daycell .arr { display: inline-block; width: 1.3em; text-align: center; }
+/* A quote lagging behind today (NAV funds): the last published day move,
+   muted and dated, instead of an empty cell. */
+.assets-table td.daycell .stale-1d { color: var(--encre-2); }
+.assets-table td.daycell .stale-date { font-size: .7rem; }
 .assets-table .sparkcell { width: 76px; padding: .15rem .1rem; }
 .assets-table .sparkcell svg { display: block; }
 .assets-table .nombre { width: 110px; }

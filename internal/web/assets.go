@@ -24,8 +24,14 @@ type assetRow struct {
 	Name, URL, EditURL string
 	Day1d              float64
 	HasDay1d           bool
-	Spark1M, Spark1Y   template.HTML
-	Gross, Net         float64
+	// Stale1d is the last published day move of an instrument whose price
+	// predates today (a NAV fund lagging a day or two), shown muted with
+	// its date StaleOn ("MM-DD") instead of an empty 1D cell.
+	Stale1d          float64
+	StaleOn          string
+	HasStale1d       bool
+	Spark1M, Spark1Y template.HTML
+	Gross, Net       float64
 }
 
 type assetSection struct {
@@ -81,22 +87,34 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 		day1d, hasDay1d := perfDay1d(res, today, rf)
 		// For instruments whose latest published price predates today (e.g. NAV
 		// funds with a 1-day publication lag), forward-fill makes V(today) equal
-		// V(yesterday), producing a spurious 0%. Suppress it.
+		// V(yesterday), producing a spurious 0%. Show the last published day
+		// move, dated and muted, instead of an empty cell.
+		var stale1d float64
+		var staleOn string
+		hasStale1d := false
 		if hasDay1d {
 			if last, ok := ps.Last(); !ok || last.Date.Before(today) {
 				hasDay1d = false
+				if n := len(ps.Points); n >= 2 && ps.Points[n-2].Close != 0 {
+					stale1d = ps.Points[n-1].Close/ps.Points[n-2].Close - 1
+					staleOn = fmt.Sprintf("%02d-%02d", last.Date.Month, last.Date.Day)
+					hasStale1d = true
+				}
 			}
 		}
 		row := assetRow{
-			Name:     asset.Name,
-			URL:      "/asset/" + url.PathEscape(string(asset.ID)),
-			EditURL:  "/assets/" + url.PathEscape(string(asset.ID)) + "/edit",
-			Day1d:    day1d,
-			HasDay1d: hasDay1d,
-			Spark1M:  spark(assetPricePoints(ps, today.AddDays(-30), today, asset.Currency, ccy, fx)),
-			Spark1Y:  spark(assetPricePoints(ps, today.AddDays(-365), today, asset.Currency, ccy, fx)),
-			Gross:    val.Gross,
-			Net:      val.Net,
+			Name:       asset.Name,
+			URL:        "/asset/" + url.PathEscape(string(asset.ID)),
+			EditURL:    "/assets/" + url.PathEscape(string(asset.ID)) + "/edit",
+			Day1d:      day1d,
+			HasDay1d:   hasDay1d,
+			Stale1d:    stale1d,
+			StaleOn:    staleOn,
+			HasStale1d: hasStale1d,
+			Spark1M:    spark(assetPricePoints(ps, today.AddDays(-30), today, asset.Currency, ccy, fx)),
+			Spark1Y:    spark(assetPricePoints(ps, today.AddDays(-365), today, asset.Currency, ccy, fx)),
+			Gross:      val.Gross,
+			Net:        val.Net,
 		}
 		g := asset.Group
 		if g == "" {

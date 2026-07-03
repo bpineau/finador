@@ -58,8 +58,9 @@ type Source interface {
 }
 
 // BatchSource is an optional Source capability: the freshest price of many
-// instruments in one call. SpotRefresh uses it when the source implements it
-// and falls back to per-instrument Latest for anything the batch missed.
+// instruments in one call. The answer is authoritative - a ref absent from
+// the result means the source, all its fallbacks included, could not serve
+// it - so SpotRefresh never re-asks per instrument behind a batch.
 type BatchSource interface {
 	LatestBatch(ctx context.Context, refs []Ref) map[Ref]Quote
 }
