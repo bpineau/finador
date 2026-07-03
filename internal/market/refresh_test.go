@@ -289,3 +289,38 @@ func contains(ss []string, want string) bool {
 	}
 	return false
 }
+
+// twinSource serves the USD twin listing for full refs (ISIN resolution
+// gone to a deeper foreign line) but the declared EUR line for ticker-only
+// refs - the GTWR.DE incident.
+type twinSource struct{ fakeSource }
+
+func (s *twinSource) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {
+	if ref.ISIN != "" {
+		return DailyData{Currency: domain.USD, Closes: []domain.PricePoint{{Date: domain.Today(), Close: 33.44}}}, nil
+	}
+	return DailyData{Currency: domain.EUR, Closes: []domain.PricePoint{{Date: domain.Today(), Close: 29.21}}}, nil
+}
+
+// TestRefreshTwinListingRetriesDeclaredTicker: a mismatched-currency answer
+// on the ISIN ref must fall back to the declared ticker line, not leave the
+// asset without quotes.
+func TestRefreshTwinListingRetriesDeclaredTicker(t *testing.T) {
+	b := bookWithTrade(t)
+	cw8, _ := b.Asset("cw8")
+	cw8.ISIN = "IE00077IIPQ8"
+	src := &twinSource{}
+	src.daily = map[string]DailyData{"EURUSD=X": {}}
+
+	sum := Refresh(context.Background(), b, src, false)
+
+	if len(sum.Warnings) != 0 {
+		t.Fatalf("warnings: %v", sum.Warnings)
+	}
+	if close, _, ok := b.Market.Price("cw8").At(domain.Today()); !ok || close != 29.21 {
+		t.Fatalf("close = %v, want the declared-ticker EUR quote 29.21", close)
+	}
+	if b.Market.Price("cw8").FetchedAt != domain.Today() {
+		t.Fatal("successful ticker fallback must stamp FetchedAt")
+	}
+}
