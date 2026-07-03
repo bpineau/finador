@@ -40,9 +40,19 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 			continue
 		}
 		// A currency mismatch means the source served a twin listing on
-		// another exchange: one such point poisons the series (valuations
-		// and day moves wrong by the FX rate). Skip the merge and leave
-		// FetchedAt unstamped so a later run can try again.
+		// another exchange (the ISIN resolution favors the deepest history,
+		// which may live on another market): one such point poisons the
+		// series. The declared ticker is the authoritative line - refetch
+		// it directly; if even that is off-currency, skip the merge and
+		// leave FetchedAt unstamped so a later run can try again.
+		if data.Currency != "" && data.Currency != asset.Currency {
+			if asset.ISIN != "" && asset.Ticker != "" {
+				if d2, err2 := src.Daily(ctx, Ref{Symbol: asset.Ticker}, from); err2 == nil &&
+					(d2.Currency == "" || d2.Currency == asset.Currency) {
+					data = d2
+				}
+			}
+		}
 		if data.Currency != "" && data.Currency != asset.Currency {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
 				"%s quotes in %s but the asset is declared in %s: quotes ignored",
@@ -111,7 +121,13 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 			ref: Ref{Symbol: asset.Ticker, ISIN: asset.ISIN},
 			apply: func(q Quote) {
 				// Same guard as the daily fetch: a quote in another currency
-				// is a twin listing, one merged point would poison the series.
+				// is a twin listing. Retry the declared ticker directly (the
+				// authoritative line) before giving up on the point.
+				if q.Currency != "" && q.Currency != ccy && ticker != "" {
+					if q2, err := src.Latest(ctx, Ref{Symbol: ticker}); err == nil {
+						q = q2
+					}
+				}
 				if q.Currency != "" && q.Currency != ccy {
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf(
 						"%s spot in %s but the asset is declared in %s: quote ignored", ticker, q.Currency, ccy))
