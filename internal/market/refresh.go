@@ -80,6 +80,13 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", symbol, err))
 			continue
 		}
+		// FX series hold the USD value of one unit: a cross served in any
+		// other currency would corrupt every conversion.
+		if data.Currency != "" && data.Currency != domain.USD {
+			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+				"%s quotes in %s but USD expected: quotes ignored", symbol, data.Currency))
+			continue
+		}
 		series.Merge(data.Closes)
 		series.FetchedAt = today
 		sum.Fetched = append(sum.Fetched, "fx "+string(ccy))
@@ -140,9 +147,15 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	}
 	for _, ccy := range neededCurrencies(b) {
 		series := b.Market.FXSeries(ccy)
+		symbol := string(ccy) + "USD=X"
 		targets = append(targets, target{
-			ref: Ref{Symbol: string(ccy) + "USD=X"},
+			ref: Ref{Symbol: symbol},
 			apply: func(q Quote) {
+				if q.Currency != "" && q.Currency != domain.USD {
+					sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+						"%s spot in %s but USD expected: quote ignored", symbol, q.Currency))
+					return
+				}
 				series.Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 			},
 		})
