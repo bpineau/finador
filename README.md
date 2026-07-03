@@ -425,9 +425,14 @@ and performance recompute instantly.
 ```sh
 finador value [scope] [--at YYYY-MM-DD] [--ccy USD] [--gross]
               [--by group|account] [--exclude refs]... [--what-if asset=price]...
+finador value --tree       # envelope-grouped tree, gross & net per line
+finador value pea --tree   # same, scoped (envelope, group or label)
 ```
 
 - By default `value` shows gross, estimated tax and net; `--gross` shows the gross value only.
+- `--tree` renders the envelope-grouped holdings tree instead of the flat table
+  (the same output as `export --tree`, honoring scope, `--label`, `--exclude`
+  and `--at`).
 - `--at` values the portfolio at any past date (quotes are forward-filled).
 - `--by account` breaks lines down by envelope (cash included) instead of group.
 - `--what-if cw8=600 --what-if country=520000` revalues with throwaway price

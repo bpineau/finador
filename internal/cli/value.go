@@ -16,7 +16,7 @@ import (
 
 func valueCmd(a *app) *cobra.Command {
 	var ccy, at, by, label string
-	var gross bool
+	var gross, tree bool
 	var exclude, whatIf []string
 	cmd := &cobra.Command{
 		Use:   "value [scope]",
@@ -24,6 +24,7 @@ func valueCmd(a *app) *cobra.Command {
 		Example: "  finador value                 # gross, estimated tax and net (default)\n" +
 			"  finador value --gross         # gross value only\n" +
 			"  finador value equities/world  # scope to a group\n" +
+			"  finador value --tree          # envelope-grouped tree, gross & net\n" +
 			"  finador value --label retraite\n" +
 			"  finador value --at 2024-12-31",
 		Args: cobra.MaximumNArgs(1),
@@ -51,6 +52,17 @@ func valueCmd(a *app) *cobra.Command {
 				return err
 			}
 			ensureDisplayFX(cmd, a, f, display)
+			if tree {
+				if gross || by != "group" || len(whatIf) > 0 {
+					return fmt.Errorf("--tree is incompatible with --gross, --by and --what-if")
+				}
+				lines, err := portfolio.Breakdown(b, date, display, market.Converter{FX: b.Market.FX})
+				if err != nil {
+					return err
+				}
+				return portfolio.WriteAssetTree(cmd.OutOrStdout(),
+					portfolio.FilterScope(lines, scope), display, date)
+			}
 			var opts []portfolio.ValueOption
 			switch by {
 			case "group":
@@ -89,6 +101,7 @@ func valueCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&by, "by", "group", "line breakdown: group or account")
 	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "disposable hypothesis asset=price (repeatable), e.g. vizr=280")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
+	cmd.Flags().BoolVar(&tree, "tree", false, "indented, envelope-grouped text (gross & net per line)")
 	return cmd
 }
 
