@@ -494,7 +494,9 @@ after-tax curve.
 ### Export: `export`
 
 ```sh
-finador export [--at YYYY-MM-DD] [--ccy USD] > assets.csv
+finador export [scope] [--at YYYY-MM-DD] [--ccy USD] [--label l] [--exclude refs] > assets.csv
+finador export pea > pea.csv     # scoped: an envelope, a group or a label
+finador export pea --tree        # envelope-grouped text (see `value --tree`)
 ```
 
 Writes a CSV to stdout, one row per holding (securities, properties AND cash):

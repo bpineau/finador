@@ -1028,6 +1028,33 @@ func TestExportCSV(t *testing.T) {
 	}
 }
 
+// TestExportScoped: export accepts the same [scope]/--label/--exclude triple
+// as the other read commands, for the CSV and the tree alike.
+func TestExportScoped(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+	run(t, db, "account", "add", "Livret")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--name", "Amundi MSCI World", "--group", "actions")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01", "--account", "PEA Zephyr")
+	run(t, db, "cash", "set", "Livret", "23000", "--at", "2026-06-01")
+	runNet(t, db, "value", "--at", "2026-06-05") // prime the price cache
+
+	// Scoped CSV: only the envelope's rows.
+	out := run(t, db, "export", "PEA Zephyr", "--at", "2026-06-05")
+	if !strings.Contains(out, "CW8.PA") || strings.Contains(out, "Livret") {
+		t.Errorf("scoped export leaked foreign rows:\n%s", out)
+	}
+	// Scoped tree: one envelope only.
+	out = run(t, db, "export", "PEA Zephyr", "--tree", "--at", "2026-06-05")
+	if !strings.Contains(out, "PEA Zephyr") || strings.Contains(out, "Livret") {
+		t.Errorf("scoped tree leaked foreign envelopes:\n%s", out)
+	}
+	// --exclude prunes an asset from the export.
+	if out := run(t, db, "export", "--exclude", "cw8", "--at", "2026-06-05"); strings.Contains(out, "CW8.PA") {
+		t.Errorf("--exclude inopérant:\n%s", out)
+	}
+}
+
 // lineContaining returns the first output line containing needle.
 func lineContaining(t *testing.T, out, needle string) string {
 	t.Helper()

@@ -84,6 +84,37 @@ func AllRows(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Asse
 	return rows, nil
 }
 
+// ScopedRows values what the scope holds - securities and properties
+// aggregated per asset, plus one cash row per account whose cash the scope
+// keeps - sorted by gross descending. With an All scope it matches AllRows.
+func ScopedRows(b *domain.Book, s Scope, at domain.Date, ccy domain.Currency, fx FX) ([]AssetRow, error) {
+	lines, err := Breakdown(b, at, ccy, fx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []AssetRow
+	assetRows := map[domain.AssetID]int{} // asset → index in rows, for aggregation
+	for _, l := range FilterScope(lines, s) {
+		if l.Asset == nil {
+			rows = append(rows, AssetRow{Kind: "cash", Name: l.Account.Name, Gross: l.Gross, Net: l.Net, Currency: ccy})
+			continue
+		}
+		if i, ok := assetRows[l.Asset.ID]; ok {
+			rows[i].Gross += l.Gross
+			rows[i].Net += l.Net
+			continue
+		}
+		assetRows[l.Asset.ID] = len(rows)
+		rows = append(rows, AssetRow{
+			Kind:   l.Asset.Kind.String(),
+			Ticker: l.Asset.Ticker, Name: l.Asset.Name, ISIN: l.Asset.ISIN,
+			Gross: l.Gross, Net: l.Net, Currency: ccy,
+		})
+	}
+	sortRows(rows)
+	return rows, nil
+}
+
 func sortRows(rows []AssetRow) {
 	sort.SliceStable(rows, func(i, j int) bool {
 		if rows[i].Gross != rows[j].Gross {
