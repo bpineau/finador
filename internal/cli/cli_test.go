@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1130,5 +1131,107 @@ func TestPerfTree(t *testing.T) {
 	// --from is incompatible with the fixed tree windows.
 	if _, err := tryRunNet(t, db, "perf", "--tree", "--from", "2026-06-01"); err == nil {
 		t.Fatal("perf --tree --from devrait échouer")
+	}
+}
+
+// splitScript splits one emitted script line into argv, honoring the
+// double-quoted (strconv.Quote) tokens writeScript produces.
+func splitScript(t *testing.T, line string) []string {
+	t.Helper()
+	var args []string
+	for i := 0; i < len(line); {
+		for i < len(line) && line[i] == ' ' {
+			i++
+		}
+		if i >= len(line) {
+			break
+		}
+		if line[i] == '"' {
+			j := i + 1
+			for j < len(line) && (line[j] != '"' || line[j-1] == '\\') {
+				j++
+			}
+			tok, err := strconv.Unquote(line[i : j+1])
+			if err != nil {
+				t.Fatalf("unquote %q: %v", line[i:j+1], err)
+			}
+			args = append(args, tok)
+			i = j + 1
+			continue
+		}
+		j := i
+		for j < len(line) && line[j] != ' ' {
+			j++
+		}
+		args = append(args, line[i:j])
+		i = j
+	}
+	return args
+}
+
+// TestExportScriptRoundTrip: replaying `export --script` into a fresh file
+// rebuilds an equivalent portfolio (same accounts, assets, values, labels).
+func TestExportScriptRoundTrip(t *testing.T) {
+	db1 := newDB(t)
+	run(t, db1, "config", "set", "risk-free", "2.4%")
+	run(t, db1, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%", "--alias", "pea")
+	run(t, db1, "account", "add", "Savings")
+	run(t, db1, "asset", "add", "CW8.PA", "--alias", "cw8", "--name", "Amundi MSCI World",
+		"--isin", "LU1681043599", "--group", "actions/monde")
+	run(t, db1, "asset", "add", "Maison Familiale", "--kind", "property", "--group", "immo")
+	run(t, db1, "cash", "deposit", "PEA Zephyr", "10000", "2026-01-10")
+	run(t, db1, "asset", "buy", "cw8", "10", "5500", "2026-06-01", "--account", "PEA Zephyr", "--note", "premier achat")
+	run(t, db1, "asset", "dividend", "cw8", "12.50", "2026-06-02", "--account", "PEA Zephyr")
+	run(t, db1, "cash", "set", "Savings", "11250", "--at", "2026-06-01")
+	run(t, db1, "asset", "set", "Maison Familiale", "450000", "--at", "2026-06-01", "--account", "Savings")
+	run(t, db1, "label", "add", "retraite", "--account", "PEA Zephyr", "--asset", "cw8")
+
+	script := run(t, db1, "export", "--script")
+
+	db2 := filepath.Join(t.TempDir(), "rebuilt.fin")
+	run(t, db2, "init")
+	for line := range strings.SplitSeq(script, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		args := splitScript(t, line)
+		if len(args) == 0 || args[0] != "finador" {
+			t.Fatalf("unexpected script line: %q", line)
+		}
+		run(t, db2, args[1:]...)
+	}
+
+	// stripIDs blanks the random, regenerated id column of the list views.
+	stripIDs := func(out string) string {
+		var sb strings.Builder
+		for line := range strings.SplitSeq(out, "\n") {
+			if f := strings.Fields(line); len(f) > 1 && len(f[0]) > 20 {
+				line = strings.TrimPrefix(line, f[0])
+			}
+			sb.WriteString(line + "\n")
+		}
+		return sb.String()
+	}
+	for _, probe := range [][]string{
+		{"export", "--at", "2026-06-05"},
+		{"value", "--at", "2026-06-05"},
+		{"account", "list"},
+		{"asset", "list"},
+		{"config", "get"},
+	} {
+		got, want := stripIDs(run(t, db2, probe...)), stripIDs(run(t, db1, probe...))
+		if got != want {
+			t.Errorf("%v differs after replay:\n--- original ---\n%s--- rebuilt ---\n%s", probe, want, got)
+		}
+	}
+	// labels carry regenerated ids: compare content, not the id column
+	if out := run(t, db2, "label", "list"); !strings.Contains(out, "retraite") ||
+		!strings.Contains(out, "Amundi MSCI World") {
+		t.Errorf("label not rebuilt:\n%s", out)
+	}
+	// same number of ledger transactions (IDs differ, of course)
+	if got, want := run(t, db2, "tx", "list"), run(t, db1, "tx", "list"); strings.Count(got, "\n") != strings.Count(want, "\n") {
+		t.Errorf("tx count differs:\n%s\nvs\n%s", got, want)
 	}
 }
