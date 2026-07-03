@@ -2,6 +2,7 @@ package market
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -76,35 +77,74 @@ type SpotSummary struct {
 	Warnings []string
 }
 
-// SpotRefresh updates today's price of every quoted security and FX rate from
-// the source's latest quote: one light call per instrument, no history depth,
-// no dividends. It complements Refresh (which must still run once a day) and
-// keeps valuations live between two daily refreshes. Like Refresh it never
-// fails hard: a failed quote degrades to a warning.
+// SpotRefresh updates today's price of every quoted security and FX rate
+// from the source's latest quotes: one batched call when the source supports
+// it, individual fallbacks otherwise, no history depth, no dividends. It
+// complements Refresh (which must still run once a day) and keeps valuations
+// live between two daily refreshes. It never fails hard: a failed quote
+// degrades to a warning, and an instrument the source does not cover at all
+// is silently skipped (its last daily close already stands).
 func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	sum := SpotSummary{Quotes: map[domain.AssetID]Quote{}}
+
+	type target struct {
+		ref   Ref
+		apply func(Quote)
+	}
+	var targets []target
 	for _, asset := range b.Assets {
 		if asset.Kind != domain.Security || asset.Ticker == "" {
 			continue
 		}
-		q, err := src.Latest(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN})
-		if err != nil {
-			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", asset.Ticker, err))
-			continue
-		}
-		b.Market.Price(asset.ID).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
-		sum.Quotes[asset.ID] = q
+		id := asset.ID
+		targets = append(targets, target{
+			ref: Ref{Symbol: asset.Ticker, ISIN: asset.ISIN},
+			apply: func(q Quote) {
+				b.Market.Price(id).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
+				sum.Quotes[id] = q
+			},
+		})
 	}
 	for _, ccy := range neededCurrencies(b) {
-		symbol := string(ccy) + "USD=X"
-		q, err := src.Latest(ctx, Ref{Symbol: symbol})
-		if err != nil {
-			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", symbol, err))
-			continue
+		series := b.Market.FXSeries(ccy)
+		targets = append(targets, target{
+			ref: Ref{Symbol: string(ccy) + "USD=X"},
+			apply: func(q Quote) {
+				series.Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
+			},
+		})
+	}
+
+	batched := map[Ref]Quote{}
+	if bs, ok := src.(BatchSource); ok && len(targets) > 0 {
+		refs := make([]Ref, len(targets))
+		for i, t := range targets {
+			refs[i] = t.ref
 		}
-		b.Market.FXSeries(ccy).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
+		batched = bs.LatestBatch(ctx, refs)
+	}
+	for _, t := range targets {
+		q, ok := batched[t.ref]
+		if !ok {
+			var err error
+			if q, err = src.Latest(ctx, t.ref); err != nil {
+				if !errors.Is(err, ErrNotCovered) {
+					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", refLabel(t.ref), err))
+				}
+				continue
+			}
+		}
+		t.apply(q)
 	}
 	return sum
+}
+
+// refLabel names a ref in warnings: the symbol when there is one.
+func refLabel(r Ref) string {
+	if r.Symbol != "" {
+		return r.Symbol
+	}
+	return r.ISIN
 }
 
 // priceHistoryYears is how far back a price series reaches, so the asset page's
