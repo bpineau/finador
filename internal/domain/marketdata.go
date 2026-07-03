@@ -1,6 +1,9 @@
 package domain
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // PricePoint is one daily close. Closes are analytics data: float64 is fine -
 // decimal exactness lives in the ledger, not in market quotes.
@@ -76,6 +79,11 @@ type MarketData struct {
 	Prices    map[AssetID]*PriceSeries    `json:"prices,omitempty"`
 	FX        map[Currency]*PriceSeries   `json:"fx,omitempty"` // value of 1 unit in USD
 	Dividends map[AssetID][]DividendEvent `json:"dividends,omitempty"`
+	// SpotAt is when the last spot pass ran (see market.SpotRefresh): the
+	// CLI re-spots when it is older than an hour. Unlike the day-granular
+	// PriceSeries.FetchedAt it is a full timestamp. Sidecar-cache state,
+	// never part of the synced ledger.
+	SpotAt time.Time `json:"spotAt,omitzero"`
 }
 
 // Price returns the price series of an asset, creating it lazily.
