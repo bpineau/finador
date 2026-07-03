@@ -39,16 +39,22 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", asset.Ticker, err))
 			continue
 		}
+		// A currency mismatch means the source served a twin listing on
+		// another exchange: one such point poisons the series (valuations
+		// and day moves wrong by the FX rate). Skip the merge and leave
+		// FetchedAt unstamped so a later run can try again.
+		if data.Currency != "" && data.Currency != asset.Currency {
+			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+				"%s quotes in %s but the asset is declared in %s: quotes ignored",
+				asset.Ticker, data.Currency, asset.Currency))
+			continue
+		}
 		series.Merge(data.Closes)
 		series.FetchedAt = today
 		if series.HistFrom.IsZero() || from.Before(series.HistFrom) {
 			series.HistFrom = from // remember how deep we have fetched
 		}
 		mergeDividends(&b.Market, asset.ID, data.Dividends)
-		if data.Currency != "" && data.Currency != asset.Currency {
-			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
-				"%s quotes in %s but the asset is declared in %s", asset.Ticker, data.Currency, asset.Currency))
-		}
 		sum.Fetched = append(sum.Fetched, asset.Ticker)
 	}
 
@@ -100,10 +106,17 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 		if asset.Kind != domain.Security || asset.Ticker == "" {
 			continue
 		}
-		id := asset.ID
+		id, ccy, ticker := asset.ID, asset.Currency, asset.Ticker
 		targets = append(targets, target{
 			ref: Ref{Symbol: asset.Ticker, ISIN: asset.ISIN},
 			apply: func(q Quote) {
+				// Same guard as the daily fetch: a quote in another currency
+				// is a twin listing, one merged point would poison the series.
+				if q.Currency != "" && q.Currency != ccy {
+					sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+						"%s spot in %s but the asset is declared in %s: quote ignored", ticker, q.Currency, ccy))
+					return
+				}
 				b.Market.Price(id).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 				sum.Quotes[id] = q
 			},
