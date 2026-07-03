@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"finador/internal/cli"
@@ -253,6 +254,51 @@ func runNet(t *testing.T, db string, args ...string) string {
 		t.Fatalf("finador %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 	return out
+}
+
+// countingSource counts spot lookups on top of fakeSource.
+type countingSource struct {
+	fakeSource
+	latest atomic.Int32
+}
+
+func (c *countingSource) Latest(ctx context.Context, ref market.Ref) (market.Quote, error) {
+	c.latest.Add(1)
+	return c.fakeSource.Latest(ctx, ref)
+}
+
+// TestSpotFreshnessHourly: the first online command runs a spot pass, the
+// second within the hour does not (SpotAt persisted in the sidecar cache).
+func TestSpotFreshnessHourly(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "actions")
+	run(t, db, "tx", "buy", "cw8", "2", "1100", "2026-06-02")
+
+	src := &countingSource{}
+	valueWith := func() {
+		t.Helper()
+		t.Setenv("FINADOR_PASSWORD", "secret-de-test")
+		var out bytes.Buffer
+		cmd := cli.New(cli.WithSource(src))
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SetArgs([]string{"--db", db, "--no-keychain", "value"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("value: %v\n%s", err, out.String())
+		}
+	}
+
+	valueWith()
+	first := src.latest.Load()
+	if first == 0 {
+		t.Fatal("first online command must run a spot pass")
+	}
+	valueWith()
+	if got := src.latest.Load(); got != first {
+		t.Fatalf("second command within the hour re-spotted: %d → %d calls", first, got)
+	}
 }
 
 func TestValueEndToEnd(t *testing.T) {

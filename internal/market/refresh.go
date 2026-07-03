@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"finador/internal/domain"
 )
@@ -86,6 +87,9 @@ type SpotSummary struct {
 // is silently skipped (its last daily close already stands).
 func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	sum := SpotSummary{Quotes: map[domain.AssetID]Quote{}}
+	// Stamped even when quotes fail: an outage must not turn every command
+	// into a hammering retry - the next hour tries again.
+	b.Market.SpotAt = time.Now()
 
 	type target struct {
 		ref   Ref
