@@ -3,6 +3,7 @@ module finador
 go 1.26
 
 require (
+	github.com/bpineau/pofo v0.0.0-20260702165917-beb16227246a
 	github.com/samber/lo v1.53.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.10.2
@@ -11,7 +12,6 @@ require (
 )
 
 require (
-	github.com/bpineau/pofo v0.0.0-20260702165917-beb16227246a // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	golang.org/x/sys v0.46.0 // indirect

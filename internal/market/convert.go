@@ -17,7 +17,7 @@ func (cv Converter) usdValue(c domain.Currency, d domain.Date) (float64, error) 
 	if c == domain.USD {
 		return 1, nil
 	}
-	rate, _, ok := cv.FX[c].At(d) // At est nil-safe
+	rate, _, ok := cv.FX[c].At(d) // At is nil-safe
 	if !ok {
 		return 0, fmt.Errorf("missing %s exchange rate on %s - run 'finador refresh'", c, d)
 	}
@@ -40,6 +40,8 @@ func (cv Converter) Rate(from, to domain.Currency, d domain.Date) (float64, erro
 	return f / t, nil
 }
 
+// Convert turns an amount in from into to, at the FX rate of date d
+// (forward-filled). It implements portfolio.FX.
 func (cv Converter) Convert(amount float64, from, to domain.Currency, d domain.Date) (float64, error) {
 	rate, err := cv.Rate(from, to, d)
 	if err != nil {

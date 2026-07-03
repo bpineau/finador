@@ -14,6 +14,7 @@ type Date struct {
 	Day   int
 }
 
+// ParseDate reads a strict YYYY-MM-DD day.
 func ParseDate(s string) (Date, error) {
 	t, err := time.Parse("2006-01-02", s)
 	if err != nil {
@@ -22,11 +23,13 @@ func ParseDate(s string) (Date, error) {
 	return DateOf(t), nil
 }
 
+// DateOf is the civil day of t, in t's location.
 func DateOf(t time.Time) Date {
 	y, m, d := t.Date()
 	return Date{y, m, d}
 }
 
+// Today is the current civil day in local time.
 func Today() Date { return DateOf(time.Now()) }
 
 func (d Date) String() string { return d.Time().Format("2006-01-02") }

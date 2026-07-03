@@ -2,6 +2,8 @@ package domain
 
 import "fmt"
 
+// AssetKind tells how an asset is valued: at the market price (Security) or
+// from dated Statement estimates (Property).
 type AssetKind uint8
 
 const (
@@ -9,6 +11,7 @@ const (
 	Property                      // property: valued from dated estimates
 )
 
+// ParseAssetKind reads "security" or "property".
 func ParseAssetKind(s string) (AssetKind, error) {
 	switch s {
 	case "security":
@@ -46,6 +49,8 @@ func (k *AssetKind) UnmarshalText(b []byte) error {
 	return nil
 }
 
+// AssetID is an asset's stable identifier: the slug of its original ticker or
+// name (Slugify), unchanged by later renames or retickers.
 type AssetID string
 
 // Asset is anything owned: a quoted security or a free-form property.

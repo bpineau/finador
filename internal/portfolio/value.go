@@ -26,6 +26,8 @@ type Valuation struct {
 	TaxNote         string
 }
 
+// Line is one row of a Valuation: a top-level group, an envelope (byAccount),
+// an asset or a cash line, depending on the scope.
 type Line struct {
 	Label           string
 	Gross, Tax, Net float64
@@ -47,6 +49,11 @@ func WithPriceOverrides(p map[domain.AssetID]float64) ValueOption {
 	return func(v *valuer) { v.overrides = p }
 }
 
+// Value prices a scope at a date, in the display currency ccy: security
+// positions at the forward-filled market close, properties and unquoted
+// holdings from their latest Statement, plus the tracked cash of in-scope
+// accounts - each with its estimated latent tax. It is the engine behind
+// `finador value` and the web dashboard; it never writes anything.
 func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx FX, opts ...ValueOption) (Valuation, error) {
 	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
 	for _, o := range opts {

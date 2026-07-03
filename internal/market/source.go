@@ -57,11 +57,14 @@ type Source interface {
 	Latest(ctx context.Context, ref Ref) (Quote, error)
 }
 
+// SymbolInfo is what Resolve learns about a free query: the canonical
+// quotable symbol and the instrument's full name.
 type SymbolInfo struct {
 	Symbol string
 	Name   string
 }
 
+// DailyData carries one instrument's raw daily history from a Source.
 type DailyData struct {
 	Currency  domain.Currency // quote currency (exchange metadata)
 	Closes    []domain.PricePoint
