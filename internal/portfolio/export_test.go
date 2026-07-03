@@ -160,3 +160,46 @@ func TestAllRowsIncludesCash(t *testing.T) {
 		t.Error("AllRows must expose the Livret tracked cash (12000)")
 	}
 }
+
+// ScopedRows with All must be exactly the full export; a narrower scope
+// keeps only its own positions and cash.
+func TestScopedRows(t *testing.T) {
+	b := valuationBook(t)
+	at := mustDate("2026-06-05")
+	fx := fxStub{}
+
+	all, err := AllRows(b, at, domain.EUR, fx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scoped, err := ScopedRows(b, Scope{Kind: All}, at, domain.EUR, fx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scoped) != len(all) {
+		t.Fatalf("All scope: %d rows, want %d", len(scoped), len(all))
+	}
+	for i := range all {
+		if all[i] != scoped[i] {
+			t.Errorf("row %d differs: %+v vs %+v", i, all[i], scoped[i])
+		}
+	}
+
+	pea, _ := b.Account("pea")
+	got, err := ScopedRows(b, Scope{Kind: ByAccount, Account: pea}, at, domain.EUR, fx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range got {
+		if r.Kind == "cash" && r.Name != "PEA" {
+			t.Errorf("foreign cash row leaked: %+v", r)
+		}
+		if r.Kind != "cash" && r.Name != "CW8" {
+			t.Errorf("foreign asset row leaked: %+v", r)
+		}
+	}
+	// pea holds cw8 (12 units after the edit-free sample trades) and cash.
+	if len(got) != 2 {
+		t.Fatalf("ByAccount rows = %+v, want cw8 + pea cash", got)
+	}
+}
