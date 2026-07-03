@@ -106,31 +106,26 @@ func perfCmd(a *app) *cobra.Command {
 			}
 
 			fmt.Fprintf(out, "%s - performance (%s), as of %s\n", scope.Label, display, evalTo)
-			fmt.Fprintf(out, "%-9s %14s %14s %16s\n", "PERIOD", "TWR", "XIRR", "GAIN ("+string(display)+")")
-			printRow := func(name, twrStr, xirrStr, gainStr string, ts, xs, gs float64) {
-				fmt.Fprintf(out, "%-9s %s %s %s\n",
+			fmt.Fprintf(out, "%-9s %14s %16s\n", "PERIOD", "TWR", "GAIN ("+string(display)+")")
+			printRow := func(name, twrStr, gainStr string, ts, gs float64) {
+				fmt.Fprintf(out, "%-9s %s %s\n",
 					name,
 					tint(pad(twrStr, 14), ts, colored),
-					tint(pad(xirrStr, 14), xs, colored),
 					tint(pad(gainStr, 16), gs, colored),
 				)
 			}
 			for _, row := range rows {
-				twrStr, xirrStr, gainStr := "-", "-", "-"
-				var ts, xs, gs float64
+				twrStr, gainStr := "-", "-"
+				var ts, gs float64
 				if row.HasTWR {
 					twrStr = pctSigned(row.TWR)
 					ts = row.TWR
-				}
-				if row.HasXIRR {
-					xirrStr = pctSigned(row.XIRR)
-					xs = row.XIRR
 				}
 				if row.HasGain {
 					gainStr = fmt.Sprintf("%+.2f", row.Gain)
 					gs = row.Gain
 				}
-				printRow(row.Name, twrStr, xirrStr, gainStr, ts, xs, gs)
+				printRow(row.Name, twrStr, gainStr, ts, gs)
 			}
 			if from != "" {
 				wf, err := domain.ParseDate(from)
@@ -138,7 +133,7 @@ func perfCmd(a *app) *cobra.Command {
 					return err
 				}
 				gainStr, gv := gainCell(res, wf, evalTo)
-				printRow("window", twrCell(res, wf, evalTo), xirrCell(res, wf, evalTo), gainStr, 0, 0, gv)
+				printRow("window", twrCell(res, wf, evalTo), gainStr, 0, gv)
 			}
 
 			summary := cmd.OutOrStdout()
@@ -211,28 +206,6 @@ func gainCell(res portfolio.SeriesResult, from, to domain.Date) (string, float64
 	}
 	g := pts[len(pts)-1].Value - pts[0].Value - nf
 	return fmt.Sprintf("%+.2f", g), g
-}
-
-// xirrCell: windows shorter than 30 days print "-" (annualizing a daily move
-// is meaningless).
-func xirrCell(res portfolio.SeriesResult, from, to domain.Date) string {
-	if to.Time().Sub(from.Time()).Hours() < 30*24 {
-		return "-"
-	}
-	pts, flows := window(res, from, to)
-	if len(pts) < 2 || pts[0].Value <= 0 {
-		return "-"
-	}
-	cfs := []perf.Flow{{Date: pts[0].Date, Amount: -pts[0].Value}}
-	for _, fl := range flows {
-		cfs = append(cfs, perf.Flow{Date: fl.Date, Amount: -fl.Amount})
-	}
-	cfs = append(cfs, perf.Flow{Date: pts[len(pts)-1].Date, Amount: pts[len(pts)-1].Value})
-	r, err := perf.XIRR(cfs)
-	if err != nil {
-		return "-"
-	}
-	return pctSigned(r)
 }
 
 // pctSigned formats a fraction as a signed percentage: "+2.00%" or "-1.50%".

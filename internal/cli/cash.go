@@ -18,7 +18,7 @@ func cashCmd(a *app) *cobra.Command {
 Which subcommand to use:
   deposit/withdraw  - external cash entering or leaving an envelope (an apport
                       or retrait). These are neutral for performance: they feed
-                      the tax basis and XIRR but do not count as gains or losses.
+                      the tax basis and the flows but never count as gains or losses.
   set               - the observed balance of the account at a point in time.
                       The gap between two statements counts as performance
                       (e.g. interest earned on a savings account).`,
@@ -26,7 +26,7 @@ Which subcommand to use:
 	}
 	cmd.AddCommand(
 		flowCmd(a, "deposit", domain.Deposit,
-			"External contribution to an account (tax basis, XIRR)",
+			"External contribution to an account (tax basis, neutral for performance)",
 			"  finador cash deposit \"PEA Zephyr\" 10000 2024-01-15"),
 		flowCmd(a, "withdraw", domain.Withdraw,
 			"External withdrawal from an account",

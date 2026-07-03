@@ -17,7 +17,7 @@ type SeriesPoint struct {
 }
 
 // ExternalFlow is money entering (>0) or leaving (<0) the scope, in display
-// currency - what TWR neutralizes and XIRR consumes.
+// currency - what the TWR neutralizes.
 type ExternalFlow struct {
 	Date   domain.Date
 	Amount float64
