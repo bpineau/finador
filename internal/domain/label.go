@@ -1,5 +1,6 @@
 package domain
 
+// LabelID is a label assignment's stable identifier (a NewID).
 type LabelID string
 
 // Label tags a position - a specific (account, asset) couple - with a free-form

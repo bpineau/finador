@@ -500,8 +500,9 @@ finador refresh        # force-refresh quotes, FX and dividends from Yahoo
 
 `value`, `perf` and `chart` refresh stale series automatically (at most once a
 day) before computing; network failures degrade to warnings and the cache keeps
-working. `--offline` skips all of it. The quote cache lives **inside** the
-encrypted file - your ticker list is sensitive metadata.
+working. `--offline` skips all of it. The quote cache lives in an **encrypted
+local sidecar** (your ticker list is sensitive metadata), never in the ledger
+file itself - it is regenerable and stays out of the synced history.
 
 ### Atypical assets (funds by ISIN)
 
@@ -784,9 +785,11 @@ one repo. Local mode stays the default and the fallback.
 
 - The transaction ledger is the single source of truth; positions, tax bases and
   series are replays. Transaction ids are stable and never reused.
-- File layout: `magic ‖ version ‖ Argon2id parameters ‖ salt ‖ nonce ‖
-  AES-256-GCM(gzip(JSON))` - the clear header is authenticated (AAD), so any
-  tampered byte fails decryption. Atomic writes (tmp + fsync + rename).
+- File layout: a clear JSON header line (format, Argon2id parameters, salt,
+  file id) followed by one AES-256-GCM-encrypted record per line, hash-chained
+  and closed by an authenticated trailer - the header is authenticated (AAD),
+  so any tampered, reordered or truncated byte fails decryption. Atomic writes
+  (tmp + fsync + rename). The full spec is [docs/FORMAT.md](docs/FORMAT.md).
 - KDF: Argon2id, time=3, memory=64 MiB. Parameters are bounds-checked before
   derivation, so a forged file cannot OOM the process.
 - No telemetry, no external resources; the only network calls are Yahoo quote

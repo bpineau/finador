@@ -7,6 +7,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// Currency is a 3-letter upper-case ISO code ("EUR"). Construct user input
+// via ParseCurrency, which normalizes and validates.
 type Currency string
 
 const (

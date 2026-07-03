@@ -8,6 +8,7 @@ import (
 	"finador/internal/domain"
 )
 
+// ScopeKind is the shape of a Scope: which positions and whose cash it keeps.
 type ScopeKind uint8
 
 const (
@@ -32,6 +33,9 @@ type Scope struct {
 	Excluded map[domain.AssetID]bool // assets removed from the scope (throwaway, CLI --exclude)
 }
 
+// ParseScope resolves the free scope argument of value/perf/chart: empty is
+// the whole portfolio, otherwise group prefix first, then account, then asset
+// (an ambiguity stops the search instead of falling through).
 func ParseScope(b *domain.Book, ref string) (Scope, error) {
 	if ref == "" {
 		return Scope{Kind: All, Label: "portfolio"}, nil
