@@ -1055,6 +1055,39 @@ func TestExportScoped(t *testing.T) {
 	}
 }
 
+// TestValueTree: value --tree renders the scoped envelope tree; it rejects
+// the flags that only make sense on the flat table.
+func TestValueTree(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+	run(t, db, "account", "add", "Livret")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--name", "Amundi MSCI World", "--group", "actions")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01", "--account", "PEA Zephyr")
+	run(t, db, "cash", "set", "Livret", "23000", "--at", "2026-06-01")
+	runNet(t, db, "value", "--at", "2026-06-05") // prime the price cache
+
+	out := run(t, db, "value", "--tree", "--at", "2026-06-05")
+	for _, want := range []string{"Holdings in EUR", "PEA Zephyr", "Livret", "TOTAL"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("value --tree: %q manquant dans:\n%s", want, out)
+		}
+	}
+	// Scoped: the other envelope disappears.
+	if out := run(t, db, "value", "PEA Zephyr", "--tree", "--at", "2026-06-05"); strings.Contains(out, "Livret") {
+		t.Errorf("scoped value --tree leaked foreign envelopes:\n%s", out)
+	}
+	// Incompatible flags error out.
+	for _, bad := range [][]string{
+		{"value", "--tree", "--gross"},
+		{"value", "--tree", "--by", "account"},
+		{"value", "--tree", "--what-if", "cw8=600"},
+	} {
+		if _, err := tryRun(t, db, bad...); err == nil {
+			t.Fatalf("%v aurait dû échouer", bad)
+		}
+	}
+}
+
 // lineContaining returns the first output line containing needle.
 func lineContaining(t *testing.T, out, needle string) string {
 	t.Helper()
