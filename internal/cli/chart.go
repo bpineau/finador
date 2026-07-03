@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -14,7 +13,7 @@ import (
 )
 
 func chartCmd(a *app) *cobra.Command {
-	var ccy, from, to string
+	var ccy, from, to, label string
 	var net bool
 	var width, height int
 	var exclude []string
@@ -34,17 +33,9 @@ func chartCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := portfolio.ParseScope(b, ref)
+			scope, err := resolveScope(b, ref, label, exclude)
 			if err != nil {
 				return err
-			}
-			excluded, err := parseExclusions(b, exclude)
-			if err != nil {
-				return err
-			}
-			if len(excluded) > 0 {
-				scope.Excluded = excluded
-				scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
 			}
 			display, err := currencyOr(ccy, b.DisplayCurrency())
 			if err != nil {
@@ -95,5 +86,6 @@ func chartCmd(a *app) *cobra.Command {
 	cmd.Flags().IntVar(&width, "width", 70, "width in characters")
 	cmd.Flags().IntVar(&height, "height", 12, "height in lines")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
+	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	return cmd
 }
