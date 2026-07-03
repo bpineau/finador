@@ -148,11 +148,63 @@ func TestSpotRefreshDegradesToWarnings(t *testing.T) {
 	b := bookWithTrade(t)
 	src := &fakeSource{fail: map[string]bool{"CW8.PA": true}}
 	sum := SpotRefresh(context.Background(), b, src)
-	if len(sum.Warnings) != 2 { // asset failed, FX not scripted (not covered)
-		t.Fatalf("warnings = %v, want 2", sum.Warnings)
+	// The failed asset warns; the unscripted FX is ErrNotCovered, which is a
+	// normal condition (its last daily close stands) and stays silent.
+	if len(sum.Warnings) != 1 || !strings.Contains(sum.Warnings[0], "CW8.PA") {
+		t.Fatalf("warnings = %v, want the failed asset only", sum.Warnings)
 	}
 	if len(sum.Quotes) != 0 {
 		t.Fatalf("quotes = %v, want none", sum.Quotes)
+	}
+}
+
+// batchSource wraps fakeSource with a scripted batch answer and counters.
+type batchSource struct {
+	fakeSource
+	batch      map[Ref]Quote
+	batchCalls int
+	batchRefs  int
+}
+
+func (b *batchSource) LatestBatch(_ context.Context, refs []Ref) map[Ref]Quote {
+	b.batchCalls++
+	b.batchRefs += len(refs)
+	out := map[Ref]Quote{}
+	for _, r := range refs {
+		if q, ok := b.batch[r]; ok {
+			out[r] = q
+		}
+	}
+	return out
+}
+
+// TestSpotRefreshBatch: one batch call serves the covered instruments; only
+// the misses fall back to Latest, and a not-covered miss stays silent.
+func TestSpotRefreshBatch(t *testing.T) {
+	b := bookWithTrade(t) // cw8 (CW8.PA) + the EUR account → EURUSD=X ref
+	at := domain.Today().Time().Add(15 * time.Hour)
+	src := &batchSource{batch: map[Ref]Quote{
+		{Symbol: "CW8.PA"}: {Price: 555.5, Time: at, Currency: domain.EUR, Live: true},
+		// EURUSD=X deliberately absent from the batch: per-ref fallback,
+		// which the embedded fakeSource answers with ErrNotCovered.
+	}}
+
+	sum := SpotRefresh(context.Background(), b, src)
+
+	if src.batchCalls != 1 || src.batchRefs != 2 {
+		t.Fatalf("batch calls = %d (refs %d), want 1 call covering both refs", src.batchCalls, src.batchRefs)
+	}
+	if got := src.calls; len(got) != 1 || got[0] != "LATEST EURUSD=X" {
+		t.Fatalf("fallback calls = %v, want only the batch miss", got)
+	}
+	if len(sum.Warnings) != 0 {
+		t.Fatalf("warnings: %v", sum.Warnings)
+	}
+	if close, _, ok := b.Market.Price("cw8").At(domain.Today()); !ok || close != 555.5 {
+		t.Errorf("today's close = %v, want the batched spot 555.5", close)
+	}
+	if q, ok := sum.Quotes["cw8"]; !ok || !q.Live {
+		t.Errorf("quote metadata: %+v (ok=%v)", q, ok)
 	}
 }
 

@@ -122,6 +122,35 @@ func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
 	return Quote{}, lastErr
 }
 
+// LatestBatch fetches the freshest price of many instruments in one pofo
+// call (one Yahoo quote request for the Yahoo-quoted ones). Refs are keyed
+// like Latest resolves them: ISIN preferred, symbol otherwise.
+func (p *Pofo) LatestBatch(ctx context.Context, refs []Ref) map[Ref]Quote {
+	ids := make([]string, 0, len(refs))
+	byID := make(map[string][]Ref, len(refs))
+	for _, ref := range refs {
+		id := ref.ISIN
+		if id == "" {
+			id = ref.Symbol
+		}
+		if id == "" {
+			continue
+		}
+		if len(byID[id]) == 0 {
+			ids = append(ids, id)
+		}
+		byID[id] = append(byID[id], ref)
+	}
+	quotes := p.Client.LatestBatch(ctx, ids)
+	out := make(map[Ref]Quote, len(quotes))
+	for id, q := range quotes {
+		for _, ref := range byID[id] {
+			out[ref] = Quote{Price: q.Price, Time: q.Time, Currency: domain.Currency(q.Currency), Live: q.Live}
+		}
+	}
+	return out
+}
+
 // Intraday returns 5-minute ticks for the current trading day. Yahoo is
 // the only intraday source; unknown symbols map to ErrNotCovered.
 func (p *Pofo) Intraday(ctx context.Context, ref Ref) (IntradayData, error) {
