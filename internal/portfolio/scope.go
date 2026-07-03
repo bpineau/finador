@@ -87,6 +87,59 @@ func IntersectScope(acc *domain.Account, group string) Scope {
 	return Scope{Kind: ByAccountGroup, Account: acc, Group: g, Label: acc.Name + " › " + g}
 }
 
+// PairScope is the scope of a single (account, asset) position: what one
+// line of a tree view measures. Cash is excluded (the envelope row owns it).
+func PairScope(acc *domain.Account, asset *domain.Asset) Scope {
+	return Scope{
+		Kind:  ByLabel,
+		Label: acc.Name + " › " + asset.Name,
+		Pairs: map[pairKey]bool{{acc: acc.ID, asset: asset.ID}: true},
+	}
+}
+
+// EnvelopeScope restricts s to one account: what the account's row of a tree
+// view measures. Cash is kept exactly when s itself keeps it.
+func EnvelopeScope(s Scope, acc *domain.Account) Scope {
+	out := Scope{Kind: ByAccount, Account: acc, Label: acc.Name, Excluded: s.Excluded}
+	switch s.Kind {
+	case All, ByAccount:
+		return out
+	case ByGroup:
+		out.Kind, out.Group = ByAccountGroup, s.Group
+		return out
+	case ByAsset:
+		return Scope{Kind: ByLabel, Label: acc.Name, Excluded: s.Excluded,
+			Pairs: map[pairKey]bool{{acc: acc.ID, asset: s.Asset.ID}: true}}
+	case ByLabel:
+		pairs := map[pairKey]bool{}
+		for k := range s.Pairs {
+			if k.acc == acc.ID {
+				pairs[k] = true
+			}
+		}
+		return Scope{Kind: ByLabel, Label: acc.Name, Excluded: s.Excluded, Pairs: pairs}
+	}
+	return out
+}
+
+// FilterScope keeps the breakdown lines that belong to s: the positions s
+// accepts, and the cash of accounts whose cash s accepts.
+func FilterScope(lines []PositionLine, s Scope) []PositionLine {
+	out := make([]PositionLine, 0, len(lines))
+	for _, l := range lines {
+		if l.Asset == nil {
+			if s.hasCash(l.Account) {
+				out = append(out, l)
+			}
+			continue
+		}
+		if s.hasAsset(l.Account, l.Asset) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 // inGroup reports whether an asset group path falls under scope (lowercase),
 // matching whole path segments.
 func inGroup(assetGroup, scope string) bool {
