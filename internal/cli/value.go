@@ -38,30 +38,9 @@ func valueCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			if ref != "" && label != "" {
-				return fmt.Errorf("use either a [scope] argument or --label, not both")
-			}
-			var scope portfolio.Scope
-			if label != "" {
-				s, err := portfolio.LabelScope(b, label)
-				if err != nil {
-					return err
-				}
-				scope = s
-			} else {
-				s, err := portfolio.ParseScope(b, ref)
-				if err != nil {
-					return err
-				}
-				scope = s
-			}
-			excluded, err := parseExclusions(b, exclude)
+			scope, err := resolveScope(b, ref, label, exclude)
 			if err != nil {
 				return err
-			}
-			if len(excluded) > 0 {
-				scope.Excluded = excluded
-				scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
 			}
 			date, err := dateOrToday(at)
 			if err != nil {

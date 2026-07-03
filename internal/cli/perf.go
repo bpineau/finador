@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -19,7 +18,7 @@ func perfCmd(a *app) *cobra.Command {
 	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "perf [scope]",
-		Short: "Returns (TWR, XIRR) by period and risk metrics",
+		Short: "Returns (TWR, gain) by period and risk metrics",
 		Example: "  finador perf\n" +
 			"  finador perf \"PEA Zephyr\"\n" +
 			"  finador perf equities/world\n" +
@@ -37,30 +36,9 @@ func perfCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			if ref != "" && label != "" {
-				return fmt.Errorf("use either a [scope] argument or --label, not both")
-			}
-			var scope portfolio.Scope
-			if label != "" {
-				s, err := portfolio.LabelScope(b, label)
-				if err != nil {
-					return err
-				}
-				scope = s
-			} else {
-				s, err := portfolio.ParseScope(b, ref)
-				if err != nil {
-					return err
-				}
-				scope = s
-			}
-			excluded, err := parseExclusions(b, exclude)
+			scope, err := resolveScope(b, ref, label, exclude)
 			if err != nil {
 				return err
-			}
-			if len(excluded) > 0 {
-				scope.Excluded = excluded
-				scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
 			}
 			display, err := currencyOr(ccy, b.DisplayCurrency())
 			if err != nil {

@@ -6,7 +6,36 @@ import (
 	"strings"
 
 	"finador/internal/domain"
+	"finador/internal/portfolio"
 )
+
+// resolveScope resolves the [scope]/--label/--exclude triple every read
+// command shares: an empty ref is the whole portfolio, --label restricts to
+// labelled positions, --exclude prunes assets and tags the scope label.
+func resolveScope(b *domain.Book, ref, label string, exclude []string) (portfolio.Scope, error) {
+	if ref != "" && label != "" {
+		return portfolio.Scope{}, fmt.Errorf("use either a [scope] argument or --label, not both")
+	}
+	var scope portfolio.Scope
+	var err error
+	if label != "" {
+		scope, err = portfolio.LabelScope(b, label)
+	} else {
+		scope, err = portfolio.ParseScope(b, ref)
+	}
+	if err != nil {
+		return portfolio.Scope{}, err
+	}
+	excluded, err := parseExclusions(b, exclude)
+	if err != nil {
+		return portfolio.Scope{}, err
+	}
+	if len(excluded) > 0 {
+		scope.Excluded = excluded
+		scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
+	}
+	return scope, nil
+}
 
 // currencyOr parses a user-supplied currency, empty meaning fallback.
 func currencyOr(s string, fallback domain.Currency) (domain.Currency, error) {
