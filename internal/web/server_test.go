@@ -508,7 +508,7 @@ func TestAssetsPage(t *testing.T) {
 		"Amundi MSCI World",    // an asset row
 		"/asset/cw8",           // clickable name
 		"assets-table",         // dense table
-		"GROSS", "NET", "1M", "1Y",
+		"NET", "1M", "1Y",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/assets: %q missing", want)
@@ -518,9 +518,13 @@ func TestAssetsPage(t *testing.T) {
 	if got := strings.Count(body, "<polyline"); got != 2 {
 		t.Errorf("polylines = %d, want 2", got)
 	}
-	// gross and net amounts of the position (10×560 = 5600 ; base 5500 → gain 100
-	// → tax 17.20 if gains:17.2% → net 5582.80)
-	for _, want := range []string{"5,600.00", "5,582.80"} {
+	// the after-tax net of the position, the page's single value column
+	// (10×560 = 5600 gross ; base 5500 → gain 100 → tax 17.20 → net 5582.80);
+	// the gross belongs to the CSV export, not to this page.
+	if strings.Contains(body, "GROSS") || strings.Contains(body, "5,600.00") {
+		t.Errorf("/assets: the GROSS column should be gone:\n%s", excerpt(body))
+	}
+	for _, want := range []string{"5,582.80"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/assets amounts: %q missing", want)
 		}

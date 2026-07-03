@@ -190,7 +190,7 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
 .assets-table .asset-name { padding-left: 1.1rem; }
 /* 1D reads like the asset-name text (same font, size and ink): only tabular
    figures so the percentages line up as a column. */
-.assets-table .daycell { width: 92px; text-align: right; padding-right: .4rem; }
+.assets-table .daycell { width: 128px; text-align: right; padding-right: 1rem; }
 .assets-table td.daycell { font-variant-numeric: tabular-nums; }
 /* Fixed-width slot so the percentages line up whether or not a row has an
    arrow (a flat +0.00% still reserves the arrow column). */
@@ -199,7 +199,7 @@ button.lien { background: none; border: none; color: var(--garance); padding: 0;
    muted and dated, instead of an empty cell. */
 .assets-table td.daycell .stale-1d { color: var(--encre-2); }
 .assets-table td.daycell .stale-date { font-size: .7rem; }
-.assets-table .sparkcell { width: 76px; padding: .15rem .1rem; }
+.assets-table .sparkcell { width: 76px; padding: .15rem .5rem .15rem .1rem; }
 .assets-table .sparkcell svg { display: block; }
 .assets-table .nombre { width: 110px; }
 /* names stay clickable but read as plain text, not underlined links */
