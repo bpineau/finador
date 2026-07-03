@@ -438,6 +438,15 @@ func TestChartEndToEnd(t *testing.T) {
 	if out := runNet(t, db, "chart", "--net", "--to", "2026-06-05"); !strings.Contains(out, "net") {
 		t.Errorf("chart --net:\n%s", out)
 	}
+	// --label scopes the curve like perf/value do.
+	run(t, db, "label", "add", "retraite", "--account", "PEA Zephyr", "--asset", "cw8")
+	if out := runNet(t, db, "chart", "--label", "retraite", "--to", "2026-06-05"); !strings.Contains(out, "retraite") {
+		t.Errorf("chart --label:\n%s", out)
+	}
+	// scope argument and --label together: the shared error.
+	if _, err := tryRunNet(t, db, "chart", "cw8", "--label", "retraite"); err == nil {
+		t.Fatal("chart avec scope ET --label devrait échouer")
+	}
 }
 
 func TestAddTradeCashAndFlows(t *testing.T) {
