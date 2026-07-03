@@ -145,3 +145,22 @@ func TestAssetDeleteGuard(t *testing.T) {
 		t.Error("asset not removed")
 	}
 }
+
+// TestAssetsStaleQuoteShown: an instrument whose last published close
+// predates today (NAV lag) shows that close's day move, muted and dated,
+// instead of an empty 1D cell.
+func TestAssetsStaleQuoteShown(t *testing.T) {
+	srv, _ := testServer(t) // cw8's last close is today-5: 550 → 560 (+1.82%)
+
+	code, body := get(t, srv, "/assets")
+	if code != 200 {
+		t.Fatalf("GET /assets = %d\n%s", code, excerpt(body))
+	}
+	last := domain.Today().AddDays(-5)
+	wantDate := fmt.Sprintf("%02d-%02d", last.Month, last.Day)
+	for _, want := range []string{"stale-1d", "1.82%", wantDate} {
+		if !strings.Contains(body, want) {
+			t.Errorf("/assets: %q missing (stale 1D cell):\n%s", want, excerpt(body))
+		}
+	}
+}

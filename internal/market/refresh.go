@@ -120,7 +120,8 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	}
 
 	batched := map[Ref]Quote{}
-	if bs, ok := src.(BatchSource); ok && len(targets) > 0 {
+	bs, isBatch := src.(BatchSource)
+	if isBatch && len(targets) > 0 {
 		refs := make([]Ref, len(targets))
 		for i, t := range targets {
 			refs[i] = t.ref
@@ -130,6 +131,13 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	for _, t := range targets {
 		q, ok := batched[t.ref]
 		if !ok {
+			// A batch answer is authoritative: its misses already exhausted
+			// the source's own fallbacks, re-asking one by one would only
+			// repeat the slow path for the same result. The instrument's
+			// last daily close stands until the next pass.
+			if isBatch {
+				continue
+			}
 			var err error
 			if q, err = src.Latest(ctx, t.ref); err != nil {
 				if !errors.Is(err, ErrNotCovered) {

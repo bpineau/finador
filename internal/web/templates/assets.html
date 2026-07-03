@@ -41,7 +41,7 @@
     {{range .Rows}}
     <tr>
       <td class="asset-name"><a href="{{.URL}}">{{.Name}}</a></td>
-      <td class="daycell">{{if .HasDay1d}}{{fmtPct .Day1d}}<span class="arr">{{arrow .Day1d}}</span>{{end}}</td>
+      <td class="daycell">{{if .HasDay1d}}{{fmtPct .Day1d}}<span class="arr">{{arrow .Day1d}}</span>{{else if .HasStale1d}}<span class="stale-1d" title="last published close">{{fmtPct .Stale1d}} <span class="stale-date">{{.StaleOn}}</span></span>{{end}}</td>
       <td class="sparkcell">{{.Spark1M}}</td>
       <td class="sparkcell">{{.Spark1Y}}</td>
       <td class="edit-cell"><a href="{{.EditURL}}" title="edit asset">✎</a></td>
