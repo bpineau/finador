@@ -388,20 +388,20 @@ func TestPerfEndToEnd(t *testing.T) {
 	// series: 5000 flat until June 1st (the buy is neutral), then
 	// 06-05: 10×560 − 500 = 5100 → TWR since inception = +2.00 %.
 	// 146 days of history: vol/Sharpe/Sortino shown, CAGR hidden (< 1 year).
-	for _, want := range []string{"PERIOD", "TWR", "XIRR", "inception", "+2.00%",
+	for _, want := range []string{"PERIOD", "TWR", "inception", "+2.00%",
 		"GAIN (EUR)", "+100.00", // money P&L, net of contributions (10×(560−550))
 		"tracking since 2026-01-10 (146 d)", "Sharpe", "Sortino", "max drawdown"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf: %q manquant dans:\n%s", want, out)
 		}
 	}
+	// XIRR is gone for good: opaque jargon, annualized noise on short spans.
+	if strings.Contains(out, "XIRR") {
+		t.Errorf("XIRR ne devrait plus apparaître:\n%s", out)
+	}
 	// CAGR only makes sense at ≥ 1 year: hidden here.
 	if strings.Contains(out, "CAGR") {
 		t.Errorf("CAGR ne devrait pas apparaître sous 1 an d'historique:\n%s", out)
-	}
-	// XIRR of short windows: dash
-	if !strings.Contains(out, "-") {
-		t.Errorf("tiret XIRR absent:\n%s", out)
 	}
 
 	// nonexistent scope → clean error

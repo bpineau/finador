@@ -17,7 +17,7 @@ const (
 	Sell
 	Dividend
 	Fee
-	Deposit   // external contribution: feeds the tax basis and the XIRR
+	Deposit   // external contribution: feeds the tax basis and the performance flows
 	Withdraw  // external withdrawal
 	Statement // cash balance or property estimate, recorded on a date
 )

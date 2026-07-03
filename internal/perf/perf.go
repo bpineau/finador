@@ -5,7 +5,6 @@
 package perf
 
 import (
-	"errors"
 	"math"
 	"time"
 
@@ -69,28 +68,6 @@ func TWR(points []Point, flows []Flow) float64 {
 func DailyReturns(points []Point, flows []Flow) []float64 {
 	dates, values := toSeries(points)
 	return metrics.FlowReturns(dates, values, toFlows(flows))
-}
-
-// XIRR solves the money-weighted annual rate. Cashflows follow the
-// investor's convention: invested money negative, final value positive
-// (the last cashflow is the terminal value).
-func XIRR(cashflows []Flow) (float64, error) {
-	if len(cashflows) < 2 {
-		return 0, errors.New("XIRR: at least two cashflows required")
-	}
-	n := len(cashflows) - 1
-	dates := make([]time.Time, n)
-	flows := make([]float64, n)
-	for i, f := range cashflows[:n] {
-		dates[i] = f.Date.Time()
-		flows[i] = f.Amount
-	}
-	final := cashflows[n]
-	r, ok := metrics.IRR(dates, flows, final.Date.Time(), final.Amount)
-	if !ok {
-		return 0, errors.New("XIRR undefined for these cashflows (no sign change)")
-	}
-	return r, nil
 }
 
 // CAGR annualizes a total return over a calendar-day span.

@@ -42,54 +42,6 @@ func TestReportOrigineHasTWR(t *testing.T) {
 	approx(t, "TWR inception", origRow.TWR, 0.02, 1e-9)
 }
 
-func TestReportXIRRPresentOnLongWindow(t *testing.T) {
-	start := d("2026-01-01")
-	evalTo := d("2026-04-11") // > 30 days
-	pts := syntheticSeries(start, 99, evalTo)
-
-	rows, _ := Report(pts, nil, evalTo, 0)
-
-	var origRow *Row
-	for i := range rows {
-		if rows[i].Name == "inception" {
-			origRow = &rows[i]
-		}
-	}
-	if origRow == nil {
-		t.Fatal("inception row absent")
-	}
-	if !origRow.HasXIRR {
-		t.Fatal("XIRR expected on long window")
-	}
-}
-
-func TestReportXIRRDashOnShortNamedPeriods(t *testing.T) {
-	// The named periods "1j", "2j", "5j", "7j" last < 30 days →
-	// HasXIRR must be false (annualizing a micro-movement is meaningless).
-	start := d("2025-06-01")
-	evalTo := d("2026-06-01") // one year of data
-	var pts []Point
-	for i := range 366 {
-		pts = append(pts, Point{Date: start.AddDays(i), Value: 100.0 + float64(i)*0.01})
-	}
-
-	rows, _ := Report(pts, nil, evalTo, 0)
-
-	shortPeriods := map[string]bool{"1d": true, "2d": true, "5d": true, "7d": true}
-	for _, row := range rows {
-		if shortPeriods[row.Name] && row.HasXIRR {
-			t.Errorf("short period %q should not have HasXIRR=true", row.Name)
-		}
-	}
-	// long periods (1m, 3m, 1y) must have XIRR
-	longPeriods := map[string]bool{"1m": true, "3m": true, "1y": true}
-	for _, row := range rows {
-		if longPeriods[row.Name] && !row.HasXIRR {
-			t.Errorf("long period %q should have HasXIRR=true", row.Name)
-		}
-	}
-}
-
 // Gain is the value change net of contributions: declaring/adding money is
 // never a gain, only what that money then earns.
 func TestReportGainNetsOutContributions(t *testing.T) {

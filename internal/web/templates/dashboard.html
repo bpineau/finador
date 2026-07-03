@@ -53,12 +53,11 @@
   <h2>performance</h2>
   {{if .Rows}}
   <table>
-    <tr><th>period</th><th class="nombre">TWR</th><th class="nombre">XIRR</th><th class="nombre">gain</th></tr>
+    <tr><th>period</th><th class="nombre">TWR</th><th class="nombre">gain</th></tr>
     {{range .Rows}}
     <tr>
       <td>{{.Name}}</td>
       <td class="nombre delta {{if .HasTWR}}{{signe .TWR}}{{end}}">{{if .HasTWR}}{{fmtPct .TWR}}{{else}}-{{end}}</td>
-      <td class="nombre delta {{if .HasXIRR}}{{signe .XIRR}}{{end}}">{{if .HasXIRR}}{{fmtPct .XIRR}}{{else}}-{{end}}</td>
       <td class="nombre delta {{if .HasGain}}{{signe .Gain}}{{end}}">{{if .HasGain}}{{fmtMoney .Gain $.Val.Currency}}{{else}}-{{end}}</td>
     </tr>
     {{end}}
