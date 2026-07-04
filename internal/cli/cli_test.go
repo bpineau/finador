@@ -1068,10 +1068,15 @@ func TestValueTree(t *testing.T) {
 	runNet(t, db, "value", "--at", "2026-06-05") // prime the price cache
 
 	out := run(t, db, "value", "--tree", "--at", "2026-06-05")
-	for _, want := range []string{"Holdings in EUR", "PEA Zephyr", "Livret", "TOTAL"} {
+	// PEA Zephyr holds a single security: a bare header now reveals the held
+	// asset on an indented child instead of collapsing its name away.
+	for _, want := range []string{"Holdings in EUR", "PEA Zephyr", "Amundi MSCI World", "Livret", "TOTAL"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("value --tree: %q manquant dans:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "2026-06-05\n\n") {
+		t.Errorf("stray blank line under the header:\n%s", out)
 	}
 	// Scoped: the other envelope disappears.
 	if out := run(t, db, "value", "PEA Zephyr", "--tree", "--at", "2026-06-05"); strings.Contains(out, "Livret") {

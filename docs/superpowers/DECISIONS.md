@@ -330,3 +330,28 @@ trou d'un jour. (3) `refresh.go` garde une **garde de rejet** (jamais de
 merge off-currency) : `Source` est une interface pluggable, l'invariant
 appartient à finador - c'est du contrat d'interface, plus de la logique
 métier. `Ref` gagne un champ `Currency` pour exprimer ce contrat.
+
+## D25 - `value`/`export --tree` : le compte est un en-tête, pas un sous-total
+
+**Date** : 2026-07-04
+
+**Contexte :** l'ancien rendu (a) repliait toute enveloppe à une seule ligne sur le
+nom du compte, masquant l'actif (un CTO ne portant que Datadog n'affichait que
+« CTO Etrade »), et pour un fonds collait son ISIN au nom du compte
+(« PEA PME Boursobank (LU1832174962) ») ; (b) portait le total gross/net sur la
+ligne du compte **et** sur ses positions indentées, donc les colonnes redoublaient
+la même somme pour tout compte mono-ligne. Un saut de ligne parasite suivait aussi
+l'en-tête « Holdings in … ».
+**Choix :** chaque enveloppe détenant un titre devient un **en-tête nu** (aucun
+chiffre) surmontant ses avoirs indentés, qui seuls portent gross/net ; le total par
+enveloppe se lit en sommant ses enfants (ou dans le web). Un ISIN appartient à
+l'actif, jamais au compte. Seule exception : une enveloppe **tout-cash**, dont
+l'unique enfant « cash » ne ferait qu'écho, reste une ligne numérotée unique
+(`TreeEnvelope.CashOnly`). Vaut pour `value --tree` et `export --tree`.
+**perf --tree distinct (D22 tenu) :** la ligne enveloppe y **garde** valeur nette et
+TWR de période, car le rendement d'enveloppe est un nombre agrégé genuine (moyenne
+pondérée), pas une redite ; seul le repli mono-ligne / l'ISIN collé sont corrigés
+(les titres s'affichent toujours indentés).
+**Écarté :** garder les sous-totaux sur la ligne du compte (option « sous-totaux ») ;
+lisible mais redonde visiblement la somme des enfants pour les comptes mono-actif,
+ce que l'utilisateur voulait éviter.

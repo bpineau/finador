@@ -96,23 +96,45 @@ func TestWriteAssetTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
+	rows := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	hasDigit := func(s string) bool { return strings.ContainsAny(s, "0123456789") }
+	find := func(prefix string) string {
+		for _, ln := range rows {
+			if strings.HasPrefix(ln, prefix) {
+				return ln
+			}
+		}
+		return ""
+	}
 
-	// header advertises the currency and valuation date
+	// header advertises the currency and valuation date, with no blank line
+	// wedged under it.
 	if !strings.Contains(out, "Holdings in EUR at 2026-06-05") {
 		t.Errorf("missing header:\n%s", out)
 	}
-	// the PEA envelope holds the cw8 position (with its ISIN) AND cash: not
-	// collapsed, so a child line carries "CW8 (LU1681043599)".
+	if strings.Contains(out, "at 2026-06-05\n\n") {
+		t.Errorf("stray blank line under the header:\n%s", out)
+	}
+	// the PEA envelope holds the cw8 position (with its ISIN) AND cash: a bare
+	// header over two indented children, one carrying "CW8 (LU1681043599)".
 	if !strings.Contains(out, "CW8 (LU1681043599)") {
 		t.Errorf("expected the held asset with its ISIN:\n%s", out)
 	}
 	if !strings.Contains(out, "cash") {
 		t.Errorf("tracked cash must surface as a child line:\n%s", out)
 	}
-	// the Immo envelope holds a single property: collapsed onto the account
-	// name (a property carries no ISIN).
-	if !strings.Contains(out, "Immo") {
-		t.Errorf("single-position envelope should collapse onto its name:\n%s", out)
+	// the Immo envelope holds a single property: a bare header (no total of its
+	// own) over an indented child that finally reveals the property's name.
+	if immo := find("Immo"); immo == "" || hasDigit(immo) {
+		t.Errorf("a security-holding account must be a bare header, got %q:\n%s", immo, out)
+	}
+	if !strings.Contains(out, "Maison à Rénover") {
+		t.Errorf("the single property must surface on an indented child:\n%s", out)
+	}
+	// the Livret holds only cash: it stays a single numbered row, no redundant
+	// "cash" child under it.
+	if livret := find("Livret"); !hasDigit(livret) {
+		t.Errorf("a cash-only account must keep its total on one row, got %q:\n%s", livret, out)
 	}
 	// a TOTAL footer with a net below the gross (latent tax on the house gain)
 	var totG, totN float64

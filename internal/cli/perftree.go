@@ -74,26 +74,14 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 	var totNet float64
 	for _, env := range envs {
 		totNet += env.Net
-		hasSecurities := false
-		for _, it := range env.Items {
-			if it.Asset != nil {
-				hasSecurities = true
-			}
-		}
 		envTexts, envSigns := dashes()
-		if hasSecurities { // a cash-only envelope has no market performance to show
+		if !env.CashOnly() { // a cash-only envelope has no market performance to show
 			envTexts, envSigns = cells(portfolio.EnvelopeScope(scope, env.Account))
 		}
-		if len(env.Items) == 1 {
-			it := env.Items[0]
-			label := env.Account.Name
-			if it.Asset != nil && it.Asset.ISIN != "" {
-				label += " (" + it.Asset.ISIN + ")"
-			}
-			rows = append(rows, row{label: label, net: num(env.Net), cells: envTexts, signs: envSigns})
+		rows = append(rows, row{label: env.Account.Name, net: num(env.Net), cells: envTexts, signs: envSigns})
+		if env.CashOnly() { // its lone cash child would only echo the envelope row
 			continue
 		}
-		rows = append(rows, row{label: env.Account.Name, net: num(env.Net), cells: envTexts, signs: envSigns})
 		for _, it := range env.Items {
 			t, s := dashes()
 			if it.Asset != nil {
