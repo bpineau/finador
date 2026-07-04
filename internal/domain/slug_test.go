@@ -4,8 +4,8 @@ import "testing"
 
 func TestSlugify(t *testing.T) {
 	for in, want := range map[string]string{
-		"PEA Zephyr":     "pea-zephyr",
-		"CTO Meridia":         "cto-meridia",
+		"PEA Zephyr":       "pea-zephyr",
+		"CTO Meridia":      "cto-meridia",
 		"Maison à Rénover": "maison-a-renover",
 		"CW8.PA":           "cw8-pa",
 		"  défi  élevé!  ": "defi-eleve",
