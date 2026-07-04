@@ -217,9 +217,23 @@ func (it TreeItem) Label() string {
 	return fmt.Sprintf("%s (%s)", it.Asset.Name, it.Asset.ISIN)
 }
 
+// CashOnly reports whether the envelope holds nothing but cash. Such an
+// envelope, whose sole indented child would merely echo the account line,
+// is rendered as a single row by the tree views instead of a header.
+func (e TreeEnvelope) CashOnly() bool {
+	for _, it := range e.Items {
+		if it.Asset != nil {
+			return false
+		}
+	}
+	return true
+}
+
 // WriteAssetTree renders the holdings as an indented, envelope-grouped tree with
-// two right-aligned columns (gross, after-tax net) in ccy at `at`. An envelope
-// holding a single line-item is collapsed onto one row (its ISIN kept, if any).
+// two right-aligned columns (gross, after-tax net) in ccy at `at`. Each envelope
+// is a bare header over its indented holdings, which carry the figures; the
+// per-envelope total lives only in its children's columns. A cash-only envelope,
+// whose lone child would merely echo it, collapses onto a single numbered row.
 func WriteAssetTree(w io.Writer, lines []PositionLine, ccy domain.Currency, at domain.Date) error {
 	envs := AssetTree(lines)
 
@@ -234,16 +248,11 @@ func WriteAssetTree(w io.Writer, lines []PositionLine, ccy domain.Currency, at d
 	for _, env := range envs {
 		totGross += env.Gross
 		totNet += env.Net
-		if len(env.Items) == 1 {
-			it := env.Items[0]
-			text := env.Account.Name
-			if it.Asset != nil && it.Asset.ISIN != "" {
-				text = fmt.Sprintf("%s (%s)", env.Account.Name, it.Asset.ISIN)
-			}
-			rows = append(rows, row{text: text, gross: env.Gross, net: env.Net, hasNum: true})
+		if env.CashOnly() {
+			rows = append(rows, row{text: env.Account.Name, gross: env.Gross, net: env.Net, hasNum: true})
 			continue
 		}
-		rows = append(rows, row{text: env.Account.Name, gross: env.Gross, net: env.Net, hasNum: true})
+		rows = append(rows, row{text: env.Account.Name}) // bare header, no total of its own
 		for _, it := range env.Items {
 			rows = append(rows, row{text: "  " + it.Label(), gross: it.Gross, net: it.Net, hasNum: true})
 		}
@@ -267,10 +276,14 @@ func WriteAssetTree(w io.Writer, lines []PositionLine, ccy domain.Currency, at d
 	}
 
 	var bld strings.Builder
-	fmt.Fprintf(&bld, "Holdings in %s at %s\n\n", ccy, at)
+	fmt.Fprintf(&bld, "Holdings in %s at %s\n", ccy, at)
 	bld.WriteString(line("", grossHdr, netHdr))
 	for _, r := range rows {
-		bld.WriteString(line(r.text, num(r.gross), num(r.net)))
+		if r.hasNum {
+			bld.WriteString(line(r.text, num(r.gross), num(r.net)))
+		} else {
+			bld.WriteString(line(r.text, "", "")) // header row: label only
+		}
 	}
 	bld.WriteString(strings.Repeat("-", labelW+gap+numW+numW+gap) + "\n")
 	bld.WriteString(line("TOTAL", num(totGross), num(totNet)))
