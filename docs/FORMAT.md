@@ -228,7 +228,7 @@ Every decrypted record plaintext is a JSON object:
 | Field | Type | Notes |
 |---|---|---|
 | `k` | string | record kind (enumerated below) |
-| `ts` | string | creation timestamp, RFC 3339 with nanoseconds, UTC (e.g. `2026-06-13T13:36:03.896575Z`). Stamped when the record is first written; part of the sealed plaintext. Used as the ordering / last-writer-wins key for merge. |
+| `ts` | string | creation timestamp, RFC 3339 with nanoseconds, UTC (e.g. `2026-06-13T13:36:03.896575Z`). Stamped when the record is first written; part of the sealed plaintext. Used as the ordering / last-writer-wins key for merge. **Compare it as a parsed instant, not as a string**: RFC 3339 renders a whole second without a fractional part (`…03Z`), which sorts *after* a later fractional instant of the same second under a byte compare (`'Z' > '.'`). A merge that ordered lexically could elect the older write. |
 | `d` | object | the payload, schema depends on `k` |
 
 The entity's own `id` lives **inside `d`**, not in the envelope.
@@ -448,8 +448,10 @@ On save it:
    producing the minimal set of new records (a created/changed entity ⇒ a fresh
    record; a removed entity ⇒ a `*-del` record). Order within a save: `config`,
    then accounts (and account deletes), then assets (and asset deletes), then
-   transactions (`tx` for new, `tx-edit` for changed) and transaction deletes -
-   definitions before references.
+   transactions (`tx` for new, `tx-edit` for changed) and transaction deletes,
+   then labels (and label deletes) - definitions before references. (A reader
+   never depends on this order: the fold is by id and every record carries its
+   own `ts`; the order only keeps a single save's diff tidy.)
 2. **Re-emits all existing record lines byte-for-byte**, then appends the new
    sealed lines continuing the hash chain (each new record's `seq` continues from
    the existing count; its `prevTag` is the running last tag).

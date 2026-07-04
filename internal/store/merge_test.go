@@ -135,6 +135,35 @@ func TestMergeLWWByTs(t *testing.T) {
 	}
 }
 
+// TestMergeLWWWholeSecondVsFraction guards chronological (not lexical) ts
+// ordering. Go renders a whole second without a fractional part ("…03Z") and
+// 'Z' > '.', so a plain string compare would rank a whole-second edit AFTER a
+// later fractional edit in the same second, electing the older write. The
+// later (fractional) edit must win. This matters cross-implementation: a
+// foreign writer (the Android client) may legitimately emit second-precision
+// RFC3339 timestamps.
+func TestMergeLWWWholeSecondVsFraction(t *testing.T) {
+	f1, f2 := twoCopies(t, "pw")
+	sealRecords(t, f1, []record{
+		txRec(kTx, "X", "2026-06-13T10:00:00Z", "create"),
+		txRec(kTxEdit, "X", "2026-06-13T12:00:03.000000001Z", "fractional, later"),
+	})
+	sealRecords(t, f2, []record{
+		txRec(kTx, "X", "2026-06-13T10:00:00Z", "create"),
+		txRec(kTxEdit, "X", "2026-06-13T12:00:03Z", "whole second, earlier"),
+	})
+	if _, err := f1.Merge(f2, rejectResolve(t)); err != nil {
+		t.Fatal(err)
+	}
+	back, err := Open(f1.Path, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasTxNote(back.Book, "X", "fractional, later") {
+		t.Fatalf("LWW elected the older whole-second edit (lexical ts order): %+v", back.Book.Transactions)
+	}
+}
+
 // TestMergeConflictTie: same tx, same ts, different payloads -> resolve invoked.
 func TestMergeConflictTie(t *testing.T) {
 	f1, f2 := twoCopies(t, "pw")
