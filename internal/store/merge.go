@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 )
 
 // Conflict is a true tie surfaced to the user: the same entity edited at the
@@ -44,6 +45,18 @@ func classOf(k recKind) string {
 
 func isTombstone(k recKind) bool {
 	return k == kAcctDel || k == kAssetDel || k == kTxDel || k == kLabelDel
+}
+
+// tsInstant parses a record's ts into an instant for chronological ordering.
+// A plain string compare of RFC3339Nano is NOT chronological: Go renders a
+// whole second without a fractional part ("…03Z"), and 'Z' > '.', so a whole
+// second would sort after a later fractional instant in the same second. That
+// would silently elect the older write during the last-writer-wins merge - the
+// one place the format promises no loss. A malformed ts (never produced by this
+// writer) parses to the zero time, keeping the order deterministic.
+func tsInstant(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339Nano, ts)
+	return t
 }
 
 // entityID returns the identity of the entity a record refers to: d.id for
@@ -119,16 +132,21 @@ func (f *File) Merge(other *File, resolve func(Conflict) (int, error)) (MergeSta
 
 	for _, k := range order {
 		recs := groups[k]
-		// Sort by ts (RFC3339Nano string compare is chronological); stable, so
-		// equal-ts records keep their gather order (this file before other).
-		sort.SliceStable(recs, func(i, j int) bool { return recs[i].rec.Ts < recs[j].rec.Ts })
+		// Sort by instant, not lexically: RFC3339Nano string compare is NOT
+		// chronological (see tsInstant). Stable, so equal-instant records keep
+		// their gather order (this file before other).
+		sort.SliceStable(recs, func(i, j int) bool {
+			return tsInstant(recs[i].rec.Ts).Before(tsInstant(recs[j].rec.Ts))
+		})
 		maxTs := recs[len(recs)-1].rec.Ts
+		maxInstant := tsInstant(maxTs)
 
-		// The contenders are the records at maxTs. Reduce them to distinct
-		// payloads (same K + same D bytes): identical writes are not a conflict.
+		// The contenders are the records at the latest instant. Reduce them to
+		// distinct payloads (same K + same D bytes): identical writes are not a
+		// conflict.
 		var top []taggedRecord
 		for _, tr := range recs {
-			if tr.rec.Ts == maxTs {
+			if tsInstant(tr.rec.Ts).Equal(maxInstant) {
 				top = append(top, tr)
 			}
 		}
@@ -167,9 +185,11 @@ func (f *File) Merge(other *File, resolve func(Conflict) (int, error)) (MergeSta
 		winners = append(winners, winner.rec)
 	}
 
-	// Output records sorted by ts (preserving each record's own ts), so history
-	// stays meaningful and the log is chronological.
-	sort.SliceStable(winners, func(i, j int) bool { return winners[i].Ts < winners[j].Ts })
+	// Output records sorted by instant (preserving each record's own ts), so
+	// history stays meaningful and the log is chronological.
+	sort.SliceStable(winners, func(i, j int) bool {
+		return tsInstant(winners[i].Ts).Before(tsInstant(winners[j].Ts))
+	})
 
 	if err := f.reseal(winners); err != nil {
 		return MergeStats{}, err
