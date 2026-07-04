@@ -34,25 +34,16 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 			continue
 		}
 		from := priceFetchFrom(b, asset.ID, series)
-		data, err := src.Daily(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN}, from)
+		data, err := src.Daily(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN, Currency: asset.Currency}, from)
 		if err != nil {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", asset.Ticker, err))
 			continue
 		}
-		// A currency mismatch means the source served a twin listing on
-		// another exchange (the ISIN resolution favors the deepest history,
-		// which may live on another market): one such point poisons the
-		// series. The declared ticker is the authoritative line - refetch
-		// it directly; if even that is off-currency, skip the merge and
-		// leave FetchedAt unstamped so a later run can try again.
-		if data.Currency != "" && data.Currency != asset.Currency {
-			if asset.ISIN != "" && asset.Ticker != "" {
-				if d2, err2 := src.Daily(ctx, Ref{Symbol: asset.Ticker}, from); err2 == nil &&
-					(d2.Currency == "" || d2.Currency == asset.Currency) {
-					data = d2
-				}
-			}
-		}
+		// Contract enforcement, not business logic: the Pofo source already
+		// guarantees the declared currency (it retries the authoritative
+		// ticker and rejects twin listings itself); a third-party Source
+		// must not be able to poison the persisted series either. Skipping
+		// leaves FetchedAt unstamped so a later run can try again.
 		if data.Currency != "" && data.Currency != asset.Currency {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
 				"%s quotes in %s but the asset is declared in %s: quotes ignored",
@@ -75,7 +66,7 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		}
 		from := fxFetchFrom(b, series)
 		symbol := string(ccy) + "USD=X"
-		data, err := src.Daily(ctx, Ref{Symbol: symbol}, from)
+		data, err := src.Daily(ctx, Ref{Symbol: symbol, Currency: domain.USD}, from)
 		if err != nil {
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", symbol, err))
 			continue
@@ -125,16 +116,12 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 		}
 		id, ccy, ticker := asset.ID, asset.Currency, asset.Ticker
 		targets = append(targets, target{
-			ref: Ref{Symbol: asset.Ticker, ISIN: asset.ISIN},
+			ref: Ref{Symbol: asset.Ticker, ISIN: asset.ISIN, Currency: ccy},
 			apply: func(q Quote) {
-				// Same guard as the daily fetch: a quote in another currency
-				// is a twin listing. Retry the declared ticker directly (the
-				// authoritative line) before giving up on the point.
-				if q.Currency != "" && q.Currency != ccy && ticker != "" {
-					if q2, err := src.Latest(ctx, Ref{Symbol: ticker}); err == nil {
-						q = q2
-					}
-				}
+				// Same contract enforcement as the daily fetch: the Source
+				// promises the declared currency (converting a last-resort
+				// spot itself); an off-currency answer is dropped, never
+				// merged.
 				if q.Currency != "" && q.Currency != ccy {
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf(
 						"%s spot in %s but the asset is declared in %s: quote ignored", ticker, q.Currency, ccy))
@@ -149,7 +136,7 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 		series := b.Market.FXSeries(ccy)
 		symbol := string(ccy) + "USD=X"
 		targets = append(targets, target{
-			ref: Ref{Symbol: symbol},
+			ref: Ref{Symbol: symbol, Currency: domain.USD},
 			apply: func(q Quote) {
 				if q.Currency != "" && q.Currency != domain.USD {
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf(
