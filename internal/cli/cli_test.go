@@ -1114,7 +1114,7 @@ func TestPerfTree(t *testing.T) {
 	run(t, db, "cash", "set", "Livret", "23000", "--at", "2026-06-01")
 
 	out := runNet(t, db, "perf", "--tree", "--to", "2026-06-05")
-	for _, want := range []string{"CTO Meridia", "Amundi MSCI World", "Livret", "TOTAL", "NET", "1d", "5d", "1m", "3m"} {
+	for _, want := range []string{"CTO Meridia", "Amundi MSCI World", "Livret", "TOTAL", "NET", "1d", "7d", "1m", "3m"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf --tree: %q manquant dans:\n%s", want, out)
 		}

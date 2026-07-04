@@ -16,7 +16,7 @@ import (
 
 // perfTreePeriods are the tree's return columns, shortest first; the array
 // doubles as the header row.
-var perfTreePeriods = [4]string{"1d", "5d", "1m", "3m"}
+var perfTreePeriods = [4]string{"1d", "7d", "1m", "3m"}
 
 // perfTree renders the scope as an envelope-grouped tree: after-tax net
 // value per line, then the flow-neutralized TWR over each period column.
