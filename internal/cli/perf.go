@@ -23,7 +23,7 @@ func perfCmd(a *app) *cobra.Command {
 		Example: "  finador perf\n" +
 			"  finador perf \"PEA Zephyr\"\n" +
 			"  finador perf equities/world\n" +
-			"  finador perf --tree            # per-envelope tree: net, 1d/5d/1m/3m\n" +
+			"  finador perf --tree            # per-envelope tree: net, 1d/7d/1m/3m\n" +
 			"  finador perf --label retraite\n" +
 			"  finador perf --exclude CW8,AAPL",
 		Args: cobra.MaximumNArgs(1),
@@ -57,7 +57,7 @@ func perfCmd(a *app) *cobra.Command {
 			ensureDisplayFX(cmd, a, f, display)
 			if tree {
 				if from != "" {
-					return errors.New("--tree shows fixed windows (1d, 5d, 1m, 3m): --from does not apply")
+					return errors.New("--tree shows fixed windows (1d, 7d, 1m, 3m): --from does not apply")
 				}
 				return perfTree(cmd, a, b, scope, display, evalTo)
 			}
@@ -150,7 +150,7 @@ func perfCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "", "valuation date YYYY-MM-DD (default: today)")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
-	cmd.Flags().BoolVar(&tree, "tree", false, "envelope-grouped tree: net value and 1d/5d/1m/3m returns per line")
+	cmd.Flags().BoolVar(&tree, "tree", false, "envelope-grouped tree: net value and 1d/7d/1m/3m returns per line")
 	return cmd
 }
 

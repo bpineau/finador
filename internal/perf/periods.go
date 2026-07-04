@@ -37,6 +37,8 @@ func PeriodRange(name string, today domain.Date) (from, to domain.Date, err erro
 }
 
 // Names lists the period table shown by `finador perf`, in display order.
+// 7d, not 5d: five calendar days span only 3-4 trading sessions, while a
+// calendar week holds the five sessions a human means by "a week".
 func Names() []string {
-	return []string{"1d", "5d", "1m", "3m", "ytd", "1y", "prev-yr"}
+	return []string{"1d", "7d", "1m", "3m", "ytd", "1y", "prev-yr"}
 }
