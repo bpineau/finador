@@ -17,7 +17,7 @@
             <option value="gains" {{if eq .TaxMode "gains"}}selected{{end}}>on gains</option>
             <option value="value" {{if eq .TaxMode "value"}}selected{{end}}>on full value</option>
           </select></div>
-        <div><label for="tax-rate">tax rate %</label><input id="tax-rate" name="tax-rate" value="{{.TaxRatePct}}" placeholder="17.2"></div>
+        <div><label for="tax-rate">tax rate %</label><input id="tax-rate" name="tax-rate" value="{{.TaxRatePct}}" placeholder="18.6"></div>
         <div><label for="aliases">aliases</label><input id="aliases" name="aliases" value="{{.AliasesCSV}}" placeholder="comma, separated"></div>
       </div>
       <button type="submit">Save changes</button>

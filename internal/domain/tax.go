@@ -21,12 +21,12 @@ const (
 // TaxOnValue taxes the whole value (PER deducted at entry).
 type TaxRule struct {
 	Mode TaxMode
-	Rate decimal.Decimal // 0.172 for 17.2%
+	Rate decimal.Decimal // 0.186 for 18.6%
 }
 
 var hundred = decimal.NewFromInt(100)
 
-// ParseTaxRule reads "none", "gains:17.2%" or "value:20%" (the % is optional).
+// ParseTaxRule reads "none", "gains:18.6%" or "value:20%" (the % is optional).
 func ParseTaxRule(s string) (TaxRule, error) {
 	if s == "" || s == "none" {
 		return TaxRule{}, nil
