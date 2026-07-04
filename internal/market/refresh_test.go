@@ -13,10 +13,18 @@ import (
 
 // fakeSource scripts the responses and records the calls.
 type fakeSource struct {
-	calls  []string // "DAILY sym from", "RESOLVE q", "LATEST sym"
-	daily  map[string]DailyData
-	latest map[string]Quote
-	fail   map[string]bool
+	calls      []string                   // "DAILY sym from", "RESOLVE q", "LATEST sym"
+	currencies map[string]domain.Currency // ref.Symbol → ref.Currency received
+	daily      map[string]DailyData
+	latest     map[string]Quote
+	fail       map[string]bool
+}
+
+func (f *fakeSource) recordCurrency(ref Ref) {
+	if f.currencies == nil {
+		f.currencies = map[string]domain.Currency{}
+	}
+	f.currencies[ref.Symbol] = ref.Currency
 }
 
 func (f *fakeSource) Resolve(_ context.Context, q string) (SymbolInfo, error) {
@@ -26,6 +34,7 @@ func (f *fakeSource) Resolve(_ context.Context, q string) (SymbolInfo, error) {
 
 func (f *fakeSource) Daily(_ context.Context, ref Ref, from domain.Date) (DailyData, error) {
 	f.calls = append(f.calls, "DAILY "+ref.Symbol+" "+from.String())
+	f.recordCurrency(ref)
 	if f.fail[ref.Symbol] {
 		return DailyData{}, domain.ErrNotFound
 	}
@@ -38,6 +47,7 @@ func (f *fakeSource) Intraday(_ context.Context, _ Ref) (IntradayData, error) {
 
 func (f *fakeSource) Latest(_ context.Context, ref Ref) (Quote, error) {
 	f.calls = append(f.calls, "LATEST "+ref.Symbol)
+	f.recordCurrency(ref)
 	if f.fail[ref.Symbol] {
 		return Quote{}, domain.ErrNotFound
 	}
@@ -185,7 +195,7 @@ func TestSpotRefreshBatch(t *testing.T) {
 	b := bookWithTrade(t) // cw8 (CW8.PA) + the EUR account → EURUSD=X ref
 	at := domain.Today().Time().Add(15 * time.Hour)
 	src := &batchSource{batch: map[Ref]Quote{
-		{Symbol: "CW8.PA"}: {Price: 555.5, Time: at, Currency: domain.EUR, Live: true},
+		{Symbol: "CW8.PA", Currency: domain.EUR}: {Price: 555.5, Time: at, Currency: domain.EUR, Live: true},
 		// EURUSD=X deliberately absent from the batch: an authoritative miss.
 	}}
 
@@ -270,7 +280,7 @@ func TestSpotRefreshCurrencyMismatchSkipsMerge(t *testing.T) {
 	b := bookWithTrade(t)
 	at := domain.Today().Time().Add(15 * time.Hour)
 	src := &batchSource{batch: map[Ref]Quote{
-		{Symbol: "CW8.PA"}: {Price: 25.44, Time: at, Currency: domain.USD, Live: true},
+		{Symbol: "CW8.PA", Currency: domain.EUR}: {Price: 25.44, Time: at, Currency: domain.USD, Live: true},
 	}}
 	sum := SpotRefresh(context.Background(), b, src)
 	if len(b.Market.Price("cw8").Points) != 0 {
@@ -290,40 +300,27 @@ func contains(ss []string, want string) bool {
 	return false
 }
 
-// twinSource serves the USD twin listing for full refs (ISIN resolution
-// gone to a deeper foreign line) but the declared EUR line for ticker-only
-// refs - the GTWR.DE incident.
-type twinSource struct{ fakeSource }
-
-func (s *twinSource) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {
-	if strings.HasSuffix(ref.Symbol, "=X") {
-		return DailyData{Currency: domain.USD}, nil
-	}
-	if ref.ISIN != "" {
-		return DailyData{Currency: domain.USD, Closes: []domain.PricePoint{{Date: domain.Today(), Close: 33.44}}}, nil
-	}
-	return DailyData{Currency: domain.EUR, Closes: []domain.PricePoint{{Date: domain.Today(), Close: 29.21}}}, nil
-}
-
-// TestRefreshTwinListingRetriesDeclaredTicker: a mismatched-currency answer
-// on the ISIN ref must fall back to the declared ticker line, not leave the
-// asset without quotes.
-func TestRefreshTwinListingRetriesDeclaredTicker(t *testing.T) {
+// The twin-listing retry now lives in the Source (pofo's FetchAny under
+// NoConvert); finador's contract is to hand the Source the declared
+// currency on every ref, so it CAN enforce native lines.
+func TestRefreshPassesDeclaredCurrencyToSource(t *testing.T) {
 	b := bookWithTrade(t)
-	cw8, _ := b.Asset("cw8")
-	cw8.ISIN = "IE00077IIPQ8"
-	src := &twinSource{}
-	src.daily = map[string]DailyData{"EURUSD=X": {}}
-
-	sum := Refresh(context.Background(), b, src, false)
-
-	if len(sum.Warnings) != 0 {
-		t.Fatalf("warnings: %v", sum.Warnings)
+	src := &fakeSource{daily: map[string]DailyData{"CW8.PA": {}, "EURUSD=X": {}}}
+	Refresh(context.Background(), b, src, false)
+	if got := src.currencies["CW8.PA"]; got != domain.EUR {
+		t.Errorf("asset ref currency = %q, want the declared EUR", got)
 	}
-	if close, _, ok := b.Market.Price("cw8").At(domain.Today()); !ok || close != 29.21 {
-		t.Fatalf("close = %v, want the declared-ticker EUR quote 29.21", close)
+	// FX series hold the USD value of one unit: the ref demands USD.
+	if got := src.currencies["EURUSD=X"]; got != domain.USD {
+		t.Errorf("FX ref currency = %q, want USD", got)
 	}
-	if b.Market.Price("cw8").FetchedAt != domain.Today() {
-		t.Fatal("successful ticker fallback must stamp FetchedAt")
+
+	src2 := &fakeSource{latest: map[string]Quote{}}
+	SpotRefresh(context.Background(), b, src2)
+	if got := src2.currencies["CW8.PA"]; got != domain.EUR {
+		t.Errorf("spot asset ref currency = %q, want the declared EUR", got)
+	}
+	if got := src2.currencies["EURUSD=X"]; got != domain.USD {
+		t.Errorf("spot FX ref currency = %q, want USD", got)
 	}
 }
