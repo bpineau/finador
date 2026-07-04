@@ -14,7 +14,7 @@ func accountCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "account",
 		Short:   "Manage accounts (PEA, CTO, PER, bank accounts…)",
-		Example: "  finador account add \"PEA Zephyr\" --tax gains:17.2% --alias pea",
+		Example: "  finador account add \"PEA Zephyr\" --tax gains:18.6% --alias pea",
 	}
 	cmd.AddCommand(accountAdd(a), accountList(a), accountEdit(a), accountRm(a))
 	return cmd
@@ -26,7 +26,7 @@ func accountAdd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add <name>",
 		Short:   "Create an account - the name is free: \"PEA Zephyr\", \"CTO Meridia\"…",
-		Example: "  finador account add \"PEA Zephyr\" --tax gains:17.2% --alias pea",
+		Example: "  finador account add \"PEA Zephyr\" --tax gains:18.6% --alias pea",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rule, err := domain.ParseTaxRule(tax)
@@ -53,7 +53,7 @@ func accountAdd(a *app) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&tax, "tax", "none", "tax rule: none, gains:17.2%, value:20%")
+	cmd.Flags().StringVar(&tax, "tax", "none", "tax rule: none, gains:18.6%, value:20%")
 	cmd.Flags().StringVar(&ccy, "ccy", "EUR", "account currency")
 	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "additional alias (repeatable)")
 	return cmd
@@ -137,7 +137,7 @@ func accountEdit(a *app) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "new name")
-	cmd.Flags().StringVar(&tax, "tax", "", "new tax rule: none, gains:17.2%, value:20%")
+	cmd.Flags().StringVar(&tax, "tax", "", "new tax rule: none, gains:18.6%, value:20%")
 	cmd.Flags().StringVar(&ccy, "ccy", "", "new account currency")
 	cmd.Flags().StringArrayVar(&addAlias, "add-alias", nil, "alias to add (repeatable)")
 	cmd.Flags().StringArrayVar(&rmAlias, "rm-alias", nil, "alias to remove (repeatable)")
