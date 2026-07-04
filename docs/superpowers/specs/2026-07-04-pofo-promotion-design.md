@@ -24,18 +24,27 @@ against this in three places (daily, spot, batch), each time by re-fetching
 the declared ticker and rejecting the merge. The cause lives in pofo, so the
 fix does too:
 
-- `FetchOptions.Currency` keeps its meaning ("serve the series in this
-  currency") but becomes smarter: resolution first prefers candidates quoted
-  natively in that currency; conversion through FX crosses remains the last
-  resort (current behaviour), reported through `Logf`.
+- `FetchOptions.Currency` keeps exactly its current meaning ("serve the
+  series in this currency, converting when needed"): analytics callers keep
+  the deepest history, converted if the deepest line trades elsewhere.
+  Preferring a shallower native listing here would silently degrade them.
 - New flag `FetchOptions.NoConvert bool`, parallel to `NoSim`: "the native
   quote line matters more than history depth". With `Currency` set and
-  `NoConvert` true, resolution restricts candidates to that currency and a
-  fetch that still lands off-currency fails with the new sentinel
-  `ErrWrongCurrency` (wrapped with symbol, got and want) instead of serving
-  poison. Without `Currency`, `NoConvert` is a no-op.
-- Default behaviour without these options is unchanged: deepest history wins,
-  as pofo's analytics callers want.
+  `NoConvert` true, resolution restricts candidates to that currency (the
+  tiered-slot selection in `resolveBest` already fetches every candidate's
+  history, so its currency is known at selection time - filtering costs no
+  extra network round-trip) and a fetch that still lands off-currency fails
+  with the new sentinel `ErrWrongCurrency` (wrapped with symbol, got and
+  want) instead of serving poison. Without `Currency`, `NoConvert` is a
+  no-op. Default behaviour without these options is unchanged.
+- The on-disk resolution cache must honour the constraint: a cached ISIN
+  resolution whose recorded currency conflicts with a `NoConvert` request is
+  bypassed and resolution reruns restricted (then re-cached). Reusing it
+  blindly would reintroduce the exact bug class finador hit.
+- Implementation note: `fetch(ctx, id, from, raw)` must not grow one
+  positional parameter per constraint (`raw` is already the first symptom).
+  Thread an internal fetch-spec struct through `fetch`/`fetchISIN`/
+  `fetchTicker`/`resolveBest`; the public option algebra stays `FetchOptions`.
 
 The same pair applies to quotes through a new
 `QuoteOptions{Currency string; NoConvert bool}`, carried by `LatestAny`
@@ -60,9 +69,19 @@ func (c *Client) LatestAny(ctx context.Context, ids []string, opt QuoteOptions) 
 ```
 
 No new `Ref` type in pofo: plain ordered `[]string` composes with everything
-and stays DWIM ("try these, in this order"). Skipping an id whose answer is
-off-currency (under `Currency`+`NoConvert`) is part of the contract: that is
-exactly the twin retry, now internal and tested once.
+and stays DWIM ("try these, in this order").
+
+The native-first preference lives HERE, where alternatives actually exist,
+not in the single-id calls (whose semantics stay stable):
+
+- With `Currency` set, `FetchAny`/`LatestAny` scan the ids for an answer
+  natively quoted in that currency first. That is exactly finador's twin
+  retry, now internal and tested once.
+- If no id answers natively: under `NoConvert` the joined errors include
+  `ErrWrongCurrency`; otherwise the most authoritative off-currency answer
+  (first id that answered) is converted, as the single-id path would.
+- The client's per-run memoization makes the two-pass scan cheap: the
+  convert fallback reuses the series already fetched during the native scan.
 
 ### A3. Dividend merge helper
 
@@ -140,6 +159,10 @@ type ReportOptions struct {
 func Report(dates []time.Time, values []float64, flows []Flow, opt ReportOptions) ([]ReportRow, ReportSummary)
 ```
 
+Empty or single-point input returns (nil, zero ReportSummary): nothing
+measurable, no error - consistent with the package's NaN-for-undefined
+conventions and trivially checkable by callers.
+
 Semantics carried over from finador (they encode real convention knowledge):
 
 - Window slicing keeps points in [From, To] and flows strictly after From
@@ -203,6 +226,11 @@ Thin selection over `DrawdownEpisodes`; used by Report's summary.
    the strict-daily / convert-spot split.
 3. pofo Lot B (Report, StandardWindows, MaxDrawdown), tests.
 4. finador consumes Lot B (perf facade diet, 7d switch, README).
+5. Release: tag and push a pofo release (first tag: v0.1.0), point finador's
+   go.mod at it and DROP the `replace` directive, `make check`, update the
+   CLAUDE.md paragraph that documents the sibling-checkout requirement.
+   Rule (2026-07-04): a session that adds to pofo never ends with finador's
+   go.mod still on a `replace`.
 
-Each step lands green and committed on its own; pofo is a sibling checkout
-(`replace` directive), so finador always builds against the local pofo.
+Steps 1-4 land green and committed on their own, built against the local
+pofo through the existing `replace`; step 5 removes it.
