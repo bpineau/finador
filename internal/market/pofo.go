@@ -56,70 +56,63 @@ func errNotFound(query string, err error) error {
 	return domain.ErrNotFound
 }
 
+// ids lists the identifiers to try, most precise first.
+func (r Ref) ids() []string {
+	ids := make([]string, 0, 2)
+	if r.ISIN != "" {
+		ids = append(ids, r.ISIN)
+	}
+	if r.Symbol != "" {
+		ids = append(ids, r.Symbol)
+	}
+	return ids
+}
+
 // Daily returns closes and dividend events from `from` to today. Prices
 // are RAW closes (dividends not reinvested): finador values holdings at
 // market price and books dividends as cash, so adjusted closes would
-// double-count income. The ISIN is tried first (most precise), then the
-// symbol.
+// double-count income. The declared currency is enforced natively
+// (NoConvert): converted twin-listing closes never splice cleanly into
+// the persisted history.
 func (p *Pofo) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData, error) {
-	ids := make([]string, 0, 2)
-	if ref.ISIN != "" {
-		ids = append(ids, ref.ISIN)
-	}
-	if ref.Symbol != "" {
-		ids = append(ids, ref.Symbol)
-	}
+	ids := ref.ids()
 	if len(ids) == 0 {
 		return DailyData{}, ErrNotCovered
 	}
-	lastErr := error(ErrNotCovered)
-	for _, id := range ids {
-		s, err := p.Client.FetchExtended(ctx, id, marketdata.FetchOptions{
-			From:  from.Time(),
-			NoSim: true,
-			Raw:   true,
-		})
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if len(s.Points) == 0 {
-			continue
-		}
-		return toDailyData(s), nil
+	s, err := p.Client.FetchAny(ctx, ids, marketdata.FetchOptions{
+		From:      from.Time(),
+		NoSim:     true,
+		Raw:       true,
+		Currency:  string(ref.Currency),
+		NoConvert: ref.Currency != "",
+	})
+	if err != nil {
+		return DailyData{}, err
 	}
-	return DailyData{}, lastErr
+	return toDailyData(s), nil
 }
 
-// Latest returns the freshest available price: the live Yahoo market price
-// when the instrument is Yahoo-quoted, otherwise its last daily close (a
-// fund NAV). The ISIN is tried first (most precise), then the symbol.
+// Latest returns the freshest available price: the live market quote when
+// one exists, otherwise the last daily close (a fund NAV). A quote that
+// only exists off-currency converts at its own timestamp - acceptable for
+// a spot point, which the next real close overwrites.
 func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
-	ids := make([]string, 0, 2)
-	if ref.ISIN != "" {
-		ids = append(ids, ref.ISIN)
-	}
-	if ref.Symbol != "" {
-		ids = append(ids, ref.Symbol)
-	}
+	ids := ref.ids()
 	if len(ids) == 0 {
 		return Quote{}, ErrNotCovered
 	}
-	lastErr := error(ErrNotCovered)
-	for _, id := range ids {
-		q, err := p.Client.Latest(ctx, id)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		return Quote{
-			Price:    q.Price,
-			Time:     q.Time,
-			Currency: domain.Currency(q.Currency),
-			Live:     q.Live,
-		}, nil
+	q, err := p.Client.LatestAny(ctx, ids, marketdata.QuoteOptions{
+		Currency: string(ref.Currency),
+	})
+	if err != nil {
+		return Quote{}, err
 	}
-	return Quote{}, lastErr
+	return Quote{
+		Price:    q.Price,
+		Time:     q.Time,
+		Currency: domain.Currency(q.Currency),
+		Live:     q.Live,
+	}, nil
 }
 
 // LatestBatch fetches the freshest price of many instruments: one live

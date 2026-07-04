@@ -310,3 +310,23 @@ le cache) au lieu de `SaveCache()` - corrigé.
 de part, ex. GTWR.MI) passerait le contrôle de devise ; vecteur estimé rare depuis que les
 fenêtres courtes se règlent sur la réponse directe du ticker (fix pofo goodFor) et que le spot
 est keyé exact. Piste future si besoin : contrôle de continuité (saut aberrant) en avertissement.
+
+## D24 - Devise stricte sur l'historique, conversion tolérée sur le spot
+
+**Date** : 2026-07-04
+
+La garde de devise et le retry twin-listing (D23) sont promus dans pofo, où vit
+leur cause (la résolution ISIN privilégie l'historique le plus profond) :
+`FetchOptions.NoConvert` restreint la résolution aux lignes cotées dans la
+devise attendue (sentinelle `ErrWrongCurrency`), `FetchAny`/`LatestAny`
+essaient les identifiants dans l'ordre en préférant une réponse native.
+Régime finador : (1) le daily (mergé, persisté) reste **strict** (NoConvert :
+des closes convertis d'une jumelle ne se raccordent jamais proprement à un
+historique natif, heures de clôture et drift FX intrajournalier obligent).
+(2) Le **spot tolère une conversion en dernier recours** au cross du jour :
+un point spot est écrasé par le prochain vrai close, aucune couture ne peut
+atteindre la série persistée, et une valorisation vivante vaut mieux qu'un
+trou d'un jour. (3) `refresh.go` garde une **garde de rejet** (jamais de
+merge off-currency) : `Source` est une interface pluggable, l'invariant
+appartient à finador - c'est du contrat d'interface, plus de la logique
+métier. `Ref` gagne un champ `Currency` pour exprimer ce contrat.

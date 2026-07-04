@@ -15,9 +15,14 @@ import (
 var ErrNotCovered = errors.New("instrument not covered by this provider")
 
 // Ref identifies an instrument to quote: the ISIN is preferred when both
-// are set (most precise), the symbol otherwise.
+// are set (most precise), the symbol otherwise. Currency, when set, is the
+// instrument's declared quote currency and part of the Source contract:
+// Daily must serve quotes natively in it or fail; Latest may convert a
+// last-resort quote into it (a spot point is overwritten by the next real
+// close, so a conversion never leaves a seam in the persisted history).
 type Ref struct {
 	Symbol, ISIN string
+	Currency     domain.Currency
 }
 
 // IntradayPoint is one 5-minute tick in an intraday price series.
