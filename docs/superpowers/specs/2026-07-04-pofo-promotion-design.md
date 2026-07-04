@@ -99,9 +99,13 @@ line count.
 
 - `market/pofo.go`: `Daily`/`Latest` collapse to one `FetchAny`/`LatestAny`
   call each with `Currency: asset.Currency`; the ISIN-then-symbol loops go.
-- `market/refresh.go`: both currency guards and the twin retry disappear;
-  an `ErrWrongCurrency` maps to the existing warning strings. Daily history
-  (merged, persisted) stays strict: `NoConvert: true`.
+- `market/refresh.go`: the twin retry disappears (pofo's job now); an
+  `ErrWrongCurrency` maps to the existing warning strings. Daily history
+  (merged, persisted) stays strict: `NoConvert: true`. A reject-only guard
+  REMAINS in refresh: `Source` is a pluggable interface and the book must
+  never merge off-currency quotes whatever the implementation - contract
+  enforcement, not business logic. `Ref` gains the declared `Currency` so
+  the contract is expressible.
 - Spot only: `NoConvert: false`, so a last-resort converted quote keeps the
   valuation alive for a day; it is overwritten by the next real close, no
   seam ever reaches the persisted daily series. (Decision to journal in
