@@ -32,13 +32,14 @@ introduce warnings: `.golangci.yml` documents the few deliberate exclusions.
 - **Dependency budget is deliberate**: cobra, shopspring/decimal, samber/lo,
   x/crypto, x/term, and `github.com/bpineau/pofo`. Do not add dependencies for
   things the stdlib does.
-- **pofo is a sibling checkout**: `go.mod` has
-  `replace github.com/bpineau/pofo => ../pofo`. Building requires `../pofo` to
-  exist next to this repo. Market data fetching, performance math and chart
-  rendering live in pofo; finador's `market`, `perf` and `chart` packages are
-  thin façades that own finador's conventions (domain types, 0-instead-of-NaN,
-  the house chart style). Fix generic math/fetching bugs in pofo, finador-flavor
-  bugs in the façade.
+- **pofo is a tagged dependency** (`github.com/bpineau/pofo`). For joint
+  development add a temporary `replace github.com/bpineau/pofo => ../pofo`,
+  but NEVER commit it: a session that changes pofo ends by tagging a pofo
+  release and pointing go.mod at it. Market data fetching, performance math
+  and chart rendering live in pofo; finador's `market`, `perf` and `chart`
+  packages are thin façades that own finador's conventions (domain types,
+  0-instead-of-NaN, the house chart style). Fix generic math/fetching bugs
+  in pofo, finador-flavor bugs in the façade.
 - Everything user-visible (CLI output, errors, web) is **English**. Errors exit
   1 with a single `finador: …` line. Use plain hyphens, never em-dashes, in all
   writing (code, docs, commits).
