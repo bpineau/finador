@@ -108,7 +108,7 @@ Aligning the read commands on the same surface where it makes sense:
 
 ## E. Ledger cleanup (data, not code)
 
-The "Nessa Dollars -15k" line is a data-entry artifact (money-market fund
+The "Cash Dollars -15k" line is a data-entry artifact (money-market fund
 bought and mostly withdrawn through the USD pocket without the matching
 deposits). No new feature needed: fix with `tx list` / `tx edit` / `tx rm`,
 then `finador compact` to drop the superseded records from the journal. Done

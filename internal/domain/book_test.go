@@ -286,8 +286,8 @@ func TestResolveUniquePrefix(t *testing.T) {
 		t.Errorf("Asset(cw8) = %v, %v", a, err)
 	}
 	// unique name prefix → resolves
-	if a, err := b.Asset("datad"); err != nil || a.ID != "vizr" {
-		t.Errorf("Asset(datad) = %v, %v", a, err)
+	if a, err := b.Asset("vizo"); err != nil || a.ID != "vizr" {
+		t.Errorf("Asset(vizo) = %v, %v", a, err)
 	}
 	// account prefix
 	if acc, err := b.Account("pea"); err != nil || acc.ID != "pea-zephyr" {
