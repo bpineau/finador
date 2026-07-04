@@ -236,7 +236,7 @@ it's sold, record the cash when it actually arrives.
 finador asset set "Appart Lyon" 0 --at 2025-09-15        # position closed at the sale
 
 # weeks later, when the proceeds land on the real account:
-finador cash set "Compte Épargne" 295000 --at 2025-11-02   # or: cash deposit, if you track that account's flows
+finador cash set "Compte Épargne" 120000 --at 2025-11-02   # or: cash deposit, if you track that account's flows
 ```
 
 **Honest note:** between those two dates your net worth reflects the money *in

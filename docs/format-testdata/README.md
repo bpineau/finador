@@ -22,7 +22,7 @@ spec); your reader reads them, it does not regenerate them.
 ### Header (clear line 1)
 
 ```json
-{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":65536,"p":4,"salt":"1MXlXNrg6PKyOOgpQkSlmg==","id":"54AFhtcMfCY6IDENZrw6FA=="}
+{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":65536,"p":4,"salt":"jYP3xSdWTru0k8ieEaL87w==","id":"W4GVhPQHrkstl0rKu6ME3Q=="}
 ```
 
 ### Decoded records (in append order)
@@ -32,13 +32,13 @@ values are the real save-time stamps and will differ in any file you regenerate)
 
 | seq | `k` | `d` (payload) |
 |---|---|---|
-| 1 | `acct` | `{"id":"06fc2cjx2bvtjjxmtmcj2wg","name":"PEA Zephyr","ccy":"EUR","tax":"gains:17.2%","aliases":["pea"]}` |
-| 2 | `acct` | `{"id":"06fc2cjx8mhna9ngpakpvm0","name":"Livret A","ccy":"EUR","tax":"none"}` |
-| 3 | `asset` | `{"id":"06fc2cjxf7702jynqpzgga8","kind":"property","name":"Appart Lyon","ccy":"EUR","group":"realestate"}` |
-| 4 | `asset` | `{"id":"06fc2cjxndn8wez8qqhh0a0","kind":"security","name":"CW8.PA","ticker":"CW8.PA","aliases":["cw8"],"ccy":"EUR","group":"equities/world"}` |
-| 5 | `tx` | `{"id":"06fc2cjy0zkkye41veyhr80","date":"2024-01-15","account":"06fc2cjx2bvtjjxmtmcj2wg","kind":"deposit","qty":"0","amount":{"amount":"10000","ccy":"EUR"}}` |
-| 6 | `tx` | `{"id":"06fc2cjy7j4ncgb2p6mg0a0","date":"2024-01-20","account":"06fc2cjx2bvtjjxmtmcj2wg","asset":"06fc2cjxndn8wez8qqhh0a0","kind":"buy","qty":"20","amount":{"amount":"9000","ccy":"EUR"}}` |
-| 7 | `tx` | `{"id":"06fc2cjye7137cmsvzjh4br","date":"2026-06-01","account":"06fc2cjx8mhna9ngpakpvm0","kind":"statement","qty":"0","amount":{"amount":"15000","ccy":"EUR"}}` |
+| 1 | `acct` | `{"id":"06fjrvs8x4n9bf1545k5e3r","name":"PEA Zephyr","ccy":"EUR","tax":"gains:17.2%","aliases":["pea"]}` |
+| 2 | `acct` | `{"id":"06fjrvs93zjn34r63jaysgg","name":"Livret A","ccy":"EUR","tax":"none"}` |
+| 3 | `asset` | `{"id":"06fjrvs9ahrtcvc996bax90","kind":"property","name":"Appart Lyon","ccy":"EUR","group":"realestate"}` |
+| 4 | `asset` | `{"id":"06fjrvs9ha04wzbwzfj344g","kind":"security","name":"CW8.PA","ticker":"CW8.PA","aliases":["cw8"],"ccy":"EUR","group":"equities/world"}` |
+| 5 | `tx` | `{"id":"06fjrvs9x225arwex6tzgv0","date":"2024-01-15","account":"06fjrvs8x4n9bf1545k5e3r","kind":"deposit","qty":"0","amount":{"amount":"10000","ccy":"EUR"}}` |
+| 6 | `tx` | `{"id":"06fjrvsa3t56betpvvqc1b0","date":"2024-01-20","account":"06fjrvs8x4n9bf1545k5e3r","asset":"06fjrvs9ha04wzbwzfj344g","kind":"buy","qty":"20","amount":{"amount":"9000","ccy":"EUR"}}` |
+| 7 | `tx` | `{"id":"06fjrvsaafrkhqs6ctv2za0","date":"2026-06-01","account":"06fjrvs93zjn34r63jaysgg","kind":"statement","qty":"0","amount":{"amount":"15000","ccy":"EUR"}}` |
 
 The head trailer commits `count = 7` and the GCM tag of record 7.
 
@@ -48,23 +48,23 @@ Two accounts:
 
 | id | name | ccy | tax | aliases |
 |---|---|---|---|---|
-| `06fc2cjx2bvtjjxmtmcj2wg` | PEA Zephyr | EUR | gains:17.2% | `pea` |
-| `06fc2cjx8mhna9ngpakpvm0` | Livret A | EUR | none | — |
+| `06fjrvs8x4n9bf1545k5e3r` | PEA Zephyr | EUR | gains:17.2% | `pea` |
+| `06fjrvs93zjn34r63jaysgg` | Livret A | EUR | none | — |
 
 Two assets:
 
 | id | kind | name | ticker | group |
 |---|---|---|---|---|
-| `06fc2cjxf7702jynqpzgga8` | property | Appart Lyon | — | realestate |
-| `06fc2cjxndn8wez8qqhh0a0` | security | CW8.PA | CW8.PA | equities/world (alias `cw8`) |
+| `06fjrvs9ahrtcvc996bax90` | property | Appart Lyon | — | realestate |
+| `06fjrvs9ha04wzbwzfj344g` | security | CW8.PA | CW8.PA | equities/world (alias `cw8`) |
 
 Three transactions:
 
 | id | date | kind | account | asset | qty | amount |
 |---|---|---|---|---|---|---|
-| `06fc2cjy0zkkye41veyhr80` | 2024-01-15 | deposit | PEA Zephyr | — | 0 | 10000 EUR |
-| `06fc2cjy7j4ncgb2p6mg0a0` | 2024-01-20 | buy | PEA Zephyr | CW8.PA | 20 | 9000 EUR |
-| `06fc2cjye7137cmsvzjh4br` | 2026-06-01 | statement | Livret A | — | 0 | 15000 EUR |
+| `06fjrvs9x225arwex6tzgv0` | 2024-01-15 | deposit | PEA Zephyr | — | 0 | 10000 EUR |
+| `06fjrvsa3t56betpvvqc1b0` | 2024-01-20 | buy | PEA Zephyr | CW8.PA | 20 | 9000 EUR |
+| `06fjrvsaafrkhqs6ctv2za0` | 2026-06-01 | statement | Livret A | — | 0 | 15000 EUR |
 
 (No `config`, `*-edit` or `*-del` records — this sample exercises only the create
 path. Decoding it confirms the header parse, key derivation, the AAD chain, the
