@@ -102,16 +102,19 @@ type Drawdown struct {
 // MaxDrawdown returns the deepest drawdown episode of the series.
 func MaxDrawdown(points []Point) Drawdown {
 	dates, values := toSeries(points)
-	var dd Drawdown
-	for _, ep := range metrics.DrawdownEpisodes(dates, values) {
-		if ep.Depth >= dd.Depth {
-			continue
-		}
-		dd = Drawdown{Depth: ep.Depth, Peak: domain.DateOf(ep.PeakDate), Trough: domain.DateOf(ep.TroughDate)}
-		if !ep.Ongoing && !ep.RecoverDate.IsZero() {
-			rec := domain.DateOf(ep.RecoverDate)
-			dd.Recovered = &rec
-		}
+	return toDrawdown(metrics.MaxDrawdown(dates, values))
+}
+
+// toDrawdown maps a pofo episode to the domain-dated Drawdown; the zero
+// Episode (a series that never declines) maps to the zero Drawdown.
+func toDrawdown(ep metrics.Episode) Drawdown {
+	if ep.PeakDate.IsZero() {
+		return Drawdown{}
+	}
+	dd := Drawdown{Depth: ep.Depth, Peak: domain.DateOf(ep.PeakDate), Trough: domain.DateOf(ep.TroughDate)}
+	if !ep.Ongoing && !ep.RecoverDate.IsZero() {
+		rec := domain.DateOf(ep.RecoverDate)
+		dd.Recovered = &rec
 	}
 	return dd
 }

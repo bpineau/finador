@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"finador/internal/domain"
+
+	"github.com/bpineau/pofo/pkg/metrics"
 )
 
 // RiskFreeFromConfig reads the annualized risk-free rate from a book config map.
@@ -53,33 +55,49 @@ type Metrics struct {
 	Drawdown                             Drawdown
 }
 
-// Report builds the standard period table + metrics for a daily series.
-// It covers each period returned by Names() that the track record actually
-// spans, plus the "inception" row. Points and flows are expressed in display
-// currency (raw series output). rf is the annualized risk-free rate.
+// Report builds the standard period table + metrics for a daily series:
+// the window assembly, slicing conventions and track-record gating are
+// pofo's metrics.Report; this facade owns the domain types, the display
+// windows (Names + the inception row, which for finador means "since the
+// scope holds it"), the flat-window dedup and the house 0-instead-of-NaN
+// convention. Points and flows are expressed in display currency; rf is
+// the annualized risk-free rate.
 func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row, Metrics) {
 	if len(points) == 0 {
 		return nil, Metrics{}
 	}
 	origin := points[0].Date
 
-	var rows []Row
-	var last *Row // last kept today-anchored row, the dedup base
+	windows := make([]metrics.Window, 0, len(Names())+1)
 	for _, name := range Names() {
 		pf, pt, err := PeriodRange(name, evalTo)
 		if err != nil {
 			continue
 		}
-		if pf.Before(origin) {
-			continue // window predates the track record - the inception row covers it
-		}
-		row := periodRow(name, points, flows, pf, pt)
-		// A longer window that measures exactly what a shorter one already
-		// showed (bit-equal TWR and gain: the signature of a series flat
-		// before the shorter window) adds no information and reads as "a
-		// year measured" when only a month really moved - skip it. Only
-		// today-anchored windows compare; "prev-yr" ends elsewhere.
-		anchored := name != "prev-yr"
+		windows = append(windows, metrics.Window{Name: name, From: pf.Time(), To: pt.Time()})
+	}
+	windows = append(windows, metrics.Window{Name: "inception", From: origin.Time(), To: evalTo.Time()})
+
+	dates, values := toSeries(points)
+	mrows, sum := metrics.Report(dates, values, toFlows(flows), metrics.ReportOptions{
+		Windows:     windows,
+		RiskFree:    rf,
+		MinRiskDays: MinDaysForRisk,
+		MinCAGRDays: MinDaysForCAGR,
+	})
+
+	// Flat-window dedup: a longer today-anchored window that measures
+	// exactly what a shorter one already showed (bit-equal TWR and gain:
+	// the signature of a series flat before the shorter window) adds no
+	// information and reads as "a year measured" when only a month really
+	// moved. Presentation, not measurement - so it lives here, not in
+	// pofo. Only today-anchored windows compare; "prev-yr" ends elsewhere
+	// and "inception" always shows.
+	var rows []Row
+	var last *Row
+	for _, mr := range mrows {
+		row := Row{Name: mr.Name, TWR: mr.TWR, HasTWR: mr.OK, Gain: mr.Gain, HasGain: mr.OK}
+		anchored := mr.Name != "prev-yr" && mr.Name != "inception"
 		if anchored && last != nil && row.HasTWR && last.HasTWR &&
 			row.TWR == last.TWR && row.Gain == last.Gain {
 			continue
@@ -89,72 +107,21 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 			last = &rows[len(rows)-1]
 		}
 	}
-	rows = append(rows, periodRow("inception", points, flows, origin, evalTo))
 
-	// Metrics over the full window since inception
-	allPts, allFlows := windowSlice(points, flows, origin, evalTo)
-	twrTotal := TWR(allPts, allFlows)
-	returns := DailyReturns(allPts, allFlows)
-	days := 0
-	if len(allPts) >= 2 {
-		days = int(allPts[len(allPts)-1].Date.Time().Sub(allPts[0].Date.Time()).Hours() / 24)
-	}
 	m := Metrics{
-		InceptionTWR: twrTotal,
+		InceptionTWR: sum.TWR,
 		Since:        origin,
-		Days:         days,
+		Days:         sum.Days,
 		RiskFree:     rf,
-		Drawdown:     MaxDrawdown(allPts),
+		Drawdown:     toDrawdown(sum.MaxDrawdown),
+		HasRisk:      sum.HasRisk,
+		HasCAGR:      sum.HasCAGR,
 	}
-	if days >= MinDaysForRisk && len(returns) >= 2 {
-		m.Vol = Vol(returns)
-		m.Sharpe = Sharpe(returns, rf)
-		m.Sortino = Sortino(returns, rf)
-		m.HasRisk = true
+	if sum.HasRisk {
+		m.Vol, m.Sharpe, m.Sortino = orZero(sum.Vol), orZero(sum.Sharpe), orZero(sum.Sortino)
 	}
-	if days >= MinDaysForCAGR {
-		m.CAGR = CAGR(twrTotal, days)
-		m.HasCAGR = true
+	if sum.HasCAGR {
+		m.CAGR = sum.CAGR
 	}
 	return rows, m
-}
-
-// periodRow builds a single Row for the window [from, to].
-func periodRow(name string, points []Point, flows []Flow, from, to domain.Date) Row {
-	pts, fls := windowSlice(points, flows, from, to)
-	row := Row{Name: name}
-	if len(pts) >= 2 {
-		row.TWR = TWR(pts, fls)
-		row.HasTWR = true
-		// Money P&L over the window: the value change NOT explained by money you
-		// put in or took out. Declaring an existing holding (a contribution) is
-		// neutralized via the flows, so it never reads as a gain.
-		var netFlow float64
-		for _, f := range fls {
-			netFlow += f.Amount
-		}
-		row.Gain = pts[len(pts)-1].Value - pts[0].Value - netFlow
-		row.HasGain = true
-	}
-	return row
-}
-
-// windowSlice extracts the points in [from, to] and the flows strictly
-// after from and ≤ to (flows on the base day are already in V0).
-func windowSlice(points []Point, flows []Flow, from, to domain.Date) ([]Point, []Flow) {
-	var pts []Point
-	for _, p := range points {
-		if p.Date.Before(from) || to.Before(p.Date) {
-			continue
-		}
-		pts = append(pts, p)
-	}
-	var fls []Flow
-	for _, fl := range flows {
-		if to.Before(fl.Date) || !from.Before(fl.Date) {
-			continue
-		}
-		fls = append(fls, fl)
-	}
-	return pts, fls
 }
