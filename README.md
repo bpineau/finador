@@ -425,7 +425,7 @@ and performance recompute instantly.
 ```sh
 finador value [scope] [--at YYYY-MM-DD] [--ccy USD] [--gross]
               [--by group|account] [--exclude refs]... [--what-if asset=price]...
-finador value --tree       # envelope-grouped tree, gross & net per line
+finador value --tree       # envelope-grouped tree, gross & net per holding
 finador value pea --tree   # same, scoped (envelope, group or label)
 ```
 
