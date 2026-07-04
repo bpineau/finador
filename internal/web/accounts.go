@@ -64,7 +64,7 @@ type accountEditData struct {
 	Today      domain.Date
 	Account    *domain.Account
 	TaxMode    string // "none" | "gains" | "value" - drives the <select>
-	TaxRatePct string // rate as a percentage string, e.g. "17.2"
+	TaxRatePct string // rate as a percentage string, e.g. "18.6"
 	AliasesCSV string
 	Error      string
 }
@@ -179,14 +179,14 @@ func parseAccountForm(r *http.Request) (accountForm, error) {
 	return f, nil
 }
 
-// parseTaxRuleForm rebuilds the CLI's "gains:17.2%" syntax from the mode <select>
+// parseTaxRuleForm rebuilds the CLI's "gains:18.6%" syntax from the mode <select>
 // and the percentage field, then reuses the canonical domain parser/validation.
 func parseTaxRuleForm(r *http.Request) (domain.TaxRule, error) {
 	mode := r.FormValue("tax-mode")
 	if mode == "" || mode == "none" {
 		return domain.TaxRule{}, nil
 	}
-	// Accept "17.2", "17.2%", "17.2 %": strip spaces and any percent signs, then re-attach one.
+	// Accept "18.6", "18.6%", "18.6 %": strip spaces and any percent signs, then re-attach one.
 	rate := strings.ReplaceAll(strings.ReplaceAll(r.FormValue("tax-rate"), " ", ""), "%", "")
 	if rate == "" {
 		return domain.TaxRule{}, fmt.Errorf("a tax rate is required when tax is on %s", mode)
