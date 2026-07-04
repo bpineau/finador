@@ -31,9 +31,31 @@ func TestHeaderRejectsForeign(t *testing.T) {
 }
 
 func TestHeaderRejectsBadParams(t *testing.T) {
-	bad := `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":1,"p":4,"salt":"AAAAAAAAAAAAAAAAAAAAAA==","id":"AAAAAAAAAAAAAAAAAAAAAA=="}`
-	if _, err := parseHeader([]byte(bad)); err == nil {
-		t.Fatal("expected out-of-bounds memory rejection")
+	// Bounds are enforced BEFORE key derivation (FORMAT.md §2.2): a forged,
+	// unauthenticated header must never trigger a panic or a memory bomb. Each
+	// case pushes exactly one field out of range; a valid 16-byte salt/id is
+	// "AAAA…==" (base64 of 16 zero bytes).
+	const okSalt = "AAAAAAAAAAAAAAAAAAAAAA==" // 16 zero bytes
+	cases := []struct {
+		name   string
+		header string
+	}{
+		{"kdf not argon2id", `{"fmt":"finador-ledger","v":3,"kdf":"scrypt","t":3,"m":65536,"p":4,"salt":"` + okSalt + `","id":"` + okSalt + `"}`},
+		{"t too low", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":0,"m":65536,"p":4,"salt":"` + okSalt + `","id":"` + okSalt + `"}`},
+		{"t too high", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":17,"m":65536,"p":4,"salt":"` + okSalt + `","id":"` + okSalt + `"}`},
+		{"m too low", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":1,"p":4,"salt":"` + okSalt + `","id":"` + okSalt + `"}`},
+		{"m too high", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":2097152,"p":4,"salt":"` + okSalt + `","id":"` + okSalt + `"}`},
+		{"p too low", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":65536,"p":0,"salt":"` + okSalt + `","id":"` + okSalt + `"}`},
+		{"p too high", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":65536,"p":17,"salt":"` + okSalt + `","id":"` + okSalt + `"}`},
+		{"salt too short", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":65536,"p":4,"salt":"AAAA","id":"` + okSalt + `"}`},
+		{"id too short", `{"fmt":"finador-ledger","v":3,"kdf":"argon2id","t":3,"m":65536,"p":4,"salt":"` + okSalt + `","id":"AAAA"}`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := parseHeader([]byte(c.header)); err == nil {
+				t.Fatalf("expected rejection for %s", c.name)
+			}
+		})
 	}
 }
 
