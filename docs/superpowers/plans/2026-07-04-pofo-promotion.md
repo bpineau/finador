@@ -29,7 +29,7 @@
 - Produces: `type fetchSpec struct { raw bool; wantCurrency string; nativeOnly bool }`, and these signatures used by Task 2:
   `fetch(ctx, id string, from time.Time, spec fetchSpec)`, `fetchISIN(ctx, isin string, from time.Time, spec fetchSpec)`, `fetchTicker(ctx, ticker string, from time.Time, spec fetchSpec)`, `cachedResolutionHistory(ctx, id string, from time.Time, spec fetchSpec)`, `resolveBest(ctx, query string, from time.Time, preferBase string, spec fetchSpec)`.
 
-- [ ] **Step 1: Add the struct and rewire signatures**
+- [x] **Step 1: Add the struct and rewire signatures**
 
 In `client.go`, next to `resolution`:
 
@@ -49,12 +49,12 @@ Mechanical rewire, zero behaviour change: replace the `raw bool` parameter of `f
 - `Fetch`: `return c.fetch(ctx, id, from, fetchSpec{})`
 - `extended.go` (both `c.fetch(ctx, base, opt.From, opt.Raw)` call sites): `c.fetch(ctx, base, opt.From, fetchSpec{raw: opt.Raw})`
 
-- [ ] **Step 2: Verify no behaviour change**
+- [x] **Step 2: Verify no behaviour change**
 
 Run: `cd ~/projects/pofo && gofmt -l pkg && go vet ./... && go test ./pkg/marketdata -count=1`
 Expected: no gofmt output, PASS (identical test set, pure refactor).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "marketdata: thread an internal fetchSpec instead of positional flags"
@@ -73,7 +73,7 @@ cd ~/projects/pofo && git add -A && git commit -m "marketdata: thread an interna
 - Consumes: `fetchSpec` from Task 1.
 - Produces: `var ErrWrongCurrency error`; `FetchOptions.NoConvert bool`. Contract used by Tasks 3, 4, 9: `FetchExtended(ctx, id, FetchOptions{Currency: "EUR", NoConvert: true})` returns either a series natively quoted in EUR (or of unknown currency) or an error matching `errors.Is(err, ErrWrongCurrency)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `currency_guard_test.go`. A currency-parameterized chart helper plus three tests: NoConvert picks the native line over the deeper twin, NoConvert with no native line fails with ErrWrongCurrency, and a cached off-currency resolution is bypassed.
 
@@ -199,12 +199,12 @@ func newTestServerFor(t *testing.T, mux *http.ServeMux) *httptest.Server {
 
 (Adjust the `httptest` import; if `newTestClient` already fits the third test, drop `newTestServerFor`.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd ~/projects/pofo && go test ./pkg/marketdata -run 'NoConvert' -v`
 Expected: compile FAIL - `undefined: ErrWrongCurrency`, unknown field `NoConvert`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `extended.go`, in `FetchOptions` after `Currency`:
 
@@ -292,12 +292,12 @@ In `fetchTicker` this replaces the bare `return direct, nil` fast path too.
 
 pass `spec` to both `c.fetch` call sites, and make `convertTo` a no-op when `opt.NoConvert` (the series is already native or the fetch failed).
 
-- [ ] **Step 4: Run the new and old tests**
+- [x] **Step 4: Run the new and old tests**
 
 Run: `cd ~/projects/pofo && go test ./pkg/marketdata -count=1`
 Expected: PASS, including the three new tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "marketdata: NoConvert restricts resolution to the native currency line"
@@ -315,7 +315,7 @@ cd ~/projects/pofo && git add -A && git commit -m "marketdata: NoConvert restric
 - Consumes: `FetchExtended`, `FetchOptions.NoConvert`, `ErrWrongCurrency` (Task 2).
 - Produces: `func (c *Client) FetchAny(ctx context.Context, ids []string, opt FetchOptions) (*Series, error)` - used by finador in Task 9.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `any_test.go`:
 
@@ -396,12 +396,12 @@ func twinMuxISINOnlyUSD(t *testing.T, isin string) *http.ServeMux {
 
 (add `"strings"` to imports.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd ~/projects/pofo && go test ./pkg/marketdata -run FetchAny -v`
 Expected: compile FAIL - `c.FetchAny undefined`.
 
-- [ ] **Step 3: Implement `any.go`**
+- [x] **Step 3: Implement `any.go`**
 
 ```go
 package marketdata
@@ -464,12 +464,12 @@ func (c *Client) fetchFirst(ctx context.Context, ids []string, opt FetchOptions)
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd ~/projects/pofo && go test ./pkg/marketdata -count=1`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "marketdata: FetchAny, ordered multi-identifier fetch with native-first currency preference"
@@ -487,7 +487,7 @@ cd ~/projects/pofo && git add -A && git commit -m "marketdata: FetchAny, ordered
 - Consumes: `Latest`, `FXRate(ctx, from, to string, at time.Time) (float64, error)`, `ErrWrongCurrency`.
 - Produces: `type QuoteOptions struct { Currency string; NoConvert bool }`; `func (c *Client) LatestAny(ctx context.Context, ids []string, opt QuoteOptions) (*Quote, error)` - used by finador in Task 9.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `any_test.go` (the spot endpoint mirrors what `fetchYahooSpot` reads: the chart meta's `regularMarketPrice`; reuse the chart handlers, `Latest` falls back to the last daily close, which carries the series currency - that is all these tests need):
 
@@ -566,12 +566,12 @@ func constant(n int, v float64) []float64 {
 
 (The FX test days must cover the quote's Time; `testDays(400)` starts 2020-01-06, and the twin's last close is inside that range. If `FXRate` holds the earliest rate flat, a constant series makes the expectation date-proof.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd ~/projects/pofo && go test ./pkg/marketdata -run LatestAny -v`
 Expected: compile FAIL - `QuoteOptions`/`LatestAny` undefined.
 
-- [ ] **Step 3: Implement in `any.go`**
+- [x] **Step 3: Implement in `any.go`**
 
 ```go
 // QuoteOptions constrains LatestAny. The zero value keeps every default:
@@ -626,12 +626,12 @@ func (c *Client) LatestAny(ctx context.Context, ids []string, opt QuoteOptions) 
 
 (add `"strings"` to `any.go` imports.)
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd ~/projects/pofo && go test ./pkg/marketdata -count=1`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "marketdata: LatestAny, multi-identifier quotes with currency assurance"
@@ -648,7 +648,7 @@ cd ~/projects/pofo && git add -A && git commit -m "marketdata: LatestAny, multi-
 **Interfaces:**
 - Produces: `func MergeDividends(dst []Dividend, events ...Dividend) []Dividend`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestMergeDividends(t *testing.T) {
@@ -668,12 +668,12 @@ func TestMergeDividends(t *testing.T) {
 
 (add `"reflect"` to the test imports.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd ~/projects/pofo && go test ./pkg/marketdata -run MergeDividends -v`
 Expected: compile FAIL - `MergeDividends undefined`.
 
-- [ ] **Step 3: Implement in `types.go`**
+- [x] **Step 3: Implement in `types.go`**
 
 ```go
 // MergeDividends upserts events into dst by ex-date (one event per date,
@@ -697,12 +697,12 @@ func MergeDividends(dst []Dividend, events ...Dividend) []Dividend {
 
 (add `"slices"` to `types.go` imports.)
 
-- [ ] **Step 4: Run tests, then the full pofo gate**
+- [x] **Step 4: Run tests, then the full pofo gate**
 
 Run: `cd ~/projects/pofo && gofmt -l pkg && go vet ./... && go test ./... -count=1`
 Expected: PASS everywhere.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "marketdata: MergeDividends, sorted upsert of dividend events"
@@ -720,7 +720,7 @@ cd ~/projects/pofo && git add -A && git commit -m "marketdata: MergeDividends, s
 - Consumes: `DrawdownEpisodes`, `Episode`.
 - Produces: `func MaxDrawdown(dates []time.Time, values []float64) Episode` - used by Task 8 and finador Task 10.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestMaxDrawdown(t *testing.T) {
@@ -739,12 +739,12 @@ func TestMaxDrawdown(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd ~/projects/pofo && go test ./pkg/metrics -run MaxDrawdown -v`
 Expected: compile FAIL.
 
-- [ ] **Step 3: Implement in `episodes.go`**
+- [x] **Step 3: Implement in `episodes.go`**
 
 ```go
 // MaxDrawdown returns the deepest drawdown episode of a value series, or
@@ -761,12 +761,12 @@ func MaxDrawdown(dates []time.Time, values []float64) Episode {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd ~/projects/pofo && go test ./pkg/metrics -count=1`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "metrics: MaxDrawdown, deepest episode selection"
@@ -783,7 +783,7 @@ cd ~/projects/pofo && git add -A && git commit -m "metrics: MaxDrawdown, deepest
 **Interfaces:**
 - Produces: `type Window struct { Name string; From, To time.Time }`; `func StandardWindows(to time.Time) []Window` - used by Task 8 and finador Task 10.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 package metrics
@@ -825,12 +825,12 @@ func TestStandardWindows(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd ~/projects/pofo && go test ./pkg/metrics -run StandardWindows -v`
 Expected: compile FAIL.
 
-- [ ] **Step 3: Implement `report.go`**
+- [x] **Step 3: Implement `report.go`**
 
 ```go
 package metrics
@@ -867,12 +867,12 @@ func StandardWindows(to time.Time) []Window {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd ~/projects/pofo && go test ./pkg/metrics -run StandardWindows -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "metrics: Window and StandardWindows, the standard report windows"
@@ -909,7 +909,7 @@ type ReportOptions struct {
 func Report(dates []time.Time, values []float64, flows []Flow, opt ReportOptions) ([]ReportRow, ReportSummary)
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `report_test.go`:
 
@@ -983,12 +983,12 @@ func TestReportDropsPreOriginWindowsAndGatesLongFigures(t *testing.T) {
 
 (`report_test.go` needs `"math"` added to its imports for these tests.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd ~/projects/pofo && go test ./pkg/metrics -run Report -v`
 Expected: compile FAIL.
 
-- [ ] **Step 3: Implement in `report.go`**
+- [x] **Step 3: Implement in `report.go`**
 
 ```go
 // ReportRow is one measured window of a period report. OK is false when
@@ -1128,12 +1128,12 @@ func windowSlice(dates []time.Time, values []float64, flows []Flow, from, to tim
 
 (add `"math"` to `report.go` imports.)
 
-- [ ] **Step 4: Run tests, then the full pofo gate**
+- [x] **Step 4: Run tests, then the full pofo gate**
 
 Run: `cd ~/projects/pofo && gofmt -l pkg && go vet ./... && go test ./... -count=1`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/projects/pofo && git add -A && git commit -m "metrics: Report, the standard period table and summary over a flowed series"
@@ -1154,7 +1154,7 @@ cd ~/projects/pofo && git add -A && git commit -m "metrics: Report, the standard
 - Consumes: `FetchAny`, `LatestAny`, `QuoteOptions`, `FetchOptions.NoConvert`, `marketdata.ErrWrongCurrency`.
 - Produces: `market.Ref` gains `Currency domain.Currency`; the `Source` contract gains: "when ref.Currency is set, Daily must serve quotes natively in it or fail; Latest may convert as a last resort". `refresh.go` keeps a reject-only guard (never merges off-currency data) as enforcement of that contract for third-party Sources.
 
-- [ ] **Step 1: Extend Ref and the Source contract**
+- [x] **Step 1: Extend Ref and the Source contract**
 
 `source.go`:
 
@@ -1171,7 +1171,7 @@ type Ref struct {
 }
 ```
 
-- [ ] **Step 2: Rewrite the Pofo facade fetches**
+- [x] **Step 2: Rewrite the Pofo facade fetches**
 
 `pofo.go`: replace the two id-loops and add the option mapping.
 
@@ -1242,7 +1242,7 @@ func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
 
 `LatestBatch` keeps its shape (live batch on exact symbols, then per-ref fallback) but the fallback now goes through the rewritten `Latest` above - delete nothing else.
 
-- [ ] **Step 3: Slim refresh.go**
+- [x] **Step 3: Slim refresh.go**
 
 In `Refresh`: pass the currency in the ref and delete the twin retry block (the `if data.Currency != ... { if asset.ISIN != "" ... }` re-fetch); KEEP the final reject guard - it now enforces the Source contract for any third-party implementation (the book must never merge off-currency quotes, whatever the Source):
 
@@ -1265,12 +1265,12 @@ In `Refresh`: pass the currency in the ref and delete the twin retry block (the 
 
 Same treatment in the FX loop (`Currency: domain.USD` in the ref, keep the reject guard). In `SpotRefresh`, delete the per-quote twin retry (`if q.Currency != "" && q.Currency != ccy && ticker != "" { ... }`) and keep the reject guard; build targets with `Ref{Symbol: asset.Ticker, ISIN: asset.ISIN, Currency: ccy}` and `Ref{Symbol: symbol, Currency: domain.USD}`.
 
-- [ ] **Step 4: Adjust the tests**
+- [x] **Step 4: Adjust the tests**
 
 - `refresh_test.go`: the tests that asserted the *retry* behaviour (a second `Daily`/`Latest` call with the bare ticker) now assert the simpler contract: a fake Source returning off-currency data yields a warning and no merge (guard kept), and the fake records receiving `ref.Currency == asset.Currency`. Delete the retry-sequencing expectations.
 - `pofo_test.go`: the ISIN-then-symbol loop tests move down a level (they now belong to pofo's `any_test.go`, already written in Task 3). Keep two facade tests against an `httptest`-backed `marketdata.Client` serving the Task 2 twin scenario (search: USD twin only, EUR line quotable by its ticker): `Daily(Ref{ISIN, Currency: EUR})` fails (strict NoConvert, no native line via the ISIN alone) while `Daily(Ref{ISIN, Symbol: "NATV.PA", Currency: EUR})` serves the native line; `Latest(Ref{ISIN, Currency: EUR})` succeeds with a converted EUR quote (spot tolerance).
 
-- [ ] **Step 5: DECISIONS.md entry**
+- [x] **Step 5: DECISIONS.md entry**
 
 Append to `docs/superpowers/DECISIONS.md` (match the existing numbering, French, same style as the neighbours):
 
@@ -1287,12 +1287,12 @@ refresh.go garde une garde de rejet (jamais de merge off-currency) comme
 contrat d'interface Source, pas comme logique métier.
 ```
 
-- [ ] **Step 6: Full finador gate**
+- [x] **Step 6: Full finador gate**
 
 Run: `cd ~/projects/finador && make check`
 Expected: PASS (fmt, vet, lint, tests, race).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd ~/projects/finador && git add -A && git commit -m "market: currency assurance and twin retry move down into pofo"
@@ -1313,7 +1313,7 @@ cd ~/projects/finador && git add -A && git commit -m "market: currency assurance
 - Consumes: `metrics.Report`, `metrics.ReportOptions`, `metrics.Window`, `metrics.MaxDrawdown`, `metrics.Episode`.
 - Produces: unchanged finador API (`perf.Report`, `perf.Row`, `perf.Metrics`, `perf.MaxDrawdown`, `perf.Names`) - callers in cli/web compile untouched.
 
-- [ ] **Step 1: Switch Names() and update period tests**
+- [x] **Step 1: Switch Names() and update period tests**
 
 `periods.go`:
 
@@ -1328,7 +1328,7 @@ func Names() []string {
 
 `PeriodRange` already parses "7d" (and keeps parsing "5d" for explicit CLI use). Update `periods_test.go` and any `report_test.go` fixture expecting "5d" in the table.
 
-- [ ] **Step 2: Rewrite perf.MaxDrawdown as a facade**
+- [x] **Step 2: Rewrite perf.MaxDrawdown as a facade**
 
 `perf.go`:
 
@@ -1349,7 +1349,7 @@ func MaxDrawdown(points []Point) Drawdown {
 }
 ```
 
-- [ ] **Step 3: Rewrite perf.Report as a facade**
+- [x] **Step 3: Rewrite perf.Report as a facade**
 
 `report.go` keeps `RiskFreeFromConfig`, `Row`, `Metrics`, `MinDaysForRisk`, `MinDaysForCAGR` (now passed down) and becomes:
 
@@ -1424,19 +1424,19 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 
 Delete the now-dead `periodRow` and `windowSlice` from `report.go`; `TWR`, `DailyReturns`, `CAGR`, `Vol`, `Sharpe`, `Sortino` stay in `perf.go` (still used by cli/web directly).
 
-- [ ] **Step 4: Run the perf tests, fix expectations**
+- [x] **Step 4: Run the perf tests, fix expectations**
 
 Run: `cd ~/projects/finador && go test ./internal/perf -count=1 -v`
 Expected: PASS after updating fixtures that named "5d" (the numeric golden values must NOT change except rows whose window changed from 5d to 7d - recompute those by hand from the fixtures, do not just paste the new output).
 
-- [ ] **Step 5: README + full gate**
+- [x] **Step 5: README + full gate**
 
 Update the `finador perf` recipe output in README.md (5d line becomes 7d). Then:
 
 Run: `cd ~/projects/finador && make check`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/projects/finador && git add -A && git commit -m "perf: period table assembly moves down into pofo metrics; a week is 7d"
@@ -1453,7 +1453,7 @@ cd ~/projects/finador && git add -A && git commit -m "perf: period table assembl
 **Interfaces:**
 - Consumes: everything above, merged and green in both repos.
 
-- [ ] **Step 1: Push pofo and tag the release**
+- [x] **Step 1: Push pofo and tag the release**
 
 ```bash
 cd ~/projects/pofo && gofmt -l pkg && go vet ./... && go test ./... -count=1
@@ -1463,7 +1463,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 (v0.1.0 is pofo's first tag; if `git tag` shows existing tags by then, take the next minor.)
 
-- [ ] **Step 2: Point finador at the tag and drop the replace**
+- [x] **Step 2: Point finador at the tag and drop the replace**
 
 ```bash
 cd ~/projects/finador
@@ -1472,7 +1472,7 @@ go mod edit -dropreplace github.com/bpineau/pofo
 go mod tidy
 ```
 
-- [ ] **Step 3: Update CLAUDE.md**
+- [x] **Step 3: Update CLAUDE.md**
 
 Replace the "pofo is a sibling checkout" bullet with:
 
@@ -1487,12 +1487,12 @@ Replace the "pofo is a sibling checkout" bullet with:
   bugs in pofo, finador-flavor bugs in the facade.
 ```
 
-- [ ] **Step 4: Full gate against the tagged pofo**
+- [x] **Step 4: Full gate against the tagged pofo**
 
 Run: `cd ~/projects/finador && make check`
 Expected: PASS - proving the tag really contains everything finador consumes.
 
-- [ ] **Step 5: Commit and push both repos**
+- [x] **Step 5: Commit and push both repos**
 
 ```bash
 cd ~/projects/finador && git add -A && git commit -m "build: pofo v0.1.0, replace directive dropped" && git push
