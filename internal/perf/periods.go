@@ -6,6 +6,32 @@ import (
 	"finador/internal/domain"
 )
 
+// CloseAnchor is the "as of" date for the period table: the most recent settled
+// close at or before `on` across the book's priced securities. Calendar today
+// routinely runs ahead of the last real session (a shut exchange, a pre-open
+// morning). Anchoring the windows on today then makes "1d" compare a stale,
+// forward-filled close against yesterday while a fresh 24/5 FX point drifts
+// underneath - noise, not a session (e.g. a EUR book holding a USD name shows
+// -0.4% the morning it actually closed +1.67%). Anchoring on the last close
+// makes "1d" mean "last close vs the previous close", matching Yahoo/Google.
+// Returns `on` unchanged when no security has any close (e.g. a property-only
+// book), so the caller's calendar-today behaviour is preserved.
+func CloseAnchor(m *domain.MarketData, on domain.Date) domain.Date {
+	if m == nil {
+		return on
+	}
+	best := domain.Date{}
+	for _, s := range m.Prices {
+		if _, d, ok := s.At(on); ok && best.Before(d) {
+			best = d
+		}
+	}
+	if best.IsZero() {
+		return on
+	}
+	return best
+}
+
 // PeriodRange resolves a period name into [from, to]: the value at `from` is
 // the comparison base, so "ytd" starts at Dec 31 of last year. Month/year
 // arithmetic follows Go's AddDate normalization: from March 31, "1m" lands on

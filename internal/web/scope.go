@@ -163,8 +163,9 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 			{Label: "gross", Color: couleurEncre, Points: slicePoints(grossAll, from)},
 			{Label: "net", Color: couleurVert, Points: slicePoints(netAll, from)},
 		}, 860, 280))
-		// perf.Report always uses the full series
-		data.Rows, data.Met = perf.Report(grossAll, res.PerfFlows(), today, perf.RiskFreeFromConfig(b.Config))
+		// perf.Report always uses the full series; windows end at the last settled
+		// close, not calendar today (see perf.CloseAnchor).
+		data.Rows, data.Met = perf.Report(grossAll, res.PerfFlows(), perf.CloseAnchor(&b.Market, today), perf.RiskFreeFromConfig(b.Config))
 		data.Warnings = res.Warnings
 	}
 	// Price history is asset-specific: a single security has a quote series; an
