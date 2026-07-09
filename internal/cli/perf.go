@@ -54,6 +54,10 @@ func perfCmd(a *app) *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), "≈ future date clamped to today (%s)\n", today)
 				evalTo = today
 			}
+			// Measure as of the last settled close, not calendar today: the flat
+			// table, the tree, the custom window and the "as of" header all end
+			// there (see perf.CloseAnchor).
+			evalTo = perf.CloseAnchor(&b.Market, evalTo)
 			ensureDisplayFX(cmd, a, f, display)
 			if tree {
 				if from != "" {
