@@ -207,8 +207,11 @@ func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (
 	return v.fx.Convert(toF(m.Amount), m.Currency, to, at)
 }
 
-// positionValue: market close if a series exists, else last statement of the
-// (account, asset) pair, else zero - each fallback flagged.
+// positionValue: market close if a series exists, else the last statement of
+// the (account, asset) pair - a NAV observation, scaled per share when the
+// quantity changed since - else the position's cost basis (a bought position
+// is never worth 0 just because nothing observed it yet, or the buy itself
+// would read as a loss). Each fallback is flagged.
 func (v *valuer) positionValue(h Holding) (float64, error) {
 	if ov, ok := v.overrides[h.Asset.ID]; ok {
 		v.stale = append(v.stale, fmt.Sprintf("what-if: %s at %s %s",
@@ -223,7 +226,22 @@ func (v *valuer) positionValue(h Holding) (float64, error) {
 	}
 	if tx, ok := v.lastStatement(h.Account.ID, h.Asset.ID); ok {
 		v.stale = append(v.stale, fmt.Sprintf("%s: valued from its %s statement", h.Asset.Name, tx.Date))
-		return v.convertAt(tx.Amount, v.ccy, v.at)
+		total, err := v.convertAt(tx.Amount, v.ccy, v.at)
+		if err != nil {
+			return 0, err
+		}
+		if qAt := Quantity(v.b, h.Account.ID, h.Asset.ID, tx.Date); qAt.IsPositive() {
+			total = total / toF(qAt) * toF(h.Qty)
+		}
+		return total, nil
+	}
+	basis, err := v.positionBasis(h.Account.ID, h.Asset.ID)
+	if err != nil {
+		return 0, err
+	}
+	if basis > 0 {
+		v.stale = append(v.stale, fmt.Sprintf("%s: no quote nor statement - valued at cost", h.Asset.Name))
+		return basis, nil
 	}
 	v.stale = append(v.stale, fmt.Sprintf("%s: no quote nor statement - counted as 0", h.Asset.Name))
 	return 0, nil

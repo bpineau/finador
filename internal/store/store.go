@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"finador/internal/domain"
@@ -142,8 +143,11 @@ func (f *File) Save() error {
 	return nil
 }
 
-// atomicWrite writes data to path via tmp + fsync + rename. When backup is true,
-// an existing file is rotated to .bak first.
+// atomicWrite writes data to path via tmp + fsync + rename, then fsyncs the
+// parent directory so the rename itself survives a crash. When backup is true,
+// the previous version is kept as .bak via a hard link (not a rename: a rename
+// would open a window with no file at path at all - a crash there would leave
+// only the .bak, which reads as a vanished ledger).
 func atomicWrite(path string, data []byte, backup bool) error {
 	tmp := path + ".tmp"
 	w, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
@@ -163,12 +167,35 @@ func atomicWrite(path string, data []byte, backup bool) error {
 	}
 	if backup {
 		if _, err := os.Stat(path); err == nil {
-			if err := os.Rename(path, path+".bak"); err != nil {
+			if err := os.Remove(path + ".bak"); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return err
+			}
+			if err := os.Link(path, path+".bak"); err != nil {
+				// Filesystem without hard links: fall back to the rename dance,
+				// accepting its brief no-file-at-path window.
+				if err := os.Rename(path, path+".bak"); err != nil {
+					return err
+				}
 			}
 		}
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	syncDir(path)
+	return nil
+}
+
+// syncDir fsyncs the directory holding path, making a just-renamed entry
+// durable. Best-effort: some filesystems refuse to fsync a directory, and the
+// data itself was already synced.
+func syncDir(path string) {
+	d, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return
+	}
+	defer d.Close()
+	_ = d.Sync()
 }
 
 // Compact rewrites a minimal log from the current Book - dropping superseded and
