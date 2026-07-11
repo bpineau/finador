@@ -3,6 +3,8 @@ package portfolio
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/shopspring/decimal"
 
@@ -114,10 +116,12 @@ type pairState struct {
 	qty   float64
 	basis float64 // average cost in display currency, flows converted at their date
 
-	// for property: statement value (last seen) and first estimate
-	stmt   *domain.Money
-	first  float64 // first statement converted to display ccy at its date
-	hasFst bool
+	// last statement (property: the whole estimate; security: a NAV observation
+	// of stmtQty shares, scaled per share when the quantity later changes)
+	stmt    *domain.Money
+	stmtQty float64
+	first   float64 // first statement converted to display ccy at its date
+	hasFst  bool
 }
 
 type accountState struct {
@@ -188,23 +192,22 @@ func (w *walker) warn(label string, from, to domain.Currency) {
 	}
 }
 
-// warnings returns the list of collected conversion warnings.
+// warnings returns the collected conversion warnings, one per currency pair,
+// sorted so the output is deterministic.
 func (w *walker) warnings() []string {
 	if len(w.warned) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(w.warned))
+	pairs := map[string]bool{}
 	for key := range w.warned {
-		// key format: "label:from→to"
-		// Reformat as a human-readable message
-		// Find split point at first ':'
-		i := 0
-		for i < len(key) && key[i] != ':' {
-			i++
-		}
-		ccy := key[i+1:]
+		_, ccy, _ := strings.Cut(key, ":") // key format: "label:from→to"
+		pairs[ccy] = true
+	}
+	out := make([]string, 0, len(pairs))
+	for ccy := range pairs {
 		out = append(out, fmt.Sprintf("cannot convert %s - counted as 0", ccy))
 	}
+	slices.Sort(out)
 	return out
 }
 
@@ -370,6 +373,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		}
 		m := t.Amount
 		p.stmt = &m
+		p.stmtQty = p.qty
 		if !p.hasFst && p.asset.Kind == domain.Property {
 			p.first = w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
 			p.hasFst = true
@@ -380,15 +384,19 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		// multi-year appreciation as a one-day jump. The first statement
 		// (prevHeld 0) is the full adoption.
 		//   - property: always declaration-valued → re-baseline on every statement
-		//   - security: only while it has no market price at this date (the price,
-		//     once present, supersedes the statement and carries the performance)
+		//   - security: only a position that entered the ledger with NO basis (a
+		//     declared holding, D8) adopts at its first statement. A position
+		//     BOUGHT in the ledger already entered through its buy flows and is
+		//     valued at cost until observed: its first statement is a NAV
+		//     observation, and the cost→declared gap is performance - emitting a
+		//     flow there would count the same money twice.
 		if w.scope.hasAsset(acc.acc, p.asset) {
 			newDisp := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
 			switch {
 			case p.asset.Kind == domain.Property:
 				w.addFlow(t.Date, newDisp-prevHeld, collect)
 			case isFirstStmt:
-				if _, _, hasPx := w.b.Market.Prices[p.asset.ID].At(t.Date); !hasPx && p.qty > 0 {
+				if _, _, hasPx := w.b.Market.Prices[p.asset.ID].At(t.Date); !hasPx && p.qty > 0 && p.basis == 0 {
 					w.addFlow(t.Date, newDisp, collect)
 				}
 			}
@@ -454,7 +462,11 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 				val = w.conv(*p.stmt, w.ccy, d, p.asset.Name)
 			}
 		default:
-			// Security: market price with forward-fill, fall back to last statement
+			// Security: market price with forward-fill; then the last statement,
+			// read as a NAV observation and scaled per share (buys or sells since
+			// the statement move the value with the quantity); then cost - a
+			// bought position is never worth 0 just because nothing observed it
+			// yet, or the buy itself would read as a loss.
 			if p.qty <= 0 {
 				break
 			}
@@ -462,8 +474,12 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 				val = w.convF(p.qty*close, p.asset.Currency, w.ccy, d, p.asset.Name)
 			} else if p.stmt != nil {
 				val = w.conv(*p.stmt, w.ccy, d, p.asset.Name)
+				if p.stmtQty > 0 {
+					val = val / p.stmtQty * p.qty
+				}
+			} else {
+				val = p.basis
 			}
-			// else: no price yet → val stays 0 (series semantics)
 		}
 		gross += val
 		perAccount[k.acc] += val

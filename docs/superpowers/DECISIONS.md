@@ -377,3 +377,29 @@ d'import, pas un invariant du ledger - deux sources peuvent légitimement
 produire la même empreinte si l'importeur ne namespace pas, tant pis pour lui).
 Un import supprimé puis rejoué **réapparaît** (la dédup ne voit que les
 transactions vivantes) : assumé, « supprimer = repartir de zéro ».
+
+## D27 - Titre acheté mais non observé : coût, puis statements « par part » (raffine D8)
+
+**Date** : 2026-07-11
+
+**Contexte :** l'audit des calculs a reproduit une violation de l'invariant
+« un achat n'est jamais un gain (ni une perte) » sur la recette documentée du
+README (fonds sans ticker : `asset buy` puis `asset set` en prix de repli).
+Entre l'achat et la première observation, la position valait 0 : sur un compte
+tracké, le cash baissait sans contrepartie (TWR -40 % fantôme permanent sur la
+repro) ; sur un compte non tracké, le flux du buy PLUS le flux d'adoption D8 du
+premier statement comptaient deux fois le même capital (gain fantôme -4000).
+**Choix :** (1) repli de valorisation d'un titre : cours → dernier statement lu
+comme une observation de VL et **mis à l'échelle par part** (montant/qty au jour
+du statement × qty courante - corrige aussi la survalorisation ×2 après une
+vente) → **coût** (une position achetée ne vaut jamais 0 faute d'observation).
+(2) Le flux d'adoption du premier statement (D8) ne s'applique qu'aux positions
+**sans basis** (vraie déclaration) : pour une position achetée, les buys ont
+porté les flux, les statements sont de la performance - comme les statements
+suivants l'étaient déjà. `Value()` et `Series()` restent égaux point à point
+(testé). D8 reste intact pour les propriétés (re-base = flux à chaque statement)
+et les déclarations pures.
+**Écarté :** émettre un flux `newDisp - coût` au premier statement (la
+croissance de VL depuis l'achat EST de la performance, et les statements
+suivants la comptent déjà ainsi) ; étendre le scaling par part aux propriétés
+(pas de quantité).

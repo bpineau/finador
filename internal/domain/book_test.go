@@ -90,6 +90,9 @@ func TestDuplicates(t *testing.T) {
 	if err := b.AddAccount(&Account{ID: "autre", Name: "PEA Zephyr"}); !errors.Is(err, ErrDuplicate) {
 		t.Errorf("nom dupliqué: %v", err)
 	}
+	if err := b.AddAsset(&Asset{ID: "cw8", Kind: Security, Name: "Autre fonds", Currency: EUR}); !errors.Is(err, ErrDuplicate) {
+		t.Errorf("ID d'asset dupliqué: %v", err)
+	}
 }
 
 func TestRejectEmptyIDs(t *testing.T) {
