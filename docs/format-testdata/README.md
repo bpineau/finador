@@ -12,7 +12,7 @@ the [finador file format](../FORMAT.md) can validate its reader end-to-end.
 - **Format version**: 3.
 - **Passphrase**: `finador-format-spec-v3`
 - **KDF**: Argon2id with the parameters carried in the file's header
-  (`t=3`, `m=65536` KiB, `p=4`), then HKDF-SHA256 subkeys — see
+  (`t=3`, `m=65536` KiB, `p=4`), then HKDF-SHA256 subkeys - see
   [`../FORMAT.md` §2](../FORMAT.md).
 
 Decrypting it (header line → 7 records → head trailer) must reproduce exactly the
@@ -49,24 +49,24 @@ Two accounts:
 | id | name | ccy | tax | aliases |
 |---|---|---|---|---|
 | `06fjrvs8x4n9bf1545k5e3r` | PEA Zephyr | EUR | gains:17.2% | `pea` |
-| `06fjrvs93zjn34r63jaysgg` | Livret A | EUR | none | — |
+| `06fjrvs93zjn34r63jaysgg` | Livret A | EUR | none | - |
 
 Two assets:
 
 | id | kind | name | ticker | group |
 |---|---|---|---|---|
-| `06fjrvs9ahrtcvc996bax90` | property | Appart Lyon | — | realestate |
+| `06fjrvs9ahrtcvc996bax90` | property | Appart Lyon | - | realestate |
 | `06fjrvs9ha04wzbwzfj344g` | security | CW8.PA | CW8.PA | equities/world (alias `cw8`) |
 
 Three transactions:
 
 | id | date | kind | account | asset | qty | amount |
 |---|---|---|---|---|---|---|
-| `06fjrvs9x225arwex6tzgv0` | 2024-01-15 | deposit | PEA Zephyr | — | 0 | 10000 EUR |
+| `06fjrvs9x225arwex6tzgv0` | 2024-01-15 | deposit | PEA Zephyr | - | 0 | 10000 EUR |
 | `06fjrvsa3t56betpvvqc1b0` | 2024-01-20 | buy | PEA Zephyr | CW8.PA | 20 | 9000 EUR |
-| `06fjrvsaafrkhqs6ctv2za0` | 2026-06-01 | statement | Livret A | — | 0 | 15000 EUR |
+| `06fjrvsaafrkhqs6ctv2za0` | 2026-06-01 | statement | Livret A | - | 0 | 15000 EUR |
 
-(No `config`, `*-edit` or `*-del` records — this sample exercises only the create
+(No `config`, `*-edit` or `*-del` records - this sample exercises only the create
 path. Decoding it confirms the header parse, key derivation, the AAD chain, the
 record envelope and payload schemas, and the head trailer.)
 
