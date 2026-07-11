@@ -4,7 +4,7 @@ This is the open, implementation-grade specification of the encrypted file finad
 reads and writes. It is precise enough to build an independent reader/writer (for
 example a native Android client) without looking at finador's source. Every detail
 below was checked against the reference implementation in
-`internal/store/{header,record,log,store,cache}.go` and `internal/domain/id.go`.
+`internal/store/{header,record,log,store,merge,cache}.go` and `internal/domain/id.go`.
 
 The format uses only universal primitives - **AES-256-GCM**, **Argon2id**,
 **HKDF-SHA256**, **base64**, **gzip**, **UTF-8 JSON** - so it is implementable on
@@ -30,7 +30,8 @@ A finador ledger is an **append-only, encrypted, line-oriented text journal**:
 
 The file is **git-sync-friendly**: a writer re-emits unchanged record lines
 byte-for-byte and only appends new records, so a small logical change is a small
-diff on disk (see §6).
+diff on disk (see §6). Copies of the same ledger that diverged on two machines
+reconcile losslessly with the merge algorithm of §6.5.
 
 The **market quote cache** is **not** part of this file. It lives in a separate,
 regenerable local sidecar (§7) and must never be written into the synced ledger.
@@ -38,6 +39,37 @@ regenerable local sidecar (§7) and must never be written into the synced ledger
 The reference default path is `~/.finador.fin`, but the format is independent of the
 filename. (finador's own tooling gitignores `*.fin`; the committed sample in this
 spec is named `sample.ledger` for that reason.)
+
+### 1.1 Reading a file, end to end (pseudocode)
+
+Everything a reader does, in order; each step is specified in the section cited:
+
+```
+lines    = split(trim_trailing_newlines(file_bytes), "\n")   # §3.4
+header   = parse_json(lines[0]); validate bounds             # §3.1, §2.2
+hdrHash  = SHA256(raw bytes of lines[0])                     # §3.1
+master   = Argon2id(password, header.salt, t, m, p, 32)      # §2.1
+keyLog   = HKDF-SHA256(master, salt=nil, "finador-ledger-v2", 32)
+
+prevTag  = 16 zero bytes
+records  = []
+for seq in 1 .. len(lines)-2:                                # lines[1..N] are records
+    raw   = base64_decode(lines[seq])
+    nonce, ctAndTag = raw[0:12], raw[12:]
+    aad   = hdrHash ‖ uint64_be(seq) ‖ prevTag               # §3.2
+    plain = AES-256-GCM-open(keyLog, nonce, ctAndTag, aad)   # failure ⇒ bad password/corrupt
+    records.append(parse_json(plain))                        # envelope {"k","ts","d"}, §4
+    prevTag = last 16 bytes of ctAndTag
+
+head = open last line with AAD = hdrHash ‖ "finador-head" ‖ uint64_be(N)   # §3.3
+verify head.count == N and head.head == prevTag (or zeros when N == 0)
+
+book = fold(records)                                         # replay, §5
+```
+
+Any base64, GCM or count/tag failure must surface as the single indistinguishable
+"bad password or corrupt file" error (§2.3). An unknown header `v` or record `k`
+is a distinct "unsupported format" error (§8).
 
 **Storage location is out of scope.** finador can keep this exact file in a local path
 or in a private GitHub repository (synced via the Contents API, one commit per save).
@@ -238,7 +270,12 @@ The entity's own `id` lives **inside `d`**, not in the envelope.
 
 ### 4.2 Identifiers (`id`)
 
-Account, asset and transaction ids are produced by `domain.NewID`:
+Every entity (account, asset, transaction, label) carries an `id`: an **opaque,
+non-empty string, unique within its entity class** for the whole life of the
+ledger, never reused (a tombstoned id stays burned). A reader must treat ids as
+opaque - compare them byte-for-byte, never parse meaning out of them.
+
+The canonical generator is `domain.NewID`:
 
 ```
 raw[14] = uint48_big_endian(unixMillis)  ‖  rand[8]
@@ -263,6 +300,12 @@ id      = crockfordBase32_lowercase_nopad(raw)
   reimplement.
 
 Example real id: `06fc2cjx2bvtjjxmtmcj2wg`.
+
+A writer may exceptionally use another scheme when determinism is the point: the
+reference CSV importer gives an auto-created asset the lowercase slug of its
+imported reference (e.g. ticker `CW8.PA` → id `cw8-pa`), so the same import run
+on two machines converges on **one** asset instead of two random ids that merge
+would keep as duplicates. Random `NewID` remains the default everywhere else.
 
 References (a transaction's `account` / `asset`) store the **id**. Display resolves
 id → human name; input accepts a name, alias, ticker, ISIN or **id prefix**.
@@ -355,7 +398,7 @@ upsert by `id`.
 | `qty` | string | decimal as string; `"0"` when not applicable (cash, statement). Always non-negative - `kind` carries direction. |
 | `amount` | object | `{"amount":"<decimal string>","ccy":"<3-letter>"}` - always non-negative |
 | `note` | string | optional |
-| `importHash` | string | optional; CSV-import idempotency fingerprint |
+| `importHash` | string | optional; external-import idempotency fingerprint (§4.5) |
 
 `kind` is a **string**. The CLI's `cash deposit/withdraw` map to `deposit/withdraw`;
 `cash set` and `asset set` both record a `statement` (a `statement` with an `asset`
@@ -402,6 +445,31 @@ Monetary amounts and quantities are exact decimals serialized as **JSON strings*
 (`shopspring/decimal`): `"9000"`, `"20"`, `"42.50"`. A reader should parse them as
 arbitrary-precision decimals, not floats. `Money` is the object
 `{"amount":"<decimal>","ccy":"<currency>"}`.
+
+### 4.5 External references: `importHash`
+
+`importHash` is the transaction's **external reference**: an opaque,
+writer-chosen string that fingerprints the outside-world event a transaction was
+imported from, so replaying the same source never duplicates it.
+
+- **Dedup rule**: before creating a transaction from an external source, skip it
+  if any live transaction already carries the same `importHash`. This is the only
+  meaning of the field; it is never displayed and never parsed.
+- **Choosing a value**: anything stable per source event. The reference CSV
+  importer uses a content hash (first 8 bytes of the SHA-256 of
+  `date|kind|account|asset|qty|amount|ccy|note`, hex). A broker-statement
+  importer should prefer the broker's own transaction id, namespaced to avoid
+  cross-broker collisions - e.g. `meridia:8451327`. Namespacing matters because
+  the dedup scan is global across all transactions.
+- **Edits preserve it**: correcting an imported transaction (a `tx-edit`) must
+  carry the `importHash` through unchanged - an edit is not a re-import, and
+  dropping the fingerprint would resurrect the transaction on the next replay of
+  the same statement.
+- **Deletes burn it only while the tombstone folds**: the dedup rule only sees
+  *live* transactions, so a deleted import reappears if its statement is replayed.
+  The reference implementation accepts this (deleting an imported line and
+  re-importing the same file is explicitly "start over").
+- Hand-entered transactions simply omit the field.
 
 ---
 
@@ -482,6 +550,34 @@ superseded and tombstoned records) with a fresh chain and fresh `ts` on every
 record. This is a full-file rewrite and is rarely needed; it changes ids of nothing
 (entity ids are stable) but does discard dead history.
 
+### 6.5 Merging diverged copies
+
+Two copies of the **same ledger** (same header `id` - refuse to merge otherwise)
+can diverge when edited on two machines. Merge reconciles them losslessly; both
+reference implementations (Go and Android) follow exactly this algorithm, and any
+other implementation must too, or the same pair of files would merge differently
+on different devices:
+
+1. **Group** every record from both files by entity key `(class, entity-id)`,
+   where the class unifies a kind with its edit/tombstone forms -
+   `acct`/`acct-del` → `acct`, `asset`/`asset-del` → `asset`,
+   `tx`/`tx-edit`/`tx-del` → `tx`, `label`/`label-del` → `label` - and the
+   entity id is `d.id` (`d.key` for `config`).
+2. **Elect a winner per entity: the record with the latest `ts`, compared as
+   parsed instants** (§4.1 - never as strings). Records with identical `(k, d)`
+   payloads count as one write. If genuinely different payloads share the exact
+   latest instant, that is a true conflict: surface it to the user, who picks the
+   survivor. (With nanosecond stamps from two machines this is vanishingly rare.)
+3. **A tombstone winner keeps the entity deleted**: emit nothing for it. Any
+   other winner is emitted with its **original `ts` and payload bytes preserved**.
+4. **Re-seal** the winners, ordered by their `ts` instants (a stable sort), as a
+   fresh chain (new nonces, new head) - the merged file is a normal ledger again.
+
+Distinct entities never conflict because ids are random per machine (§4.2): two
+concurrent `tx` adds are two different ids, and the union keeps both. The merge
+is idempotent (merging the same pair again changes nothing) and symmetric up to
+tie-breaking.
+
 ---
 
 ## 7. Sidecar cache
@@ -534,7 +630,11 @@ importance for financial safety:
    optional fields may be added to an existing record kind **without** a version
    bump (additive, forward/backward-compatible evolution). Implementations should
    therefore tolerate, and round-trip when re-emitting verbatim, fields they do not
-   recognize.
+   recognize. Be aware of the limit of that tolerance: a client that *edits* an
+   entity re-serializes only the fields it knows, so the superseding record drops
+   the field a newer client had written (the fold keeps only the latest record per
+   id). Unknown fields survive on disk, not across a concurrent editor - a field
+   whose loss would be unsafe needs a version bump, not just rule 2.
 3. **A new `k` (or a changed meaning of an existing `k`) REQUIRES a version bump.**
    A reader MUST treat an unknown `k` as a hard error. A financial ledger must never
    silently skip a record it does not understand - doing so could hide money.

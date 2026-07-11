@@ -355,3 +355,25 @@ pondérée), pas une redite ; seul le repli mono-ligne / l'ISIN collé sont corr
 **Écarté :** garder les sous-totaux sur la ligne du compte (option « sous-totaux ») ;
 lisible mais redonde visiblement la somme des enfants pour les comptes mono-actif,
 ce que l'utilisateur voulait éviter.
+
+## D26 - `importHash` officialisé comme external reference (audit du format)
+
+**Date** : 2026-07-11
+
+**Contexte :** l'import futur de relevés de courtiers (Meridia, etc.) exige de
+dédupliquer les transactions rejouées (même relevé réimporté, opération à cheval
+sur deux relevés). L'audit du format posait la question : faut-il un nouveau
+champ « external id » dans le ledger ?
+**Choix :** non - `importHash` (déjà présent, optionnel, opaque) EST ce
+mécanisme, désormais spécifié (FORMAT.md §4.5) : chaîne choisie par l'écrivain,
+dédup globale sur les transactions vivantes, préservée par les éditions (un
+edit n'est pas un ré-import - bug corrigé côté Android qui la perdait),
+namespacée pour un id courtier (`meridia:8451327`) ou hash de contenu (import
+CSV de référence). Aucun bump de version : champ existant, sémantique
+inchangée, juste rendue normative.
+**Écarté :** un champ `extRef` dédié (redondant avec `importHash`, aurait cassé
+la compat) ; une unicité imposée à l'écriture (la dédup est une politique
+d'import, pas un invariant du ledger - deux sources peuvent légitimement
+produire la même empreinte si l'importeur ne namespace pas, tant pis pour lui).
+Un import supprimé puis rejoué **réapparaît** (la dédup ne voit que les
+transactions vivantes) : assumé, « supprimer = repartir de zéro ».

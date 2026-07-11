@@ -1,7 +1,7 @@
 package domain
 
-// AccountID is an account's stable identifier: the slug of its original name
-// (Slugify), unchanged by later renames.
+// AccountID is an account's stable identifier: a random, time-sortable NewID
+// assigned at creation, unchanged by later renames.
 type AccountID string
 
 // Account is an envelope: where assets are held, and how it is taxed.

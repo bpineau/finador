@@ -49,8 +49,10 @@ func (k *AssetKind) UnmarshalText(b []byte) error {
 	return nil
 }
 
-// AssetID is an asset's stable identifier: the slug of its original ticker or
-// name (Slugify), unchanged by later renames or retickers.
+// AssetID is an asset's stable identifier, unchanged by later renames or
+// retickers: a random, time-sortable NewID at creation, except assets created
+// by CSV import, which use the deterministic Slugify of the imported reference
+// so the same import on two machines converges on one asset.
 type AssetID string
 
 // Asset is anything owned: a quoted security or a free-form property.
