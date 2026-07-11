@@ -40,9 +40,9 @@ func CurrencyOr(s string, fallback Currency) (Currency, error) {
 
 // CheckAccountRefs verifies that none of a's references (ID, Name, Aliases)
 // collides exactly (case-insensitive) with another account - adding or
-// editing must not poison resolution. When called for an edit, a must
-// already be a pointer into b.Accounts so that the account is skipped
-// when comparing against itself.
+// editing must not poison resolution. Self is skipped by pointer identity:
+// an edit must mutate the account in place (every caller does), and a NEW
+// account whose ID collides with an existing one is then still caught.
 func (b *Book) CheckAccountRefs(a *Account) error {
 	refs := append([]string{string(a.ID), a.Name}, a.Aliases...)
 	for _, other := range b.Accounts {
@@ -111,11 +111,13 @@ func (b *Book) AddAsset(a *Asset) error {
 }
 
 // CheckAssetRefs verifies that none of a's references collides exactly with
-// another asset - adding or editing must not poison resolution.
+// another asset - adding or editing must not poison resolution. Self is
+// skipped by pointer identity, like CheckAccountRefs: skipping by ID would
+// let a NEW asset silently duplicate an existing asset's ID.
 func (b *Book) CheckAssetRefs(a *Asset) error {
 	refs := append([]string{string(a.ID), a.Ticker, a.ISIN, a.Name}, a.Aliases...)
 	for _, other := range b.Assets {
-		if other.ID == a.ID {
+		if other == a { // same pointer: skip self (edit scenario)
 			continue
 		}
 		others := append([]string{string(other.ID), other.Ticker, other.ISIN, other.Name}, other.Aliases...)

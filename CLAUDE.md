@@ -86,10 +86,13 @@ cmd/finador → cli ─┬→ store ──→ domain
 - **decimal in the ledger, float64 in analytics.** Money amounts and quantities
   are `shopspring/decimal`; market quotes, valuations and performance math are
   float64.
-- **A buy is never a gain.** External flows are neutralized in TWR; a declared
-  holding enters the series at market value. The first `Statement` of an
-  (account, asset) pair or of an account's cash is an *acquisition* (an
-  external flow), not performance (decision D8).
+- **A buy is never a gain - nor a loss.** External flows are neutralized in
+  TWR; a declared holding enters the series at market value; a bought security
+  nothing has observed yet (no quote, no statement) is valued at cost, never 0.
+  The first `Statement` of an (account, asset) pair or of an account's cash is
+  an *acquisition* (an external flow), not performance (decision D8) - except
+  when the position was already bought in the ledger: its buys carried the
+  flows, so statements are NAV observations, scaled per share (D27).
 - **Tracked vs untracked cash**: an account's cash is tracked once it has any
   pure-cash Statement/Deposit/Withdraw (`portfolio.CashTracked`). Tracked:
   trades move cash and are value-neutral. Untracked: trades are external flows.
