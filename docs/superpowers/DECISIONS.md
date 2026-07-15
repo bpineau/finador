@@ -403,3 +403,24 @@ et les déclarations pures.
 croissance de VL depuis l'achat EST de la performance, et les statements
 suivants la comptent déjà ainsi) ; étendre le scaling par part aux propriétés
 (pas de quantité).
+
+## D28 - TWR : les flux sont bookés en début de journée (base = V_{t-1} + F_t)
+
+**Date** : 2026-07-15
+
+**Contexte :** un compte financé par un petit virement AVANT le gros (100 EUR le
+06-10, puis 318000 le 16) affichait un TWR d'account absurde (-119 %) alors que
+son unique titre lisait un +3,36 % correct. `pofo/metrics.TWR` chaînait
+`r_t = (V_t - F_t)/V_{t-1}` (convention fin de journée) alors que `Flow` est
+documenté « booké en début de journée » : le jour du gros dépôt, le mark-to-
+market du titre acheté ce jour-là (~-69 sur 318000) était rapporté à la base
+pré-flux minuscule (100), produisant un facteur journalier NÉGATIF (-0,69) qui
+fait détoner le produit chaîné. **Choix :** base début de journée
+`r_t = V_t/(V_{t-1} + F_t)` (le versement gagne ce jour-là, il appartient au
+dénominateur). Corrigé dans pofo v0.1.1 (TWR + FlowReturns, test de non-
+régression « gros flux sur petite base »), go.mod repointé. Les jours sans flux
+sont inchangés (F=0), donc seuls les jours à flux bougent ; deux tests de la
+façade qui figeaient les nombres fin-de-journée passent à la nouvelle
+convention. **Écarté :** clamp/skip des jours à base faible (masque le symptôme,
+laisse la convention fausse) ; Modified Dietz (les flux finador sont déjà datés
+au jour, début de journée suffit et reste exact).
