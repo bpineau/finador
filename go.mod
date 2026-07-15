@@ -3,7 +3,7 @@ module finador
 go 1.26
 
 require (
-	github.com/bpineau/pofo v0.1.0
+	github.com/bpineau/pofo v0.1.1
 	github.com/samber/lo v1.53.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.10.2
