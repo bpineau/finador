@@ -363,3 +363,53 @@ func TestSeriesOpeningBuyValuedAtMarket(t *testing.T) {
 	got := perf.TWR(res.PerfPoints(false), res.PerfFlows())
 	approx(t, "TWR", got, 0)
 }
+
+// TestSeriesTWRSaneWhenFundedByTinyThenLargeFlow is the end-to-end guard for
+// the class of bug that once showed a fresh buy as +100% and later an account
+// at -119%: an account seeded by a tiny transfer (100) days before its real
+// funding (10000, invested the same day at a close just under cost) used to
+// charge the funding day's mark-to-market against the tiny pre-flow base,
+// detonating the chained TWR of every window that spans that day. With flows
+// booked start-of-day the account return stays a couple of percent. Drives the
+// full Series -> Report path so the guard covers the windows, not just the TWR
+// primitive (which pofo pins on its own).
+func TestSeriesTWRSaneWhenFundedByTinyThenLargeFlow(t *testing.T) {
+	b := domain.NewBook()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(b.AddAccount(&domain.Account{ID: "cto", Name: "CTO", Currency: domain.EUR}))
+	must(b.AddAsset(&domain.Asset{ID: "aa", Kind: domain.Security, Name: "A", Currency: domain.EUR, Group: "g"}))
+
+	// A negligible seed a week before the real funding sets the series inception
+	// on a ~100 base - the trap.
+	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "cto", Kind: domain.Deposit, Amount: eur("100")})
+	// Real funding, invested the same day; the position closes just under cost
+	// (98 vs the 100 paid), so the day's total dips below the flow that fed it.
+	b.Add(domain.Transaction{Date: mustDate("2026-01-08"), Account: "cto", Kind: domain.Deposit, Amount: eur("10000")})
+	b.Add(domain.Transaction{Date: mustDate("2026-01-08"), Account: "cto", Asset: "aa",
+		Kind: domain.Buy, Quantity: dec("100"), Amount: eur("10000")})
+	b.Market.Price("aa").Merge([]domain.PricePoint{
+		{Date: mustDate("2026-01-08"), Close: 98},  // 100x98 = 9800 < 10000 cost
+		{Date: mustDate("2026-01-15"), Close: 101}, // recovers to a small gain
+	})
+
+	res, err := Series(b, scopeOf(t, b, ""), mustDate("2026-01-01"), mustDate("2026-01-15"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, m := perf.Report(res.PerfPoints(false), res.PerfFlows(), mustDate("2026-01-15"), 0)
+	// The asset moved ~+1% net; nothing here can honestly be a double-digit-
+	// times return. A window below -50% is the flow-detonation signature.
+	for _, r := range rows {
+		if r.HasTWR && (r.TWR < -0.5 || r.TWR > 0.5) {
+			t.Errorf("window %q TWR = %+.1f%%, insane for a ~+1%% asset", r.Name, r.TWR*100)
+		}
+	}
+	if m.InceptionTWR < -0.5 || m.InceptionTWR > 0.5 {
+		t.Errorf("inception TWR = %+.1f%%, insane for a ~+1%% asset", m.InceptionTWR*100)
+	}
+}
