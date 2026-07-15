@@ -31,12 +31,12 @@ func TestTWRNoFlows(t *testing.T) {
 }
 
 func TestTWRNeutralizesFlows(t *testing.T) {
-	// Day 2: a contribution of 100 just before the open lifts the value to 210,
-	// then the market gains +10% → 231. TWR must see only day 1's +5%
-	// (100→105) and day 2's +10% ((231−100... no: (V2−F2)/V1.
-	pts := []Point{{d("2026-06-01"), 100}, {d("2026-06-02"), 105}, {d("2026-06-03"), 215.5}}
+	// Day 3: a contribution of 100 at the open lifts the base from 105 to 205,
+	// then the market gains +10% → 225.5. Flows are booked start-of-day, so the
+	// day earns on the funded base: r3 = 225.5/(105+100) = +10%, never charged
+	// against the pre-flow 105. TWR = day 2's +5% × day 3's +10% − 1 = 15.5%.
+	pts := []Point{{d("2026-06-01"), 100}, {d("2026-06-02"), 105}, {d("2026-06-03"), 225.5}}
 	flows := []Flow{{d("2026-06-03"), 100}}
-	// r3 = (215.5 − 100)/105 = 1.10 → +10%. TWR = 1.05×1.10 − 1 = 15.5%
 	approx(t, "TWR", TWR(pts, flows), 0.155, 1e-9)
 }
 
@@ -148,8 +148,9 @@ func TestMaxDrawdownReanchorsOnExactRetouch(t *testing.T) {
 }
 
 func TestDailyReturnsAdjustsFlows(t *testing.T) {
-	// Thursday June 4, Friday 5: contribution of 100 on Friday, value 210 → r = (210−100)/100 − 1 = +10%
-	pts := []Point{{d("2026-06-04"), 100}, {d("2026-06-05"), 210}}
+	// Thursday June 4, Friday 5: a 100 contribution at Friday's open lifts the
+	// base to 200, then +10% → 220. Start-of-day flow: r = 220/(100+100) − 1 = +10%.
+	pts := []Point{{d("2026-06-04"), 100}, {d("2026-06-05"), 220}}
 	rs := DailyReturns(pts, []Flow{{d("2026-06-05"), 100}})
 	if len(rs) != 1 {
 		t.Fatalf("returns = %v", rs)
