@@ -111,11 +111,11 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 		return s
 	}
 	printRow := func(label, net string, texts [4]string, signs [4]float64) {
-		fmt.Fprintf(out, "%-*s  %s", labelW, label, pad(net, netW))
+		fmt.Fprintf(out, "%-*s", labelW, label)
 		for i, c := range texts {
 			fmt.Fprintf(out, "  %s", tint(pad(c, cellW), signs[i], colored))
 		}
-		fmt.Fprintln(out)
+		fmt.Fprintf(out, "  %s\n", pad(net, netW))
 	}
 	fmt.Fprintf(out, "%s - performance (%s), as of %s\n\n", scope.Label, display, evalTo)
 	printRow("", "NET", perfTreePeriods, [4]float64{})
