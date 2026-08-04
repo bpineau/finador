@@ -75,12 +75,13 @@ func TestValueAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// PEA: 12 × 560 = 6720; tracked cash = 10000 − 5000 − 2750 + 1800 = 4050
-	// CTO: 2 × 560 = 1120; cash not tracked
+	// PEA: 12 × 560 = 6720; declared cash = the 10000 deposit, untouched by the trades
+	// CTO: 2 × 560 = 1120; no cash declared
 	// Livret: statement 12000; Maison: statement 450000
-	approx(t, "gross", v.Gross, 6720+4050+1120+12000+450000)
-	// exact tax per envelope:
-	// PEA gains:17.2% basis 10000 (contributions), value 10770 → 770 × 0.172 = 132.44
+	approx(t, "gross", v.Gross, 6720+10000+1120+12000+450000)
+	// exact tax per envelope; the declared cash sits on both sides of
+	// gross − basis, so only the positions' latent gain is taxed:
+	// PEA gains:17.2% basis (5000+2750−1800)+10000 = 15950, value 16720 → 770 × 0.172 = 132.44
 	// CTO gains:30% basis 1100 (buys−sells), value 1120 → 20 × 0.30 = 6
 	// Livret none → 0; Immo gains:30% basis 400000, value 450000 → 15000
 	approx(t, "tax", v.Tax, 132.44+6+15000)
@@ -121,7 +122,7 @@ func TestValueAccountAndAssetScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	approx(t, "gross pea", v.Gross, 6720+4050)
+	approx(t, "gross pea", v.Gross, 6720+10000)
 	approx(t, "tax pea", v.Tax, 132.44) // exact envelope
 
 	v, err = Value(b, scopeOf(t, b, "cw8"), at, domain.EUR, fxStub{})
@@ -141,8 +142,8 @@ func TestValueAtEarlierDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// PEA 12×540=6480, cash 4050; CTO 2×540=1080; livret 12000; house 400000
-	approx(t, "gross", v.Gross, 6480+4050+1080+12000+400000)
+	// PEA 12×540=6480, declared cash 10000; CTO 2×540=1080; livret 12000; house 400000
+	approx(t, "gross", v.Gross, 6480+10000+1080+12000+400000)
 }
 
 func TestValueOtherCurrency(t *testing.T) {
@@ -152,7 +153,7 @@ func TestValueOtherCurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	approx(t, "gross usd", v.Gross, (6720+4050)*1.10)
+	approx(t, "gross usd", v.Gross, (6720+10000)*1.10)
 }
 
 func TestValueStaleMarkers(t *testing.T) {
@@ -167,27 +168,28 @@ func TestValueStaleMarkers(t *testing.T) {
 	}
 }
 
-func TestValueAutoDividends(t *testing.T) {
+// Income never lands on the declared cash: a dividend, automatic or manual,
+// leaves the pocket (it is a negative flow in the series) and the valuation
+// is exactly the positions plus what was declared.
+func TestDividendsNeverTouchDeclaredCash(t *testing.T) {
 	b := valuationBook(t)
 	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
 		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
 	}
 	at := mustDate("2026-06-05")
-	// PEA holds 15 shares on March 1 (buys 10+5, sell after) → +30 EUR of cash
 	v, err := Value(b, scopeOf(t, b, "PEA"), at, domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	approx(t, "gross avec dividendes", v.Gross, 6720+4050+30)
+	approx(t, "gross avec dividende Yahoo", v.Gross, 6720+10000)
 
-	// a manual Dividend on cw8 disables the automatic one
 	b.Add(domain.Transaction{Date: mustDate("2026-03-02"), Account: "pea", Asset: "cw8",
 		Kind: domain.Dividend, Amount: eur("25")})
 	v, err = Value(b, scopeOf(t, b, "PEA"), at, domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	approx(t, "gross avec dividende manuel", v.Gross, 6720+4050+25)
+	approx(t, "gross avec dividende manuel", v.Gross, 6720+10000)
 }
 
 func TestPropertyWithBuyNotDoubleCounted(t *testing.T) {
@@ -203,15 +205,14 @@ func TestPropertyWithBuyNotDoubleCounted(t *testing.T) {
 	approx(t, "gross immo", v.Gross, 450000)
 }
 
-// Fix 3: negative envelope basis (withdrawals > contributions) clamped to 0.
-// Derivation:
+// The declared cash cancels out of gross − basis, so the taxable gain is the
+// positions' latent gain whatever the cash does - even when an over-withdrawal
+// drives the balance negative.
 //
-//	PEA contributions: 10000; PEA withdrawals: 15000 → basis = max(0, 10000−15000) = 0
-//	Cash = 10000 − 5000 − 2750 + 1800 − 15000 = −10950
-//	cw8 PEA = 12 × 560 = 6720
-//	Gross PEA = 6720 + (−10950) = −4230
-//	Gain = −4230 − 0 = −4230 (negative) → tax = max(0, −4230) × 0.172 = 0
-func TestNegativeEnvelopeBasisClamped(t *testing.T) {
+//	Cash = 10000 − 15000 = −5000; cw8 PEA = 12 × 560 = 6720
+//	Gross = 6720 − 5000 = 1720; basis = (5000+2750−1800) − 5000 = 950
+//	Gain = 1720 − 950 = 770 → tax = 770 × 0.172 = 132.44, as without the withdrawal
+func TestEnvelopeGainIgnoresDeclaredCash(t *testing.T) {
 	b := valuationBook(t)
 	b.Add(domain.Transaction{Date: mustDate("2026-04-01"), Account: "pea",
 		Kind: domain.Withdraw, Amount: eur("15000")})
@@ -219,8 +220,25 @@ func TestNegativeEnvelopeBasisClamped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// basis = max(0, 10000−15000) = 0 → negative gain → tax = 0
-	approx(t, "gross", v.Gross, -4230)
+	approx(t, "gross", v.Gross, 1720)
+	approx(t, "tax", v.Tax, 132.44)
+}
+
+// A negative basis (an envelope emptied of more cash than it ever held, with
+// no position left) stays clamped at zero rather than taxing a loss.
+func TestNegativeEnvelopeBasisClamped(t *testing.T) {
+	b := valuationBook(t)
+	b.Add(domain.Transaction{Date: mustDate("2026-04-01"), Account: "pea", Asset: "cw8",
+		Kind: domain.Sell, Quantity: dec("12"), Amount: eur("6600")})
+	b.Add(domain.Transaction{Date: mustDate("2026-04-02"), Account: "pea",
+		Kind: domain.Withdraw, Amount: eur("15000")})
+	v, err := Value(b, scopeOf(t, b, "PEA"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// basis = (5000+2750−1800−6600) + (10000−15000) = −5650 → clamped to 0,
+	// gross = −5000 → gain negative → no tax
+	approx(t, "gross", v.Gross, -5000)
 	approx(t, "tax", v.Tax, 0)
 }
 
@@ -235,13 +253,13 @@ func TestValueLinesByAccount(t *testing.T) {
 	for _, l := range v.Lines {
 		got[l.Label] = l.Gross
 	}
-	// PEA = positions (6720) + cash (4050) on a single envelope line
-	approx(t, "ligne PEA", got["PEA"], 6720+4050)
+	// PEA = positions (6720) + declared cash (10000) on a single envelope line
+	approx(t, "ligne PEA", got["PEA"], 6720+10000)
 	approx(t, "ligne CTO", got["CTO"], 1120)
 	approx(t, "ligne Livret", got["Livret"], 12000)
 	approx(t, "ligne Immo", got["Immo"], 450000)
 	// the total does not change with the breakdown
-	approx(t, "gross", v.Gross, 473890)
+	approx(t, "gross", v.Gross, 479840)
 }
 
 func TestValueWhatIf(t *testing.T) {
@@ -254,7 +272,7 @@ func TestValueWhatIf(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 14 cw8 shares (12 pea + 2 cto) × 600; house 500000; the rest unchanged
-	approx(t, "gross hypothétique", v.Gross, 14*600+4050+12000+500000)
+	approx(t, "gross hypothétique", v.Gross, 14*600+10000+12000+500000)
 	// the what-if marker is present
 	found := false
 	for _, s := range v.Stale {
@@ -265,21 +283,6 @@ func TestValueWhatIf(t *testing.T) {
 	if !found {
 		t.Errorf("what-if marker absent: %v", v.Stale)
 	}
-}
-
-func TestAutoDividendWithholding(t *testing.T) {
-	b := valuationBook(t)
-	cw8, _ := b.Asset("cw8")
-	cw8.Withholding = 0.15
-	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
-		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
-	}
-	v, err := Value(b, scopeOf(t, b, "PEA"), mustDate("2026-06-05"), domain.EUR, fxStub{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// 15 shares × 2 × (1−0.15) = 25.50 instead of 30
-	approx(t, "gross avec retenue", v.Gross, 6720+4050+25.5)
 }
 
 func TestParseScopeOrderAndErrors(t *testing.T) {

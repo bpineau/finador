@@ -424,3 +424,66 @@ façade qui figeaient les nombres fin-de-journée passent à la nouvelle
 convention. **Écarté :** clamp/skip des jours à base faible (masque le symptôme,
 laisse la convention fausse) ; Modified Dietz (les flux finador sont déjà datés
 au jour, début de journée suffit et reste exact).
+
+## D29 - Le cash est déclaratif : aucune transaction ne le bouge
+
+**Date** : 2026-08-04
+
+**Contexte :** `portfolio.CashTracked` inférait, par compte, si les trades
+débitaient un solde de cash - un seul booléen répondant à deux questions sans
+rapport (« ce compte affiche-t-il du cash ? » et « un achat le débite-t-il ? »).
+Trois dégâts observés sur le ledger réel : un achat sans dépôt en face creusait
+un cash négatif sans plancher (`value.go cashValue`), annulant silencieusement
+la valeur de la position (ligne `cash -38787` sur le CTO) ; déclarer du cash
+aujourd'hui rendait le compte suivi sur TOUT le rejeu (`series.go` calcule
+`tracked` une fois par compte, pas par date), donc les achats passés cessaient
+d'être des flux et devenaient des ponctions sur un solde parti de zéro ; et
+`cash set` ne pouvait pas réparer, seul le PREMIER statement étant une adoption
+(D8), si bien que les tentatives de remise à zéro fabriquaient des gains et des
+pertes fantômes (-1 539,78 puis +19 971,36 dans le ledger de l'auteur).
+
+**Choix :** le solde de cash d'un compte est ce que déclarent ses records
+`deposit`/`withdraw`/`statement` de cash pur, et rien d'autre. Achats, ventes,
+dividendes et frais n'y touchent jamais ; tout trade est un flux externe, sur
+tous les comptes. Enregistrer un achat et enregistrer le cash qui l'a financé
+deviennent deux déclarations indépendantes, dans n'importe quel ordre. Le mode
+de défaillance passe d'invisible et catastrophique à visible et proportionné :
+oublier le retrait ne casse plus rien le jour de l'achat, il laisse seulement un
+solde fantôme qui dilue les rendements suivants jusqu'à ce qu'on le déclare.
+
+**Corollaires :** (1) un frais devenait un no-op complet (son unique effet était
+de débiter le cash suivi) - il est désormais un flux externe POSITIF qui
+n'achète rien, donc `V/(V+frais) < 1` le lit comme une perte du montant exact,
+avec ou sans cash déclaré, et il entre dans la base de coût (traitement fiscal
+français correct des frais de courtage). (2) La base fiscale unifie les deux
+anciennes règles mutuellement exclusives : `achats - ventes + frais` plus le
+cash déclaré, qui figure des deux côtés de `gross - base` et s'annule, si bien
+que seule la plus-value latente des positions est taxée. (3) Le prédicat
+d'émission des flux passe de `hasCash` à `hasAsset`, le même que l'inclusion
+dans la valeur : cela corrige au passage un bug préexistant, sous un scope
+compte×groupe (arbres croisés de `perf --tree` et du web) `hasCash` est faux,
+donc un achat n'émettait aucun flux et se lisait en gain fantôme. (4) `cash set`
+avertit quand le compte a tradé depuis son dernier relevé, là où l'erreur se
+commet.
+
+**Aucun changement de format** : `tracked` n'a jamais été une propriété stockée,
+seulement une convention de rejeu ; `docs/FORMAT.md` ne la mentionnait nulle
+part. Les fichiers existants se décodent à l'identique, seuls les nombres
+dérivés changent. Le client Android réimplémentait la même règle
+(`Perf.kt`, `Valuator.kt`) et change dans la même fenêtre, sans quoi les deux
+clients divergeraient sur le même ledger.
+
+**Écarté :** un flag explicite par compte (`--cash auto|declared`) - il préserve
+du code que personne n'utiliserait et ajoute un concept à un outil qui en avait
+déjà un de trop ; faire débiter le cash déclaré par les frais (réintroduit un
+cas particulier par compte et ne fait rien quand aucun cash n'est déclaré) ;
+faire de TOUT statement de cash une adoption pour rendre `cash set` inoffensif
+(supprime la capture des intérêts d'un livret, que D8 mesure correctement) ;
+passer aux cours ajustés pour restaurer le rendement total maintenant que les
+dividendes ne sont plus crédités (invalide tout le cache de cotations et casse
+les sources qui ne savent pas ajuster - décision séparée).
+
+**Approximation documentée :** les gains du cash détenu dans une enveloppe
+taxée aux plus-values ne sont pas taxés, la base suivant le solde. Négligeable
+pour des miettes de courtier, faux pour un solde rémunéré : un fonds euros doit
+être modélisé comme un actif, pas comme du cash déclaré.

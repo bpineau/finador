@@ -12,7 +12,7 @@ type PositionLine struct {
 	Gross, Net float64
 }
 
-// Breakdown values every security position, property and tracked cash at
+// Breakdown values every security position, property and declared cash at
 // `at`, in the display currency. Σ Gross equals Value(All).Gross.
 func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]PositionLine, error) {
 	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
@@ -46,9 +46,6 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 		out = append(out, PositionLine{Account: p.account, Asset: p.asset, Gross: gross, Net: gross - tax})
 	}
 	for _, acc := range b.Accounts {
-		if !CashTracked(b, acc.ID) {
-			continue
-		}
 		gross, err := v.cashValue(acc)
 		if err != nil {
 			return nil, err

@@ -127,9 +127,12 @@ cmd/finador → cli ─┬→ store ──→ domain
   an *acquisition* (an external flow), not performance (decision D8) - except
   when the position was already bought in the ledger: its buys carried the
   flows, so statements are NAV observations, scaled per share (D27).
-- **Tracked vs untracked cash**: an account's cash is tracked once it has any
-  pure-cash Statement/Deposit/Withdraw (`portfolio.CashTracked`). Tracked:
-  trades move cash and are value-neutral. Untracked: trades are external flows.
+- **Cash is declarative** (D29): an account's balance is what pure-cash
+  Statement/Deposit/Withdraw records say, and nothing else. Buys, sells,
+  dividends and fees never move it; every trade is an external flow, on every
+  account. A fee is a positive flow that buys nothing, so it reads as a loss of
+  exactly the fee. Value inclusion and flow emission share one predicate,
+  `Scope.hasAsset` - never re-split them.
 - **Reference resolution stays unambiguous**: ID → ticker → ISIN → alias →
   name, case-insensitive, then unique prefix across all of them.
   `CheckAccountRefs`/`CheckAssetRefs` reject collisions at write time; they
@@ -214,7 +217,7 @@ cmd/finador → cli ─┬→ store ──→ domain
 | "bad password or corrupted file" with a good password | truncation/tampering or format drift: `store/log.go` (AAD chain, head trailer); the previous version survives as `<db>.bak` |
 | "modified by another process - retry" | the optimistic lock (`store.ErrConcurrent`) doing its job: retry the command |
 | Wrong valuation | the fallback chain in `portfolio/value.go` (price → per-share statement → cost); stale or missing quotes (`finador refresh`, sidecar cache) |
-| Absurd TWR or gain | flow emission in `series.go applyTx`: check tracked vs untracked cash and the D8/D27 rules above |
+| Absurd TWR or gain | flow emission in `series.go applyTx`: every trade must emit its flow, and check the D8/D27/D29 rules above |
 | Merge lost or misordered an edit | `ts` instant comparison in `store/merge.go` |
 | Push conflicts / offline sync surprises | `remote/sync.go` (Dirty persists to disk before any network push); the state JSON sits next to the working copy |
 | A test hits the network | missing `cli.WithSource` fake or `FINADOR_CACHE_DIR` |

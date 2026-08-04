@@ -42,15 +42,12 @@ func AssetRows(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]As
 	return rows, nil
 }
 
-// CashRows returns one row per account with a non-zero tracked cash balance,
+// CashRows returns one row per account with a non-zero declared cash balance,
 // valued in ccy (net subtracts the value-tax for a TaxOnValue envelope).
 func CashRows(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]AssetRow, error) {
 	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
 	rows := make([]AssetRow, 0, len(b.Accounts))
 	for _, acc := range b.Accounts {
-		if !CashTracked(b, acc.ID) {
-			continue
-		}
 		gross, err := v.cashValue(acc)
 		if err != nil {
 			return nil, err
