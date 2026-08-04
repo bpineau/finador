@@ -126,9 +126,8 @@ type pairState struct {
 
 type accountState struct {
 	acc         *domain.Account
-	tracked     bool
-	cash        float64 // balance in account currency, anchored on last Statement
-	flowBasis   float64 // envelope basis in display currency (deposits - withdrawals)
+	cash        float64 // declared balance in account currency, anchored on last Statement
+	flowBasis   float64 // envelope basis in display currency (buys - sells + fees)
 	hadCashStmt bool    // first cash statement already seen (rule D8)
 }
 
@@ -141,7 +140,7 @@ func newWalker(b *domain.Book, scope Scope, ccy domain.Currency, fx FX) *walker 
 		warned:   map[string]bool{},
 	}
 	for _, acc := range b.Accounts {
-		w.accounts[acc.ID] = &accountState{acc: acc, tracked: CashTracked(b, acc.ID)}
+		w.accounts[acc.ID] = &accountState{acc: acc}
 	}
 	return w
 }
@@ -267,30 +266,10 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			}
 		}
 
-		// Update cash balance for tracked accounts
-		if acc.tracked {
-			// Buy reduces cash, Sell adds cash (in account currency)
-			cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
-			if t.Kind == domain.Buy {
-				acc.cash -= cashAmt
-			} else {
-				acc.cash += cashAmt
-			}
-		} else {
-			// untracked: accumulate envelope basis for tax purposes
-			acc.flowBasis += sign * disp
-		}
-
-		// Determine if this is an external flow
-		switch {
-		case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset || w.scope.Kind == ByLabel:
-			if w.scope.hasAsset(acc.acc, p.asset) {
-				w.addFlow(t.Date, sign*flowVal, collect)
-			}
-		default: // All, ByAccount
-			if inCash && !acc.tracked {
-				w.addFlow(t.Date, sign*flowVal, collect)
-			}
+		// A trade never moves cash: it is capital crossing the scope boundary.
+		acc.flowBasis += sign * disp
+		if w.scope.hasAsset(acc.acc, p.asset) {
+			w.addFlow(t.Date, sign*flowVal, collect)
 		}
 
 	case domain.Deposit, domain.Withdraw:
@@ -302,7 +281,6 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		disp := w.conv(t.Amount, w.ccy, t.Date, label)
 		cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
 		acc.cash += sign * cashAmt
-		acc.flowBasis += sign * disp
 		if inCash {
 			w.addFlow(t.Date, sign*disp, collect)
 		}
@@ -314,51 +292,45 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			label = p.asset.Name
 		}
 		disp := w.conv(t.Amount, w.ccy, t.Date, label)
-		if acc.tracked {
-			cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
-			acc.cash += cashAmt
-		}
-		switch {
-		case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset || w.scope.Kind == ByLabel:
-			if p != nil && w.scope.hasAsset(acc.acc, p.asset) {
-				w.addFlow(t.Date, -disp, collect) // dividend leaves the pocket
-			}
-		default:
-			if inCash && !acc.tracked {
-				w.addFlow(t.Date, -disp, collect) // revenue collected outside scope
-			}
+		// Income leaves the pocket: it never lands on the declared cash.
+		if p != nil && w.scope.hasAsset(acc.acc, p.asset) {
+			w.addFlow(t.Date, -disp, collect)
 		}
 
 	case domain.Fee:
-		if acc.tracked {
-			label := acc.acc.Name
-			cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
-			acc.cash -= cashAmt
+		// A cost is capital that enters the envelope and buys nothing: the
+		// positive flow with no value against it reads as a loss of the fee,
+		// with or without declared cash. It also belongs to the cost basis.
+		p := w.pair(t)
+		if p == nil {
+			return
 		}
-		// never a flow: a cost must weigh on performance
+		disp := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
+		acc.flowBasis += disp
+		if w.scope.hasAsset(acc.acc, p.asset) {
+			w.addFlow(t.Date, disp, collect)
+		}
 
 	case domain.Statement:
 		if t.Asset == "" {
 			// Pure cash statement.
 			// First reconciliation = adoption (contribution), not performance;
 			// later statements measure performance (interest on a savings account).
-			if acc.tracked {
-				label := acc.acc.Name
-				newBalance := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
-				if !acc.hadCashStmt {
-					// First cash statement: the gap between the current balance and the
-					// new balance is treated as an external contribution (adoption D8).
-					currentDisp := w.convF(acc.cash, acc.acc.Currency, w.ccy, t.Date, label)
-					newDisp := w.conv(t.Amount, w.ccy, t.Date, label)
-					adoptionAmt := newDisp - currentDisp
-					if w.scope.hasCash(acc.acc) {
-						w.addFlow(t.Date, adoptionAmt, collect)
-					}
-					acc.hadCashStmt = true
+			label := acc.acc.Name
+			newBalance := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
+			if !acc.hadCashStmt {
+				// First cash statement: the gap between the current balance and the
+				// new balance is treated as an external contribution (adoption D8).
+				currentDisp := w.convF(acc.cash, acc.acc.Currency, w.ccy, t.Date, label)
+				newDisp := w.conv(t.Amount, w.ccy, t.Date, label)
+				adoptionAmt := newDisp - currentDisp
+				if w.scope.hasCash(acc.acc) {
+					w.addFlow(t.Date, adoptionAmt, collect)
 				}
-				// Update the balance (existing anchoring behavior).
-				acc.cash = newBalance
+				acc.hadCashStmt = true
 			}
+			// Update the balance (existing anchoring behavior).
+			acc.cash = newBalance
 			return
 		}
 		p := w.pair(t)
@@ -404,8 +376,9 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 	}
 }
 
-// applyDividends credits the day's automatic dividends (assets without any
-// manual Dividend tx) and emits the matching scope flows.
+// applyDividends emits the scope flows of the day's automatic dividends
+// (assets without any manual Dividend tx). Like every other income, they
+// leave the pocket: they never land on the account's declared cash.
 func (w *walker) applyDividends(d domain.Date, collect bool) {
 	for _, k := range w.order {
 		p := w.pairs[k]
@@ -421,21 +394,8 @@ func (w *walker) applyDividends(d domain.Date, collect bool) {
 				Currency: p.asset.Currency,
 			}
 			disp := w.conv(gross, w.ccy, d, p.asset.Name)
-			acc := w.accounts[p.acc.ID]
-			if acc.tracked {
-				// same withholding as value.go: the cash receives the NET
-				cashAmt := w.convF(p.qty*ev.Amount*(1-p.asset.Withholding), p.asset.Currency, acc.acc.Currency, d, p.asset.Name)
-				acc.cash += cashAmt
-			}
-			switch {
-			case w.scope.Kind == ByGroup || w.scope.Kind == ByAsset || w.scope.Kind == ByLabel:
-				if w.scope.hasAsset(p.acc, p.asset) {
-					w.addFlow(d, -disp, collect)
-				}
-			default:
-				if w.scope.hasCash(acc.acc) && !acc.tracked {
-					w.addFlow(d, -disp, collect)
-				}
+			if w.scope.hasAsset(p.acc, p.asset) {
+				w.addFlow(d, -disp, collect)
 			}
 		}
 	}
@@ -496,9 +456,9 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 		}
 	}
 
-	// 2. Cash balances for tracked accounts in scope
+	// 2. Declared cash balances of the accounts in scope
 	for accID, accSt := range w.accounts {
-		if !w.scope.hasCash(accSt.acc) || !accSt.tracked {
+		if !w.scope.hasCash(accSt.acc) {
 			continue
 		}
 		// acc.cash is in account currency; convert to display currency at d
@@ -523,7 +483,13 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 			case domain.TaxOnValue:
 				tax += g * rate(accSt.acc.Tax)
 			case domain.TaxOnGains:
+				// buys - sells + fees, plus the declared cash counted in g
+				// (in account currency, hence the conversion) so that the
+				// taxable gain reduces to the positions' latent gain.
 				basis := accSt.flowBasis
+				if w.scope.hasCash(accSt.acc) {
+					basis += w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d, accSt.acc.Name)
+				}
 				// Add first-statement basis for property assets in this account
 				for _, k := range w.order {
 					p := w.pairs[k]

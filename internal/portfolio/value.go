@@ -51,7 +51,7 @@ func WithPriceOverrides(p map[domain.AssetID]float64) ValueOption {
 
 // Value prices a scope at a date, in the display currency ccy: security
 // positions at the forward-filled market close, properties and unquoted
-// holdings from their latest Statement, plus the tracked cash of in-scope
+// holdings from their latest Statement, plus the declared cash of in-scope
 // accounts - each with its estimated latent tax. It is the engine behind
 // `finador value` and the web dashboard; it never writes anything.
 func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx FX, opts ...ValueOption) (Valuation, error) {
@@ -116,9 +116,9 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		perAccount[p.account.ID] += gross
 	}
 
-	// 3. cash of tracked accounts
+	// 3. declared cash of the accounts in scope
 	for _, acc := range b.Accounts {
-		if !scope.hasCash(acc) || !CashTracked(b, acc.ID) {
+		if !scope.hasCash(acc) {
 			continue
 		}
 		gross, err := v.cashValue(acc)
@@ -345,8 +345,8 @@ func (v *valuer) propertyTax(acc *domain.Account, asset *domain.Asset, gross flo
 	return 0, nil
 }
 
-// accountTax: the exact envelope rule. TaxOnGains basis: net external
-// contributions when cash is tracked, buys − sells otherwise (spec §3).
+// accountTax: the exact envelope rule. TaxOnGains basis: buys − sells + fees,
+// plus the declared cash (which is counted in gross and is never a gain).
 func (v *valuer) accountTax(acc *domain.Account, gross float64) (float64, error) {
 	switch acc.Tax.Mode {
 	case domain.TaxOnValue:
@@ -362,21 +362,16 @@ func (v *valuer) accountTax(acc *domain.Account, gross float64) (float64, error)
 }
 
 func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
-	tracked := CashTracked(v.b, acc.ID)
 	basis := 0.0
 	for _, t := range Sorted(v.b) {
 		if v.at.Before(t.Date) || t.Account != acc.ID {
 			continue
 		}
 		sign := 0.0
-		switch {
-		case tracked && t.Kind == domain.Deposit:
+		switch t.Kind {
+		case domain.Buy, domain.Fee:
 			sign = 1
-		case tracked && t.Kind == domain.Withdraw:
-			sign = -1
-		case !tracked && t.Kind == domain.Buy:
-			sign = 1
-		case !tracked && t.Kind == domain.Sell:
+		case domain.Sell:
 			sign = -1
 		default:
 			continue
@@ -387,12 +382,18 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		}
 		basis += sign * amt
 	}
+	// The declared cash is counted in the gross value, so it belongs to the
+	// basis too: the taxable gain then reduces to the positions' latent gain.
+	cash, err := v.cashValue(acc)
+	if err != nil {
+		return 0, err
+	}
+	basis += cash
 	// Statement-valued properties enter the basis through their first known
 	// estimate - otherwise a real-estate envelope would be taxed on the total
-	// value rather than the gain. Documented approximation: if a tracked
-	// contribution funded the property AND the property has an initial
-	// statement, the basis counts both (an unusual case, to be fixed by hand
-	// if encountered).
+	// value rather than the gain. Documented approximation: if the property
+	// was also bought in the ledger AND has an initial statement, the basis
+	// counts both (an unusual case, to be fixed by hand if encountered).
 	for _, p := range statementPairs(v.b, v.at) {
 		if p.account.ID != acc.ID || p.asset.Kind != domain.Property {
 			continue
@@ -437,9 +438,9 @@ func (v *valuer) cashValue(acc *domain.Account) (float64, error) {
 		}
 		sign := 0.0
 		switch t.Kind {
-		case domain.Deposit, domain.Sell, domain.Dividend:
+		case domain.Deposit:
 			sign = 1
-		case domain.Withdraw, domain.Buy, domain.Fee:
+		case domain.Withdraw:
 			sign = -1
 		default:
 			continue
@@ -450,46 +451,7 @@ func (v *valuer) cashValue(acc *domain.Account) (float64, error) {
 		}
 		balance += sign * amt
 	}
-	div, err := v.autoDividends(acc, anchor)
-	if err != nil {
-		return 0, err
-	}
-	balance += div
 	return v.fx.Convert(balance, acc.Currency, v.ccy, v.at)
-}
-
-// autoDividends credits Yahoo-known distributions for assets without any
-// manual Dividend transaction: quantity held at ex-date × gross amount.
-func (v *valuer) autoDividends(acc *domain.Account, after domain.Date) (float64, error) {
-	manual := manualDividendAssets(v.b)
-	total := 0.0
-	for id, events := range v.b.Market.Dividends {
-		if manual[id] {
-			continue
-		}
-		asset, err := v.b.Asset(string(id))
-		if err != nil {
-			continue
-		}
-		for _, ev := range events {
-			if v.at.Before(ev.ExDate) {
-				continue
-			}
-			if !after.IsZero() && !after.Before(ev.ExDate) {
-				continue
-			}
-			qty := Quantity(v.b, acc.ID, id, ev.ExDate)
-			if qty.IsZero() {
-				continue
-			}
-			amt, err := v.fx.Convert(toF(qty)*ev.Amount*(1-asset.Withholding), asset.Currency, acc.Currency, ev.ExDate)
-			if err != nil {
-				return 0, err
-			}
-			total += amt
-		}
-	}
-	return total, nil
 }
 
 func manualDividendAssets(b *domain.Book) map[domain.AssetID]bool {

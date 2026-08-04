@@ -80,22 +80,6 @@ func Quantity(b *domain.Book, acc domain.AccountID, asset domain.AssetID, asOf d
 	return q
 }
 
-// CashTracked reports whether the account's cash is tracked: any pure-cash
-// Statement, Deposit or Withdraw makes it so. Otherwise trades are treated
-// as external flows (spec §3) and the account carries no cash.
-func CashTracked(b *domain.Book, acc domain.AccountID) bool {
-	for _, t := range b.Transactions {
-		if t.Account != acc || t.Asset != "" {
-			continue
-		}
-		switch t.Kind {
-		case domain.Statement, domain.Deposit, domain.Withdraw:
-			return true
-		}
-	}
-	return false
-}
-
 // Sorted returns the ledger in replay order: (date, id).
 func Sorted(b *domain.Book) []*domain.Transaction {
 	txs := slices.Clone(b.Transactions)

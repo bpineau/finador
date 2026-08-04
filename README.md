@@ -75,11 +75,15 @@ previous `set` counts as performance.**
 | Buy/sell a quoted security (quantity + price) | `asset buy` / `asset sell` | a trade, builds the cost basis |
 | A dividend received / a fee paid on a security | `asset dividend` / `asset fee` | income / cost |
 | Record the **observed value** of a property or unlisted holding | `asset set` | change vs the previous value = **performance** |
-| Move **external cash** in/out of an envelope | `cash deposit` / `cash withdraw` | a contribution / withdrawal - **neutral** |
+| Move cash in/out of an envelope (contribution, transfer, what a purchase spent) | `cash deposit` / `cash withdraw` | **neutral** |
 | Record the **observed balance** of an envelope | `cash set` | change vs the previous balance = **performance** |
 
 The first `asset set` / `cash set` on an account is treated as an *acquisition* (an
 external flow), not as performance - only later changes count.
+
+**Cash never moves on its own**: buys, sells, dividends and fees leave a declared
+balance strictly alone. Recording a purchase and recording the cash it consumed
+are two independent statements.
 
 ### Declaring a holding - two equivalent ways
 
@@ -179,12 +183,17 @@ finador asset buy CW8.PA   200 @100 --account "CTO" --group equities/world   # 2
 finador asset buy PE500.PA 250 @40  --account "CTO" --group equities/us      # 10 000 €
 
 # OPTIONAL - the cash side, only if you want to see idle / uninvested balances.
-# A move between accounts = a pair (no "transfer" verb), neutral for performance:
+# Cash is declarative: a buy never spends it, so say so yourself, in any order.
 finador cash withdraw "Livret A" 30000     # leaves the savings account
-finador cash deposit  "CTO"      30000     # lands on the broker; the buys spend it down to ~0
+finador cash deposit  "CTO"      30000     # lands on the broker
+finador cash withdraw "CTO"      30000     # ...and the buys above consumed it
 # Don't `cash set` to empty an account: a 30k→0 drop would be booked as a −30 000 € loss.
 # A money-market fund: treat as cash (above), or as a real holding (`asset sell` it) to capture its yield.
 ```
+
+Simplest of all: don't declare cash on the accounts you trade in. A securities
+envelope with no cash record shows only its positions, its buys carry the flows,
+and there is never a second line to remember.
 
 On the **web and mobile**, the same move is: add the two buy transactions from the
 *Transactions* screen; the cash entries are equally optional.
@@ -198,8 +207,8 @@ finador asset sell CW8.PA 3 @100 --account "CTO"   # 3 out → 300 €
 finador asset buy  AAPL   2 @150 --account "CTO"   # 2 in → 300 €; neutral for perf (a swap, not money in/out)
 finador asset fee  CW8.PA 1.50  --account "CTO"    # any trading cost - this one DOES weigh on performance
 # the sell trims CW8.PA's basis proportionally; the buy sets AAPL's basis, tracked from there.
-# a sell also CREDITS the proceeds as cash on the account (unlike Finary/Yahoo, where a sale just
-# closes the position) - so a sale you don't reinvest stays visible as cash to redeploy later.
+# a sell does NOT credit the proceeds as cash: if you keep them idle rather than reinvest,
+# say so with `finador cash deposit "CTO" 300` - two independent statements, as always.
 ```
 
 ### Buy a real-estate property
@@ -256,6 +265,11 @@ Use `cash deposit "Livret A" 500` (not `set`) when you actually *added* €500 f
 outside - that's a contribution, neutral for performance, while a `set` 500 higher
 than the last balance would be counted as a gain.
 
+Same reasoning when a balance *drops* because you invested it: a buy never spends
+declared cash, so record the drop with `cash withdraw`, not `cash set`. `cash set`
+warns when the account has traded since its last statement, precisely because the
+gap it closes would otherwise land in your performance.
+
 ### Securities
 
 ```sh
@@ -311,25 +325,38 @@ your backup. All derived state (positions, cost bases, series) is recomputed by
 replaying the ledger, so transactions can always be edited or deleted safely.
 
 **Accounts are tax envelopes.** `--tax gains:18.6%` taxes
-`max(0, value − contribution basis)`; the basis is what you put in
-(`cash deposit` − `cash withdraw`) when the account's cash is tracked, or
-`asset buy − asset sell` when it is not. `--tax value:20%` taxes the whole value.
-`--tax none` (default) taxes nothing. Estimated tax shows up in `value`, on
-net curves and on the web.
+`max(0, value − basis)`, the basis being `asset buy − asset sell + asset fee`
+plus whatever cash the account declares (cash is never a gain, so it cancels
+out). `--tax value:20%` taxes the whole value. `--tax none` (default) taxes
+nothing. Estimated tax shows up in `value`, on net curves and on the web.
+Cash that *earns* (a fonds euros, a yielding balance) should be modelled as an
+asset rather than declared cash, otherwise its gain is never taxed.
 
-**Tracked vs untracked cash.** An account's cash is *tracked* as soon as it has at
-least one pure-cash `statement`, `cash deposit` or `cash withdraw`. In a tracked
-account, trades move the cash (a buy is value-neutral, like in real life). In an
-untracked account, finador assumes you don't care about its cash: buys and sells are
-treated as external flows in performance.
+**Cash is declarative.** An account's cash balance is what you declared with
+`cash deposit`, `cash withdraw` and `cash set`, and nothing else. Buys, sells,
+dividends and fees never move it: recording a purchase and recording the cash
+that funded it are two independent statements, in any order.
 
-**`cash deposit` ≠ `cash set`.** A *contribution* is entered with
-`cash deposit`/`cash withdraw` (it feeds the tax basis and the performance
-flows). `cash set`
-records an *observed balance*, and the gap between two statements counts as
-performance - that's how savings-account interest is captured. The first statement
-of an account or property is treated as an *acquisition* (an external flow), not as
-performance.
+```sh
+finador cash withdraw "Livret A" 30000    # the pocket shrinks
+finador asset buy CW8.PA 60 @500          # the purchase - unrelated to the line above
+```
+
+Forgetting the cash line is benign: the snapshot overstates that cash until you
+record it, and the day of the purchase stays neutral for performance. It is not
+free, though - a balance that no longer exists dilutes the account's measured
+returns the same way idle cash really would.
+
+**`cash deposit` ≠ `cash set`.** `cash deposit`/`cash withdraw` say *the pocket
+grew or shrank* - a contribution, a transfer, sale proceeds, or the cash a
+purchase consumed. They feed the tax basis and the performance flows, and are
+neutral for performance. `cash set` records an *observed balance*, and the gap
+between two statements counts as performance - that's how savings-account
+interest is captured. So use `withdraw` for what you spent and `set` for what an
+account earned; `cash set` warns when the account has traded since its last
+statement, because the gap would then be booked as a gain or a loss you never
+made. The first statement of an account or property is an *acquisition* (an
+external flow), not performance.
 
 **Asset references.** Anywhere an asset is expected you may use its id, ticker,
 ISIN, any alias, or its full name - case-insensitive. If every exact match fails,
@@ -685,11 +712,14 @@ own date* for bases and *at the valuation date* for values. Display anything in
 any currency with `--ccy` - the needed FX series is fetched on demand.
 
 **Dividends.** Listed assets get their dividends automatically from Yahoo
-(quantity held at ex-date × gross amount, credited to tracked cash). Set a
-per-asset withholding tax with `asset edit aapl --withholding 15%` to credit net
-amounts. Recording any *manual* `dividend` transaction for an asset disables the
-automatic ones for that asset (no double counting); manual dividends are assumed
-already net.
+(quantity held at ex-date × gross amount). Like every income, a dividend
+*leaves the pocket*: it is neutralised as an external flow, so the ex-date price
+drop is not read as a loss, but the income is not credited anywhere either -
+account returns are price returns. Declare the cash with `cash deposit` if you
+want to see it. Set a per-asset withholding tax with
+`asset edit aapl --withholding 15%` to net the amounts. Recording any *manual*
+`dividend` transaction for an asset disables the automatic ones for that asset
+(no double counting); manual dividends are assumed already net.
 
 **Comparing and isolating pockets.**
 

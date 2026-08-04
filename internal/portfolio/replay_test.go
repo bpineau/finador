@@ -96,24 +96,26 @@ func TestOverSellClampsToZero(t *testing.T) {
 	}
 }
 
-func TestCashTracked(t *testing.T) {
+// A property Statement is not a cash record: it must never land on the
+// account's declared cash balance.
+func TestPropertyStatementIsNotCash(t *testing.T) {
 	b := sampleBook(t)
-	for acc, want := range map[domain.AccountID]bool{
-		"pea":    true,  // has a Deposit
-		"livret": true,  // has a cash Statement
-		"cto":    false, // only has trades
-	} {
-		if got := CashTracked(b, acc); got != want {
-			t.Errorf("CashTracked(%s) = %v, attendu %v", acc, got, want)
-		}
-	}
-	// a Statement ON AN ASSET (property estimate) does not make cash tracked
 	if err := b.AddAsset(&domain.Asset{ID: "maison", Kind: domain.Property, Name: "Maison", Currency: domain.EUR}); err != nil {
 		t.Fatal(err)
 	}
 	b.Add(domain.Transaction{Date: mustDate("2026-01-01"), Account: "cto", Asset: "maison",
 		Kind: domain.Statement, Amount: eur("450000")})
-	if CashTracked(b, "cto") {
-		t.Error("un Statement d'actif ne doit pas activer le suivi du cash")
+
+	cto, err := b.Account("cto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := &valuer{b: b, fx: fxStub{}, at: mustDate("2026-12-31"), ccy: domain.EUR}
+	cash, err := v.cashValue(cto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cash != 0 {
+		t.Errorf("cash de cto = %v, attendu 0 (aucun mouvement de cash déclaré)", cash)
 	}
 }

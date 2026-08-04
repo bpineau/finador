@@ -310,22 +310,22 @@ func TestValueEndToEnd(t *testing.T) {
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	out := runNet(t, db, "value", "--net", "--at", "2026-06-05")
-	// 10 × 560 = 5600 ; tracked cash = 5000 − 5500 = −500 → gross 5100
-	// envelope base 5000 → gain 100 → tax 17.20 → net 5082.80
-	for _, want := range []string{"5100.00 EUR", "17.20 EUR", "5082.80 EUR"} {
+	// 10 × 560 = 5600 ; declared cash = the 5000 deposit, untouched by the buy
+	// → gross 10600 ; base 5500 (buy) + 5000 (cash) → gain 100 → tax 17.20
+	for _, want := range []string{"10600.00 EUR", "17.20 EUR", "10582.80 EUR"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("value --net: %q manquant dans:\n%s", want, out)
 		}
 	}
 
 	out = runNet(t, db, "value", "--ccy", "USD", "--at", "2026-06-05")
-	if !strings.Contains(out, "5610.00 USD") { // 5100 × 1.10
+	if !strings.Contains(out, "11660.00 USD") { // 10600 × 1.10
 		t.Errorf("value USD:\n%s", out)
 	}
 
 	// the cache then enables offline mode
 	out = run(t, db, "value", "--at", "2026-06-05")
-	if !strings.Contains(out, "5100.00 EUR") {
+	if !strings.Contains(out, "10600.00 EUR") {
 		t.Errorf("value --offline après cache:\n%s", out)
 	}
 }
@@ -372,8 +372,8 @@ func TestValueDisplayFXMissing(t *testing.T) {
 	// A fakeSource without GBPUSD=X: we use the standard fakeSource that now serves it,
 	// but the GBP series is not in the cache initially → ensureDisplayFX fetches it.
 	out := runNet(t, db, "value", "--ccy", "GBP", "--at", "2026-06-05")
-	// 5100 EUR × 1.10/1.25 = 4488.00 GBP
-	if !strings.Contains(out, "4488.00 GBP") {
+	// 10600 EUR × 1.10/1.25 = 9328.00 GBP
+	if !strings.Contains(out, "9328.00 GBP") {
 		t.Errorf("value --ccy GBP: %q", out)
 	}
 }
@@ -386,10 +386,12 @@ func TestPerfEndToEnd(t *testing.T) {
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
 	out := runNet(t, db, "perf", "--to", "2026-06-05")
-	// series: 5000 flat until June 1st (the buy is neutral), then
-	// 06-05: 10×560 − 500 = 5100 → TWR since inception = +2.00 %.
+	// series: 5000 of declared cash flat until June 1st, when the buy adds
+	// 10×550 against a flow of the same size (neutral); on 06-05 the position
+	// is worth 5600, so 10600/10500 → TWR since inception = +0.95 %. The idle
+	// 5000 dilutes the position's +1.82 %: cash the envelope really holds.
 	// 146 days of history: vol/Sharpe/Sortino shown, CAGR hidden (< 1 year).
-	for _, want := range []string{"PERIOD", "TWR", "inception", "+2.00%",
+	for _, want := range []string{"PERIOD", "TWR", "inception", "+0.95%",
 		"GAIN (EUR)", "+100.00", // money P&L, net of contributions (10×(560−550))
 		"tracking since 2026-01-10 (146 d)", "Sharpe", "Sortino", "max drawdown"} {
 		if !strings.Contains(out, want) {
@@ -430,7 +432,7 @@ func TestChartEndToEnd(t *testing.T) {
 		t.Errorf("no braille character:\n%s", out)
 	}
 	// The frame: value labels in the gutter, axes, month time labels.
-	for _, want := range []string{"5100", "┤", "└", "2026-01", "2026-06"} {
+	for _, want := range []string{"10600", "┤", "└", "2026-01", "2026-06"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("chart: %q manquant dans:\n%s", want, out)
 		}
@@ -488,6 +490,33 @@ func TestAddTradeCashAndFlows(t *testing.T) {
 	}
 }
 
+// A trade never spends declared cash, so re-declaring a balance that dropped
+// because it was invested books the gap as performance. `cash set` warns and
+// points at `cash withdraw`; an account that has not traded stays quiet.
+func TestCashSetWarnsAfterTrades(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "CTO Meridia")
+	run(t, db, "account", "add", "Livret A")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
+
+	run(t, db, "cash", "set", "CTO Meridia", "10000", "--at", "2026-01-10")
+	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01", "--account", "CTO Meridia")
+
+	out := run(t, db, "cash", "set", "CTO Meridia", "4500", "--at", "2026-06-02")
+	for _, want := range []string{"warning:", "1 trade(s)", "cash withdraw"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("cash set après un achat: %q manquant dans %q", want, out)
+		}
+	}
+
+	// no trade on the account: re-declaring a balance is the normal way to
+	// record interest, and must not nag.
+	out = run(t, db, "cash", "set", "Livret A", "23000", "--at", "2026-06-02")
+	if strings.Contains(out, "warning:") {
+		t.Errorf("avertissement injustifié sur un compte sans transaction: %q", out)
+	}
+}
+
 func TestPerfAndValueExclude(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr", "--tax", "gains:17.2%")
@@ -495,9 +524,9 @@ func TestPerfAndValueExclude(t *testing.T) {
 	run(t, db, "cash", "deposit", "PEA Zephyr", "5000", "2026-01-10")
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
-	// value without cw8: only cash remains (5000 − 5500 = −500)
+	// value without cw8: only the declared cash remains
 	out := runNet(t, db, "value", "--exclude", "cw8", "--at", "2026-06-05")
-	if !strings.Contains(out, "-500.00 EUR") {
+	if !strings.Contains(out, "5000.00 EUR") {
 		t.Errorf("value --exclude:\n%s", out)
 	}
 	// perf accepts the same exclusion (comma list)
@@ -518,9 +547,9 @@ func TestValueWhatIfAndByAccount(t *testing.T) {
 	run(t, db, "cash", "deposit", "PEA Zephyr", "5000", "2026-01-10")
 	run(t, db, "asset", "buy", "cw8", "10", "@550", "2026-06-01")
 
-	// what-if: cw8 at 600 → 10×600 − 500 = 5500 gross, and a delta vs actual (5100)
+	// what-if: cw8 at 600 → 10×600 + 5000 of cash = 11000 gross, +400 vs 10600
 	out := runNet(t, db, "value", "--what-if", "cw8=600", "--at", "2026-06-05")
-	for _, want := range []string{"5500.00 EUR", "what-if", "+400.00 EUR"} {
+	for _, want := range []string{"11000.00 EUR", "what-if", "+400.00 EUR"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("what-if: %q manquant dans:\n%s", want, out)
 		}

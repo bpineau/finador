@@ -49,33 +49,178 @@ func TestSeriesExternalFlowsAllScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// PEA is tracked: its trades are internal.
-	// The house: its first statement is on 2026-01-01 (== from) → not collected (base-day flow);
-	// its second statement (450000 on 06-01) re-bases the value → adjustment flow +50000.
-	// Expected flows:
-	//   [0] 01-05 +12000: livret adoption (first cash statement, rule D8)
-	//   [1] 01-10 +10000: pea deposit
-	//   [2] 01-20 +1100 : cto buy (untracked account)
-	//   [3] 06-01 +50000: house re-base (declared revaluation, not a return)
-	if len(res.Flows) != 4 {
-		t.Fatalf("flows = %+v, attendu 4", res.Flows)
+	// Declared cash: every trade is an external flow, on every account. No
+	// quote exists before 03-20, so a trade's flow falls back to its cash
+	// amount. The house's first statement is on 2026-01-01 (== from) → not
+	// collected (base-day flow); its second (450000 on 06-01) re-bases the
+	// value → adjustment flow +50000.
+	want := []ExternalFlow{
+		{Date: mustDate("2026-01-05"), Amount: 12000}, // livret adoption (D8)
+		{Date: mustDate("2026-01-10"), Amount: 10000}, // pea deposit
+		{Date: mustDate("2026-01-15"), Amount: 5000},  // pea buy
+		{Date: mustDate("2026-01-20"), Amount: 1100},  // cto buy
+		{Date: mustDate("2026-02-15"), Amount: 2750},  // pea buy
+		{Date: mustDate("2026-03-15"), Amount: -1800}, // pea sell
+		{Date: mustDate("2026-06-01"), Amount: 50000}, // house re-base
 	}
-	if res.Flows[0].Date != mustDate("2026-01-05") {
-		t.Errorf("flow[0] = %+v", res.Flows[0])
+	if len(res.Flows) != len(want) {
+		t.Fatalf("flows = %+v, attendu %d", res.Flows, len(want))
 	}
-	approx(t, "flow adoption livret", res.Flows[0].Amount, 12000)
-	if res.Flows[1].Date != mustDate("2026-01-10") {
-		t.Errorf("flow[1] = %+v", res.Flows[1])
+	for i, w := range want {
+		if res.Flows[i].Date != w.Date {
+			t.Errorf("flow[%d] date = %v, attendu %v", i, res.Flows[i].Date, w.Date)
+		}
+		approx(t, fmt.Sprintf("flow[%d]", i), res.Flows[i].Amount, w.Amount)
 	}
-	approx(t, "flow deposit", res.Flows[1].Amount, 10000)
-	if res.Flows[2].Date != mustDate("2026-01-20") {
-		t.Errorf("flow[2] = %+v", res.Flows[2])
+}
+
+// A trade must never move the declared cash: the two are independent
+// declarations. Buying with an envelope that declares 10000 of cash leaves
+// those 10000 exactly where they are.
+func TestTradesNeverMoveDeclaredCash(t *testing.T) {
+	b := valuationBook(t)
+	v := &valuer{b: b, fx: fxStub{}, at: mustDate("2026-06-05"), ccy: domain.EUR}
+	pea, err := b.Account("pea")
+	if err != nil {
+		t.Fatal(err)
 	}
-	approx(t, "flow buy cto", res.Flows[2].Amount, 1100)
-	if res.Flows[3].Date != mustDate("2026-06-01") {
-		t.Errorf("flow[3] = %+v", res.Flows[3])
+	cash, err := v.cashValue(pea)
+	if err != nil {
+		t.Fatal(err)
 	}
-	approx(t, "flow re-base maison", res.Flows[3].Amount, 50000)
+	// deposit 10000, then buys of 5000 and 2750 and a sell of 1800: none of
+	// them touches the balance.
+	approx(t, "cash déclaré", cash, 10000)
+}
+
+// Omitting the matching withdrawal after a buy is benign on the buy day, but
+// the undeclared cash dilutes every later return. This pins the honest
+// version of the property - with a price move after the buy, so the test
+// cannot pass by accident on a flat series.
+func TestUndeclaredCashDilutesLaterReturns(t *testing.T) {
+	build := func(t *testing.T, withdraw bool) *domain.Book {
+		t.Helper()
+		b := domain.NewBook()
+		if err := b.AddAccount(&domain.Account{ID: "cto", Name: "CTO", Currency: domain.EUR}); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.AddAsset(&domain.Asset{ID: "cw8", Kind: domain.Security, Name: "CW8", Currency: domain.EUR}); err != nil {
+			t.Fatal(err)
+		}
+		b.Add(domain.Transaction{Date: mustDate("2026-01-05"), Account: "cto", Kind: domain.Deposit, Amount: eur("10000")})
+		b.Add(domain.Transaction{Date: mustDate("2026-01-10"), Account: "cto", Asset: "cw8",
+			Kind: domain.Buy, Quantity: dec("100"), Amount: eur("10000")})
+		if withdraw {
+			b.Add(domain.Transaction{Date: mustDate("2026-01-10"), Account: "cto", Kind: domain.Withdraw, Amount: eur("10000")})
+		}
+		b.Market.Price("cw8").Merge([]domain.PricePoint{
+			{Date: mustDate("2026-01-10"), Close: 100},
+			{Date: mustDate("2026-01-20"), Close: 110}, // +10% after the buy
+		})
+		return b
+	}
+
+	twr := func(t *testing.T, b *domain.Book) float64 {
+		t.Helper()
+		res, err := Series(b, scopeOf(t, b, ""), mustDate("2026-01-01"), mustDate("2026-01-20"), domain.EUR, fxStub{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return perf.TWR(res.PerfPoints(false), res.PerfFlows())
+	}
+
+	// Declared properly: the position's +10% is the whole return.
+	approx(t, "TWR avec retrait déclaré", twr(t, build(t, true)), 0.10)
+	// Omitted: 10000 of cash that no longer exists sits alongside the
+	// position, so the +10% reads as +5% - visible, bounded, and undone by
+	// declaring the withdrawal.
+	approx(t, "TWR avec cash fantôme", twr(t, build(t, false)), 21000.0/20000-1)
+}
+
+// A fee is capital that enters the envelope and buys nothing: a positive flow
+// with no value against it, so it reads as a loss of exactly the fee - with or
+// without declared cash.
+func TestFeeWeighsOnPerformanceWithoutCash(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "cto", Name: "CTO", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAsset(&domain.Asset{ID: "cw8", Kind: domain.Security, Name: "CW8", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	b.Add(domain.Transaction{Date: mustDate("2026-01-10"), Account: "cto", Asset: "cw8",
+		Kind: domain.Buy, Quantity: dec("100"), Amount: eur("10000")})
+	b.Add(domain.Transaction{Date: mustDate("2026-01-15"), Account: "cto", Asset: "cw8",
+		Kind: domain.Fee, Amount: eur("20")})
+	b.Market.Price("cw8").Merge([]domain.PricePoint{{Date: mustDate("2026-01-10"), Close: 100}})
+
+	res, err := Series(b, scopeOf(t, b, ""), mustDate("2026-01-01"), mustDate("2026-01-20"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// flows: +10000 the buy, +20 the fee (capital in, nothing acquired)
+	if len(res.Flows) != 2 {
+		t.Fatalf("flows = %+v, attendu 2", res.Flows)
+	}
+	approx(t, "flux du frais", res.Flows[1].Amount, 20)
+	// the value never moves (flat quote), so the fee is the whole return
+	approx(t, "TWR", perf.TWR(res.PerfPoints(false), res.PerfFlows()), 10000.0/10020-1)
+}
+
+// A dividend never lands on the declared cash; it leaves the pocket as a
+// negative flow, net of withholding tax.
+func TestDividendLeavesPocketNetOfWithholding(t *testing.T) {
+	b := valuationBook(t)
+	cw8, err := b.Asset("cw8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cw8.Withholding = 0.15
+	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
+		"cw8": {{ExDate: mustDate("2026-03-01"), Amount: 2}},
+	}
+	res, err := Series(b, scopeOf(t, b, "PEA"), mustDate("2026-01-01"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var div float64
+	for _, f := range res.Flows {
+		if f.Date == mustDate("2026-03-01") {
+			div = f.Amount
+		}
+	}
+	// 15 shares held on the ex-date × 2 × (1 − 0.15), leaving the pocket
+	approx(t, "flux du dividende", div, -25.5)
+
+	v := &valuer{b: b, fx: fxStub{}, at: mustDate("2026-06-05"), ccy: domain.EUR}
+	pea, err := b.Account("pea")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cash, err := v.cashValue(pea)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "cash inchangé par le dividende", cash, 10000)
+}
+
+// Regression: under a crossed account × group scope, hasCash is false, so the
+// old flow predicate emitted nothing and a buy read as a phantom gain.
+func TestTradeFlowEmittedUnderAccountGroupScope(t *testing.T) {
+	b := valuationBook(t)
+	pea, err := b.Account("pea")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := IntersectScope(pea, "actions/monde")
+	res, err := Series(b, scope, mustDate("2026-01-01"), mustDate("2026-06-05"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Flows) == 0 {
+		t.Fatal("aucun flux: un achat lu comme un gain fantôme dans les arbres croisés")
+	}
+	approx(t, "flux du premier achat", res.Flows[0].Amount, 5000)
 }
 
 func TestSeriesExternalFlowsGroupScope(t *testing.T) {

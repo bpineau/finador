@@ -107,7 +107,7 @@ func TestDashboard(t *testing.T) {
 	for _, want := range []string{
 		"FINADOR",   // brand
 		"net worth", // hero label
-		"5", "100",  // 5,100.00 € (English formatting with comma)
+		"10", "600", // 10,600.00 € (English formatting with comma)
 		"€", // currency suffix
 		"style.css",
 	} {
@@ -116,8 +116,9 @@ func TestDashboard(t *testing.T) {
 		}
 	}
 	// exact English format: comma thousands separator, point decimal, U+00A0 before symbol
-	if !strings.Contains(body, "5,100.00") {
-		t.Errorf("English amount format missing (5,100.00):\n%s", excerpt(body))
+	// 10 × 560 of position + the 5000 declared cash the buy no longer spends
+	if !strings.Contains(body, "10,600.00") {
+		t.Errorf("English amount format missing (10,600.00):\n%s", excerpt(body))
 	}
 }
 
