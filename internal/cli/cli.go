@@ -157,28 +157,46 @@ func (a *app) marketSource() market.Source {
 	return a.source
 }
 
+// spotMaxAge is how stale the last spot pass may be before a command pays
+// for a new one. It buys freshness with one batched HTTP call, so it is set
+// by how wrong a number may look, not by what it costs: half an hour of a
+// bad session is already a figure the user would not recognise.
+const spotMaxAge = 30 * time.Minute
+
+// warn prints each distinct warning once. The daily fetch and the spot pass
+// consult the same providers, so one unreachable instrument otherwise says
+// the same thing twice, which reads like two problems.
+func warn(cmd *cobra.Command, groups ...[]string) {
+	seen := map[string]bool{}
+	for _, g := range groups {
+		for _, w := range g {
+			if seen[w] {
+				continue
+			}
+			seen[w] = true
+			fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
+		}
+	}
+}
+
 // ensureFresh keeps the market cache serving current numbers: the daily
 // fetch when a series has not been fetched today (history depth, dividends),
-// then a light spot pass when the last one is older than an hour, so every
-// figure a command prints reflects the market of the last hour, not this
-// morning's cache. It never fails hard: offline is a no-op and network
-// trouble degrades to warnings, stale data stays usable.
+// then a light spot pass when the last one is older than spotMaxAge, so every
+// figure a command prints reflects a recent market, not this morning's cache.
+// It never fails hard: offline is a no-op and network trouble degrades to
+// warnings, stale data stays usable.
 func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
 	if a.offline {
 		return
 	}
 	sum := market.Refresh(cmd.Context(), f.Book, a.marketSource(), false)
-	for _, w := range sum.Warnings {
-		fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
-	}
 	spotted := false
-	if time.Since(f.Book.Market.SpotAt) > time.Hour {
-		spot := market.SpotRefresh(cmd.Context(), f.Book, a.marketSource())
-		for _, w := range spot.Warnings {
-			fmt.Fprintln(cmd.ErrOrStderr(), "warning:", w)
-		}
+	var spot market.SpotSummary
+	if time.Since(f.Book.Market.SpotAt) > spotMaxAge {
+		spot = market.SpotRefresh(cmd.Context(), f.Book, a.marketSource())
 		spotted = true
 	}
+	warn(cmd, sum.Warnings, spot.Warnings)
 	if len(sum.Fetched) > 0 || spotted {
 		if err := f.SaveCache(); err != nil {
 			fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)

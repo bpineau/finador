@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"finador/internal/domain"
 	"finador/internal/market"
@@ -64,11 +65,21 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/assets?error="+url.QueryEscape("offline: cannot refresh quotes"), http.StatusSeeOther)
 		return
 	}
-	sum := market.Refresh(r.Context(), s.file.Book, s.source, true)
+	// Same contract as `finador refresh`: an explicit refresh means "give me
+	// the market now", so it always ends with a spot pass. Without it this
+	// button forced the daily fetch only, which on an already-fetched day is
+	// a no-op - the click did nothing and said "0 series refreshed".
+	ctx := detached(r.Context())
+	sum := market.Refresh(ctx, s.file.Book, s.source, true)
+	spot := market.SpotRefresh(ctx, s.file.Book, s.source)
+	s.mergeSpot(spot.Quotes)
 	if err := s.file.SaveCache(); err != nil {
 		http.Redirect(w, r, "/assets?error="+url.QueryEscape("could not save: "+err.Error()), http.StatusSeeOther)
 		return
 	}
-	flash := fmt.Sprintf("%d series refreshed", len(sum.Fetched))
+	flash := fmt.Sprintf("%d series refreshed, %d quotes", len(sum.Fetched), len(spot.Quotes))
+	if n := len(sum.Warnings) + len(spot.Warnings); n > 0 {
+		flash += fmt.Sprintf(" (%d warning(s): %s)", n, strings.Join(append(sum.Warnings, spot.Warnings...), "; "))
+	}
 	http.Redirect(w, r, "/assets?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }

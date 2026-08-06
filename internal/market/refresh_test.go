@@ -2,6 +2,7 @@ package market
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -172,17 +173,22 @@ func TestSpotRefreshDegradesToWarnings(t *testing.T) {
 type batchSource struct {
 	fakeSource
 	batch      map[Ref]Quote
+	batchErrs  map[Ref]error
 	batchCalls int
 	batchRefs  int
 }
 
-func (b *batchSource) LatestBatch(_ context.Context, refs []Ref) map[Ref]Quote {
+func (b *batchSource) LatestBatch(_ context.Context, refs []Ref) BatchQuotes {
 	b.batchCalls++
 	b.batchRefs += len(refs)
-	out := map[Ref]Quote{}
+	out := BatchQuotes{Quotes: map[Ref]Quote{}, Errs: map[Ref]error{}}
 	for _, r := range refs {
 		if q, ok := b.batch[r]; ok {
-			out[r] = q
+			out.Quotes[r] = q
+			continue
+		}
+		if err, ok := b.batchErrs[r]; ok {
+			out.Errs[r] = err
 		}
 	}
 	return out
@@ -190,7 +196,8 @@ func (b *batchSource) LatestBatch(_ context.Context, refs []Ref) map[Ref]Quote {
 
 // TestSpotRefreshBatch: one batch call serves every ref; a miss is final
 // (the batch already exhausted the source's fallbacks) - no per-ref retry,
-// no warning, the last stored close stands.
+// and a miss the source could not explain stays quiet: an instrument no
+// provider covers must not warn on every command. The last close stands.
 func TestSpotRefreshBatch(t *testing.T) {
 	b := bookWithTrade(t) // cw8 (CW8.PA) + the EUR account → EURUSD=X ref
 	at := domain.Today().Time().Add(15 * time.Hour)
@@ -322,5 +329,48 @@ func TestRefreshPassesDeclaredCurrencyToSource(t *testing.T) {
 	}
 	if got := src2.currencies["EURUSD=X"]; got != domain.USD {
 		t.Errorf("spot FX ref currency = %q, want USD", got)
+	}
+}
+
+// A batch that could not serve a ref AND knows why must say so. Silence here
+// is how a whole portfolio ends up showing yesterday's prices while every
+// command reports success.
+func TestSpotRefreshReportsBatchFailures(t *testing.T) {
+	b := bookWithTrade(t)
+	at := domain.Today().Time().Add(15 * time.Hour)
+	src := &batchSource{
+		batch:     map[Ref]Quote{{Symbol: "EURUSD=X", Currency: domain.USD}: {Price: 1.15, Time: at, Currency: domain.USD, Live: true}},
+		batchErrs: map[Ref]error{{Symbol: "CW8.PA", Currency: domain.EUR}: errors.New("yahoo quote: HTTP 401")},
+	}
+
+	sum := SpotRefresh(context.Background(), b, src)
+
+	if len(sum.Warnings) != 1 || !strings.Contains(sum.Warnings[0], "HTTP 401") || !strings.Contains(sum.Warnings[0], "CW8.PA") {
+		t.Fatalf("warnings = %v, want the failing ref and its reason", sum.Warnings)
+	}
+}
+
+// A quote that is not today's live price still merges - it is the best known
+// price - but it is reported as stale, so an explicit refresh can answer the
+// only question that matters when a figure looks wrong: is this current?
+func TestSpotRefreshFlagsStaleQuotes(t *testing.T) {
+	b := bookWithTrade(t)
+	now := domain.Today().Time().Add(15 * time.Hour)
+	yesterday := domain.Today().AddDays(-1).Time()
+	src := &batchSource{batch: map[Ref]Quote{
+		{Symbol: "CW8.PA", Currency: domain.EUR}:   {Price: 555.5, Time: yesterday, Currency: domain.EUR, Live: false},
+		{Symbol: "EURUSD=X", Currency: domain.USD}: {Price: 1.15, Time: now, Currency: domain.USD, Live: true},
+	}}
+
+	sum := SpotRefresh(context.Background(), b, src)
+
+	if len(sum.Warnings) != 0 {
+		t.Fatalf("a stale price is not a failure: %v", sum.Warnings)
+	}
+	if len(sum.Stale) != 1 || !strings.Contains(sum.Stale[0], "CW8.PA") {
+		t.Fatalf("stale = %v, want only CW8.PA", sum.Stale)
+	}
+	if close, _, ok := b.Market.Price("cw8").At(domain.Today()); !ok || close != 555.5 {
+		t.Errorf("the stale close must still be merged, got %v (ok=%v)", close, ok)
 	}
 }

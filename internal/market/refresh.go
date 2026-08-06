@@ -86,10 +86,32 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 }
 
 // SpotSummary reports what a spot pass observed: the freshest quote per
-// asset (so the UI can show how live each price is) and warnings.
+// asset (so the UI can show how live each price is), warnings, and the
+// instruments whose "current" price is not current at all.
+//
+// Warnings are failures - something asked for could not be had. Stale is
+// the quieter, more useful signal: the pass succeeded, but the price it
+// brought back is a past close, so every figure derived from it is a past
+// figure. Only an explicit refresh reports Stale; a market shut for the
+// weekend would otherwise make every command shout.
 type SpotSummary struct {
 	Quotes   map[domain.AssetID]Quote
 	Warnings []string
+	Stale    []string
+}
+
+// stale records label's quote as not-current when it is one, naming the two
+// cases apart: a market that has not traded today (a weekend, a holiday, a
+// halt) still answers with a live field, and calling that "no live quote"
+// would be plainly false.
+func (s *SpotSummary) stale(label string, q Quote) {
+	d := domain.DateOf(q.Time)
+	switch {
+	case !q.Live:
+		s.Stale = append(s.Stale, fmt.Sprintf("%s: close of %s, no live quote", label, d))
+	case d.Before(domain.Today()):
+		s.Stale = append(s.Stale, fmt.Sprintf("%s: last traded %s", label, d))
+	}
 }
 
 // SpotRefresh updates today's price of every quoted security and FX rate
@@ -102,7 +124,7 @@ type SpotSummary struct {
 func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	sum := SpotSummary{Quotes: map[domain.AssetID]Quote{}}
 	// Stamped even when quotes fail: an outage must not turn every command
-	// into a hammering retry - the next hour tries again.
+	// into a hammering retry - the next pass tries again.
 	b.Market.SpotAt = time.Now()
 
 	type target struct {
@@ -127,6 +149,11 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 						"%s spot in %s but the asset is declared in %s: quote ignored", ticker, q.Currency, ccy))
 					return
 				}
+				if q.Time.IsZero() {
+					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: undated quote ignored", ticker))
+					return
+				}
+				sum.stale(ticker, q)
 				b.Market.Price(id).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 				sum.Quotes[id] = q
 			},
@@ -143,12 +170,17 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 						"%s spot in %s but USD expected: quote ignored", symbol, q.Currency))
 					return
 				}
+				if q.Time.IsZero() {
+					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: undated quote ignored", symbol))
+					return
+				}
+				sum.stale(symbol, q)
 				series.Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 			},
 		})
 	}
 
-	batched := map[Ref]Quote{}
+	var batched BatchQuotes
 	bs, isBatch := src.(BatchSource)
 	if isBatch && len(targets) > 0 {
 		refs := make([]Ref, len(targets))
@@ -158,13 +190,18 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 		batched = bs.LatestBatch(ctx, refs)
 	}
 	for _, t := range targets {
-		q, ok := batched[t.ref]
+		q, ok := batched.Quotes[t.ref]
 		if !ok {
 			// A batch answer is authoritative: its misses already exhausted
 			// the source's own fallbacks, re-asking one by one would only
 			// repeat the slow path for the same result. The instrument's
-			// last daily close stands until the next pass.
+			// last daily close stands until the next pass - but say so,
+			// because a price that stopped moving looks exactly like a
+			// market that stopped moving.
 			if isBatch {
+				if err := batched.Errs[t.ref]; err != nil && !errors.Is(err, ErrNotCovered) {
+					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", refLabel(t.ref), err))
+				}
 				continue
 			}
 			var err error

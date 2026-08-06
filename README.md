@@ -546,13 +546,24 @@ the assets tab (`GET /assets.csv`).
 
 ```sh
 finador refresh        # force-refresh quotes, FX and dividends from Yahoo
+# 12 series refreshed, 11 quotes
+#   stale: EXS1: close of 2026-08-06, no live quote    ← a NAV, not a live price
 ```
 
-`value`, `perf` and `chart` refresh stale series automatically (at most once a
-day) before computing; network failures degrade to warnings and the cache keeps
-working. `--offline` skips all of it. The quote cache lives in an **encrypted
-local sidecar** (your ticker list is sensitive metadata), never in the ledger
-file itself - it is regenerable and stays out of the synced history.
+Two passes back every figure. The **daily** one owns history and dividends and
+runs once a day per series. The **spot** one is a single batched call for the
+live price of everything you hold, and is what makes a running session show up:
+`value`, `perf` and `chart` run it when the last one is over 30 minutes old,
+`finador refresh` always runs it, and `finador serve` runs it every 2 minutes
+plus on any page older than that.
+
+`refresh` is also the command that answers "is this price current?" - it lists
+every instrument whose price is a past close rather than a live quote, which is
+normal for a fund NAV and a problem for a listed share. Network failures degrade
+to warnings and the cache keeps working; `--offline` skips all of it. The quote
+cache lives in an **encrypted local sidecar** (your ticker list is sensitive
+metadata), never in the ledger file itself - it is regenerable and stays out of
+the synced history.
 
 ### Atypical assets (funds by ISIN)
 
