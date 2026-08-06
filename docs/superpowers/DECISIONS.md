@@ -487,3 +487,92 @@ les sources qui ne savent pas ajuster - décision séparée).
 taxée aux plus-values ne sont pas taxés, la base suivant le solde. Négligeable
 pour des miettes de courtier, faux pour un solde rémunéré : un fonds euros doit
 être modélisé comme un actif, pas comme du cash déclaré.
+
+## D30 - Un cours périmé se dit ; la fraîcheur ne se rationne pas
+
+**Contexte :** DDOG ouvre à -20% le 2026-08-06 à 15h30 ; la CLI comme le client
+Android sont restés des heures à ~0%, malgré des `finador refresh` répétés et
+des appuis sur le bouton de rafraîchissement. Mesures (marché fermé le soir
+même) : Yahoo portait le -20% immédiatement, des deux côtés (`/v7/finance/quote`
+en live, et la barre en cours de `/v8/finance/chart?interval=1d` qui porte le
+prix live avec la bonne date). La source n'était donc pas en cause : nos deux
+clients ne fetchaient pas, ou fetchaient une réponse périmée sans le dire.
+
+Quatre causes cumulées, toutes vérifiées dans le code :
+
+1. **CLI bridée à 1h** (D20) : la passe spot ne tournait que si `SpotAt > 1h`.
+   Un `value` affichait en permanence un prix vieux de 0 à 60 minutes.
+2. **`serve` gelé pour la journée** : ticker à 15 min, aucun rafraîchissement au
+   chargement de page, et surtout la mémoïsation de pofo, clé `(symbole,
+   fenêtre-au-jour)`, valable toute la vie du process. Un serveur lancé le matin
+   resservait la série du matin jusqu'au soir.
+3. **L'ISIN tuait le prix live** : `Ref.ids()` met l'ISIN avant le ticker et
+   `LatestAny` gardait le **premier id qui répond**. Un ISIN n'étant jamais un
+   symbole Yahoo, il tombait sur le chemin « dernier close ». Mesuré à la même
+   seconde : `["US23804L1035","DDOG"]` → 229.29 `live=false` daté d'un jour ;
+   `["DDOG"]` → 229.29 `live=true` daté d'un instant.
+4. **Tout échouait en silence** : `Pofo.LatestBatch` jetait les erreurs par ref,
+   `SpotRefresh` faisait `continue` sans un mot derrière un batch, et
+   `finador refresh` annonçait « N series refreshed » avec 100% de cours d'hier.
+
+Côté Android, aucun chemin de cote live n'existait (uniquement les séries
+quotidiennes), et chaque appui refetchait 2 ans par actif, ce qui invite le 429
+de Yahoo - suivi d'un repli muet sur FT/Morningstar, donc sur du EOD.
+
+**Choix :**
+
+1. **La fraîcheur prime sur l'ordre des ids, l'autorité tranche le reste**
+   (pofo `LatestAny`) : une réponse live gagne immédiatement ; si aucun id n'est
+   live, le close du plus autoritaire gagne. L'ordre inverse - « ticker d'abord »
+   en aveugle, l'idée initiale - a été **écarté sur mesure** : sur les 184 actifs
+   du catalogue portant ISIN + ticker, 181 concordent, mais NTSX résout par
+   ticker vers son jumeau UCITS européen (44.01 au lieu de 60.05, même devise,
+   donc le garde-fou devise ne l'attrape pas). Ne promouvoir que sur la liveness
+   corrige DDOG, DTLA, FOLOW, WPEA et laisse NTSX correct, parce qu'aucun de ses
+   deux ids ne répond live : l'autorité tranche.
+   **Risque résiduel assumé** : si l'id autoritaire ne sait répondre qu'en close
+   et que le ticker déclaré sert une cote live d'un AUTRE instrument dans la même
+   devise, c'est le mauvais prix qui gagne. Ce n'est pas une régression - le
+   chemin batch (`LatestBatchLive`) fait déjà confiance au ticker déclaré tel
+   quel - et la parade est la même : un ticker déclaré faux est un bug de saisie,
+   pas un cas que la bibliothèque peut deviner.
+2. **La mémoïsation pofo expire** (`Client.MemoTTL`, 15 min par défaut) : elle
+   existe pour dédupliquer une série dans un même calcul, pas pour la figer.
+3. **Fraîcheur non rationnée** : spot si `SpotAt > 30 min` en CLI (au lieu d'1h),
+   ticker à 2 min et rafraîchissement au chargement de page pour `serve`. Le
+   chargement de page ne déclenche que la passe **spot** (un appel batché,
+   détachée du contexte de la requête, plafonnée à 5 s) : la passe quotidienne
+   parcourt une chaîne de repli par instrument (Yahoo, puis FT, puis
+   Morningstar, chacun avec son timeout), soit des minutes de blocage sous le
+   verrou d'écriture un mauvais jour, pour une information qui ne change pas
+   dans la journée. Elle reste au ticker. Le bouton refresh du web spotte lui
+   aussi désormais (il ne forçait que le fetch quotidien, donc un no-op en
+   milieu de journée : le clic ne faisait rien et annonçait « 0 series »).
+4. **Le silence est un bug** : `BatchSource` renvoie désormais `BatchQuotes`
+   (cotes **et** raisons d'échec) ; un ref que la source n'a pas su servir ET
+   sait expliquer warne. Un instrument qu'aucun provider ne couvre reste muet -
+   sinon chaque commande crierait.
+5. **`SpotSummary.Stale`** : un cours qui n'est pas la cote live du jour est
+   quand même mergé (c'est le meilleur prix connu) mais listé comme périmé.
+   **Seul `finador refresh` l'affiche** : un marché fermé la nuit rendrait chaque
+   commande bavarde. C'est la commande vers laquelle on va quand un chiffre a
+   l'air faux, elle doit répondre « est-ce que ce prix est actuel ? ».
+6. **Android : une passe de cotes live batchée** (`Yahoo.quotes`, v7 +
+   cookie/crumb, renouvelé une fois sur **401/403 seulement** - renouveler sur
+   429 enverrait trois requêtes de plus à un hôte qui throttle déjà), le
+   provider vit toute la session (la paire cookie+crumb coûte deux requêtes),
+   et fetch quotidien **incrémental** dès que la série atteint déjà le plancher.
+   Pas de remontée d'erreur dans l'UI (choix utilisateur explicite) : le client
+   doit être frais, pas bavard.
+7. **Une cote sans horodatage n'est pas une cote** : Yahoo omet
+   `regularMarketTime` sur certaines lignes halted/OTC tout en servant un prix.
+   Datée à l'epoch Unix, elle insérait un point de 1970 dans la série
+   persistée - que rien ne retire jamais, qui étire tous les graphiques sur 56
+   ans et qui fait croire à tout test « ai-je déjà back-fillé ? » que oui.
+   Rejetée dans pofo (batch et spot), dans Android, et défensivement dans
+   `SpotRefresh` (une `Source` tierce ne doit pas pouvoir empoisonner le cache).
+
+**Écarté :** afficher l'âge des cours dans chaque sortie CLI (D20 le refusait
+déjà, et ça reste de l'ergotage) ; remonter warnings et périmés dans l'UI
+Android ; un TTL sur le cache disque de pofo (finador n'en a pas - le sidecar
+chiffré est son cache).

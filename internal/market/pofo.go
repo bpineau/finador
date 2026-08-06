@@ -119,7 +119,10 @@ func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
 // Yahoo quote call keyed on the declared tickers (the quote API answers
 // exact symbols - no resolution, no twin-listing substitution), then the
 // per-ref Latest fallback (ISIN first: FT/Morningstar NAV) for the rest.
-func (p *Pofo) LatestBatch(ctx context.Context, refs []Ref) map[Ref]Quote {
+// Every fallback failure is reported rather than dropped: the batch call
+// can fail as a whole (an expired crumb, a throttled host) and the caller
+// must be able to say so instead of quietly serving stale closes.
+func (p *Pofo) LatestBatch(ctx context.Context, refs []Ref) BatchQuotes {
 	symbols := make([]string, 0, len(refs))
 	seen := map[string]bool{}
 	for _, ref := range refs {
@@ -129,15 +132,18 @@ func (p *Pofo) LatestBatch(ctx context.Context, refs []Ref) map[Ref]Quote {
 		}
 	}
 	live := p.Client.LatestBatchLive(ctx, symbols)
-	out := make(map[Ref]Quote, len(refs))
+	out := BatchQuotes{Quotes: make(map[Ref]Quote, len(refs)), Errs: map[Ref]error{}}
 	for _, ref := range refs {
 		if q, ok := live[ref.Symbol]; ok {
-			out[ref] = Quote{Price: q.Price, Time: q.Time, Currency: domain.Currency(q.Currency), Live: q.Live}
+			out.Quotes[ref] = Quote{Price: q.Price, Time: q.Time, Currency: domain.Currency(q.Currency), Live: q.Live}
 			continue
 		}
-		if q, err := p.Latest(ctx, ref); err == nil {
-			out[ref] = q
+		q, err := p.Latest(ctx, ref)
+		if err != nil {
+			out.Errs[ref] = err
+			continue
 		}
+		out.Quotes[ref] = q
 	}
 	return out
 }

@@ -158,22 +158,69 @@ func (s *Server) AutoRefresh(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// pageRefreshTimeout bounds the refresh a page load may wait on. A browser
+// must never hang on the market: past it the page renders with what the cache
+// has and the background ticker catches up.
+const pageRefreshTimeout = 5 * time.Second
+
+// detached returns a context that inherits nothing but the values of parent.
+// A refresh runs under the write lock and writes a cache every other request
+// reads, so it must not be cancelled halfway by the one browser that happened
+// to trigger it and then navigated away.
+func detached(parent context.Context) context.Context { return context.WithoutCancel(parent) }
+
 // refreshOnce refreshes the market cache once, in place, under the write
 // lock: the daily fetch when due, then the spot pass. Exposed for AutoRefresh
 // and tests.
-func (s *Server) refreshOnce(ctx context.Context) {
+func (s *Server) refreshOnce(ctx context.Context) { s.refresh2(ctx, 0, true) }
+
+// refreshSpotIfStale refreshes only the live quotes, and only when the last
+// pass is older than maxAge. This is the page-load path: one batched call,
+// bounded, no daily fetch. The daily pass is deliberately left to the ticker -
+// it walks a per-instrument fallback chain (Yahoo, then FT, then Morningstar,
+// each with its own timeout), which is minutes of blocking on a bad day and
+// has nothing to say about a price that moved since this morning.
+func (s *Server) refreshSpotIfStale(ctx context.Context, maxAge time.Duration) {
+	s.refresh2(ctx, maxAge, false)
+}
+
+// refresh2 is the one refresh path: skip when younger than maxAge (zero always
+// refreshes), optionally run the daily fetch, always run the spot pass. The
+// age is read under the write lock, so two page loads racing on a cold cache
+// produce one refresh, not two: the pass stamps SpotAt before fetching, and
+// the waiter then sees it fresh.
+func (s *Server) refresh2(ctx context.Context, maxAge time.Duration, daily bool) {
 	if s.offline {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	daily := market.Refresh(ctx, s.file.Book, s.source, false)
+	if maxAge > 0 && time.Since(s.file.Book.Market.SpotAt) <= maxAge {
+		return
+	}
+	fetched := 0
+	if daily {
+		fetched = len(market.Refresh(ctx, s.file.Book, s.source, false).Fetched)
+	}
 	spot := market.SpotRefresh(ctx, s.file.Book, s.source)
-	s.spot = spot.Quotes
-	if len(daily.Fetched) > 0 || len(spot.Quotes) > 0 {
+	s.mergeSpot(spot.Quotes)
+	if fetched > 0 || len(spot.Quotes) > 0 {
 		if err := s.file.SaveCache(); err != nil {
 			log.Printf("auto-refresh: cache not saved: %v", err)
 		}
+	}
+}
+
+// mergeSpot folds newly observed quotes into the freshness notes rather than
+// replacing them: a pass that came back empty (an outage, a cancelled request)
+// knows nothing, and forgetting what the last good pass saw would turn every
+// asset page silent. Callers hold the write lock.
+func (s *Server) mergeSpot(quotes map[domain.AssetID]market.Quote) {
+	if s.spot == nil {
+		s.spot = map[domain.AssetID]market.Quote{}
+	}
+	for id, q := range quotes {
+		s.spot[id] = q
 	}
 }
 
@@ -191,6 +238,30 @@ func (s *Server) quoteNote(asset *domain.Asset) string {
 		return fmt.Sprintf("last quote %.2f %s · close of %s", last.Close, asset.Currency, last.Date)
 	}
 	return ""
+}
+
+// pageMaxAge is how stale quotes may be when a page is requested. The
+// AutoRefresh ticker keeps a watched server inside it on its own; this is
+// what saves the first page load after the server has been idle, which the
+// ticker alone would serve from whatever the last tick happened to see.
+const pageMaxAge = 2 * time.Minute
+
+// freshen refreshes quotes before a page is rendered when they have aged past
+// pageMaxAge. Static assets are skipped: they carry no figure, and a browser
+// fetches them right after the page that already refreshed. The refresh is
+// detached from the request (it writes shared state) and time-bounded (a
+// browser must not hang on a throttled provider).
+func (s *Server) freshen(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method != http.MethodGet, r.URL.Path == "/style.css", r.URL.Path == "/favicon.ico":
+		default:
+			ctx, cancel := context.WithTimeout(detached(r.Context()), pageRefreshTimeout)
+			s.refreshSpotIfStale(ctx, pageMaxAge)
+			cancel()
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Handler routes the five views. Mutating routes are POST-only.
@@ -224,7 +295,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /import", s.importUpload)
 	mux.HandleFunc("POST /refresh", s.refresh)
 	mux.HandleFunc("GET /", s.notFound)
-	return mux
+	return s.freshen(mux)
 }
 
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {

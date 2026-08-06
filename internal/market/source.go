@@ -64,10 +64,19 @@ type Source interface {
 
 // BatchSource is an optional Source capability: the freshest price of many
 // instruments in one call. The answer is authoritative - a ref absent from
-// the result means the source, all its fallbacks included, could not serve
-// it - so SpotRefresh never re-asks per instrument behind a batch.
+// Quotes means the source, all its fallbacks included, could not serve it -
+// so SpotRefresh never re-asks per instrument behind a batch.
 type BatchSource interface {
-	LatestBatch(ctx context.Context, refs []Ref) map[Ref]Quote
+	LatestBatch(ctx context.Context, refs []Ref) BatchQuotes
+}
+
+// BatchQuotes is what one batched spot pass learned: a quote per ref the
+// source could serve, and why each other ref failed. Carrying the reasons
+// is the point - a batch that silently drops half its refs is how a whole
+// portfolio ends up displaying yesterday's prices with nothing said.
+type BatchQuotes struct {
+	Quotes map[Ref]Quote
+	Errs   map[Ref]error
 }
 
 // SymbolInfo is what Resolve learns about a free query: the canonical

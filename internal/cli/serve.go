@@ -43,7 +43,9 @@ func serveCmd(a *app) *cobra.Command {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 			srv := web.NewServer(f, a.marketSource(), a.offline, wsync)
-			go srv.AutoRefresh(ctx, 15*time.Minute) // keep day figures fresh while serving
+			// One batched quote call per tick, so the page a user leaves open
+			// tracks the session instead of the quarter hour it was loaded in.
+			go srv.AutoRefresh(ctx, 2*time.Minute)
 			httpSrv := &http.Server{Addr: addr, Handler: srv.Handler()}
 			errc := make(chan error, 1)
 			go func() { errc <- httpSrv.ListenAndServe() }()
