@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -37,6 +38,10 @@ func initCmd(a *app) *cobra.Command {
 					return err
 				}
 				path = s.WorkingCopy()
+			} else if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				// The local default lives in the data directory, which a fresh
+				// machine does not have yet.
+				return fmt.Errorf("create %s: %w", filepath.Dir(path), err)
 			}
 
 			f, err := store.Create(path, pw)
