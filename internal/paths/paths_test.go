@@ -125,6 +125,31 @@ func TestMigrateLeavesLegacyWhenDestinationExists(t *testing.T) {
 	if strings.Contains(log.String(), "migrated ") {
 		t.Errorf("nothing should have been migrated: %s", log.String())
 	}
+	// Silence here is the trap: data in two places, and no way to guess it.
+	if !strings.Contains(log.String(), "warning:") {
+		t.Errorf("abandoned legacy data must be reported: %q", log.String())
+	}
+}
+
+// An empty destination is what an interrupted upgrade leaves behind - a
+// directory some earlier build created before it knew how to migrate. It holds
+// nothing, so it must not outrank the data.
+func TestMigrateThroughEmptyDestination(t *testing.T) {
+	home := setHome(t)
+	writeFile(t, filepath.Join(home, "Library", "Caches", "finador", "checkout", "ab.fin"), "cache")
+	if err := os.MkdirAll(filepath.Join(home, ".cache", "finador"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	var log bytes.Buffer
+	Migrate(&log)
+
+	if _, err := os.Stat(filepath.Join(home, ".cache", "finador", "checkout", "ab.fin")); err != nil {
+		t.Errorf("not migrated through the empty directory (log: %s)", log.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, "Library", "Caches", "finador")); !os.IsNotExist(err) {
+		t.Error("the legacy directory should have been moved, not copied")
+	}
 }
 
 func TestMigrateSkippedByEnvOverride(t *testing.T) {

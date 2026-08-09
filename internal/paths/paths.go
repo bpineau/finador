@@ -104,9 +104,11 @@ func Ledger() (string, error) {
 //
 // Nothing is ever copied: a directory is renamed whole or not at all, so there
 // is never a second, divergent ledger. A destination that already exists wins
-// and the legacy copy is left untouched, for the user to sort out. When a
-// rename fails, the legacy location keeps being used for the rest of the
-// process and w gets a warning - the data stays reachable, always.
+// and the legacy copy is left untouched, for the user to sort out - with a
+// warning on w, since data split over two directories is impossible to guess.
+// An empty destination directory is not data and does not win. When a rename
+// fails, the legacy location keeps being used for the rest of the process and w
+// gets a warning - the data stays reachable, always.
 //
 // An explicit FINADOR_*_DIR or FINADOR_DB skips the migration it names: the
 // user pointed at a location, finador does not tidy it.
@@ -140,21 +142,30 @@ func migrateLedger(w io.Writer) {
 	}
 	legacy := filepath.Join(home, "."+LedgerName)
 	to, err := Ledger()
-	if err != nil || !exists(legacy) || exists(to) {
+	if err != nil || !exists(legacy) {
 		return
 	}
 	if !move(w, legacy, to) {
 		stuckLedger = legacy
 		return
 	}
+	if exists(legacy) {
+		return // the destination won; move said so, and the ledger stays put
+	}
 	_ = os.Rename(legacy+".bak", to+".bak") // absent is the normal case
 	fmt.Fprintln(w, "note: the keychain is keyed by path - the wallet password will be asked once more")
 }
 
 // move renames from to to, reporting whether the data now lives at to. A
-// missing source or an existing destination is success with nothing to do.
+// missing source is success with nothing to do; an existing destination wins,
+// but never in silence - data in two places the user cannot guess is worse than
+// data in the old place.
 func move(w io.Writer, from, to string) bool {
-	if from == to || !exists(from) || exists(to) {
+	if from == to || !exists(from) {
+		return true
+	}
+	if exists(to) && !clearEmptyDir(to) {
+		fmt.Fprintf(w, "warning: %s still holds data - %s already exists, so merge them by hand\n", from, to)
 		return true
 	}
 	if err := os.MkdirAll(filepath.Dir(to), 0o700); err != nil {
@@ -167,6 +178,18 @@ func move(w io.Writer, from, to string) bool {
 	}
 	fmt.Fprintf(w, "migrated %s -> %s\n", from, to)
 	return true
+}
+
+// clearEmptyDir removes path when it is an empty directory, and reports that
+// nothing stands there any more. Such a directory is what a build that resolved
+// the new layout without knowing how to migrate leaves behind: it holds no
+// data, so it must not outrank the data.
+func clearEmptyDir(path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil || !fi.IsDir() {
+		return false // a file is data, whatever its size
+	}
+	return os.Remove(path) == nil // harmlessly refused when it is not empty
 }
 
 func exists(path string) bool {
