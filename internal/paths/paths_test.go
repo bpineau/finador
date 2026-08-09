@@ -131,6 +131,35 @@ func TestMigrateLeavesLegacyWhenDestinationExists(t *testing.T) {
 	}
 }
 
+// In GitHub mode the working copy lives inside the cache directory, so moving
+// it renames the database - and the keychain is keyed by database path. The
+// wallet prompt that follows must be announced: an unexplained password prompt
+// is one a user answers with the wrong secret.
+func TestMigrateAnnouncesTheRekeyedCheckout(t *testing.T) {
+	home := setHome(t)
+	writeFile(t, filepath.Join(home, "Library", "Caches", "finador", "checkout", "ab.fin"), "copy")
+
+	var log bytes.Buffer
+	Migrate(&log)
+
+	if n := strings.Count(log.String(), "the wallet password will be asked once more"); n != 1 {
+		t.Errorf("want the keychain note once, got %d: %q", n, log.String())
+	}
+}
+
+// Nothing moved, nothing to warn about: a migration that had no work must not
+// invent a password prompt the user would then look for.
+func TestMigrateSaysNothingWhenNothingMoved(t *testing.T) {
+	setHome(t)
+
+	var log bytes.Buffer
+	Migrate(&log)
+
+	if log.String() != "" {
+		t.Errorf("want silence, got %q", log.String())
+	}
+}
+
 // An empty destination is what an interrupted upgrade leaves behind - a
 // directory some earlier build created before it knew how to migrate. It holds
 // nothing, so it must not outrank the data.

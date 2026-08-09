@@ -113,6 +113,7 @@ func Ledger() (string, error) {
 // An explicit FINADOR_*_DIR or FINADOR_DB skips the migration it names: the
 // user pointed at a location, finador does not tidy it.
 func Migrate(w io.Writer) {
+	rekeyed := false
 	for _, d := range []dir{configDir, cacheDir, dataDir} {
 		legacy := d.legacyPath()
 		if legacy == "" || os.Getenv(d.env) != "" {
@@ -122,38 +123,46 @@ func Migrate(w io.Writer) {
 		if err != nil {
 			continue
 		}
+		had := exists(legacy)
 		if !move(w, legacy, to) {
 			stuck[d.env] = legacy
+			continue
 		}
+		// In GitHub mode the working copy lives in the cache directory: moving
+		// it renames the database, and the keychain is keyed by that path.
+		rekeyed = rekeyed || (had && !exists(legacy) && d.env == cacheDir.env)
 	}
-	migrateLedger(w)
+	if migrateLedger(w) || rekeyed {
+		fmt.Fprintln(w, "note: the keychain is keyed by path - the wallet password will be asked once more")
+	}
 }
 
 // migrateLedger moves ~/.finador.fin, and its .bak sidecar, into the data
-// directory. The keychain entry is keyed by path, so the wallet password is
-// asked once more after the move - said plainly rather than left as a surprise.
-func migrateLedger(w io.Writer) {
+// directory. It reports whether the ledger changed path - Migrate then says
+// plainly that the wallet password is about to be asked once more, rather than
+// leaving that prompt as a surprise.
+func migrateLedger(w io.Writer) bool {
 	if os.Getenv("FINADOR_DB") != "" || os.Getenv(dataDir.env) != "" {
-		return
+		return false
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return
+		return false
 	}
 	legacy := filepath.Join(home, "."+LedgerName)
 	to, err := Ledger()
 	if err != nil || !exists(legacy) {
-		return
+		return false
 	}
 	if !move(w, legacy, to) {
 		stuckLedger = legacy
-		return
+		return false
 	}
 	if exists(legacy) {
-		return // the destination won; move said so, and the ledger stays put
+		return false // the destination won; move said so, and the ledger stays put
 	}
 	_ = os.Rename(legacy+".bak", to+".bak") // absent is the normal case
-	fmt.Fprintln(w, "note: the keychain is keyed by path - the wallet password will be asked once more")
+	return true
 }
 
 // move renames from to to, reporting whether the data now lives at to. A
