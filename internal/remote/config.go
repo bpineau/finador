@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"finador/internal/paths"
 )
 
 // GitHub holds the coordinates of the remote file on GitHub.
@@ -19,7 +21,7 @@ type GitHub struct {
 	Branch string `json:"branch"` // e.g. "master"
 }
 
-// Config is stored in configDir()/config.json. It is read before the
+// Config is stored in paths.Config()/config.json. It is read before the
 // encrypted file can be located, so it must live outside the .fin file.
 type Config struct {
 	Source        string  `json:"source"` // "local" | "github"
@@ -39,22 +41,10 @@ func (c Config) ReadPullDuration() time.Duration {
 	return d
 }
 
-// configDir returns the directory that holds config.json.
-// The env var FINADOR_CONFIG_DIR overrides the platform default.
-func configDir() (string, error) {
-	if dir := os.Getenv("FINADOR_CONFIG_DIR"); dir != "" {
-		return dir, nil
-	}
-	base, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("config dir: %w", err)
-	}
-	return filepath.Join(base, "finador"), nil
-}
-
-// configPath returns the path to config.json.
-func configPath() (string, error) {
-	dir, err := configDir()
+// ConfigPath is where finador reads and writes config.json. It is exported so
+// `finador config get` can name the file it is reporting on.
+func ConfigPath() (string, error) {
+	dir, err := paths.Config()
 	if err != nil {
 		return "", err
 	}
@@ -64,7 +54,7 @@ func configPath() (string, error) {
 // Load reads and validates the config file. A missing file is not an error;
 // it returns Config{Source: "local"}.
 func Load() (Config, error) {
-	path, err := configPath()
+	path, err := ConfigPath()
 	if err != nil {
 		return Config{}, err
 	}
@@ -89,7 +79,7 @@ func Save(c Config) error {
 	if err != nil {
 		return err
 	}
-	path, err := configPath()
+	path, err := ConfigPath()
 	if err != nil {
 		return err
 	}

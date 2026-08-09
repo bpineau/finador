@@ -41,7 +41,7 @@ func remoteAdopt(a *app) *cobra.Command {
 			"the working copy, so the next command reads your real data. Refuses to overwrite " +
 			"an existing remote file unless --force.",
 		Example: "  finador remote adopt\n" +
-			"  finador remote adopt --from ~/.finador.fin",
+			"  finador remote adopt --from ~/some-backup.fin",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, isRemote, err := a.dataSource()
@@ -53,7 +53,7 @@ func remoteAdopt(a *app) *cobra.Command {
 			}
 			src := from
 			if src == "" {
-				src = defaultDB()
+				src = localDB() // the local ledger, never the working copy adopt is seeding
 			}
 			data, err := os.ReadFile(src)
 			if err != nil {
@@ -67,7 +67,7 @@ func remoteAdopt(a *app) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&from, "from", "", "local .fin to upload (default: ~/.finador.fin)")
+	cmd.Flags().StringVar(&from, "from", "", "local .fin to upload (default: the local ledger, ~/.local/share/finador/finador.fin)")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing remote file")
 	return cmd
 }

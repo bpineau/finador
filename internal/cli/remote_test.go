@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -296,5 +297,20 @@ func TestMergeRefusedInRemoteMode(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "local-file mode") {
 		t.Errorf("unexpected merge error: %v", err)
+	}
+}
+
+// TestHelpShowsTheWorkingCopyAsDbDefault: in GitHub mode the file commands open
+// is the working copy, so that is the path --db must advertise - not a local
+// default nothing ever wrote to.
+func TestHelpShowsTheWorkingCopyAsDbDefault(t *testing.T) {
+	remoteEnv(t)
+	fake := &fakeBackend{}
+	configureRemote(t, fake)
+
+	out := mustRunRemote(t, fake, "--help")
+	want := filepath.Join(os.Getenv("FINADOR_CACHE_DIR"), "checkout")
+	if !strings.Contains(out, want) {
+		t.Errorf("--db default should name the working copy under %s:\n%s", want, out)
 	}
 }

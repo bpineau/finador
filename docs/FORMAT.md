@@ -36,7 +36,8 @@ reconcile losslessly with the merge algorithm of §6.5.
 The **market quote cache** is **not** part of this file. It lives in a separate,
 regenerable local sidecar (§7) and must never be written into the synced ledger.
 
-The reference default path is `~/.finador.fin`, but the format is independent of the
+The reference default path is `~/.local/share/finador/finador.fin`
+(`$XDG_DATA_HOME/finador/finador.fin` when set), but the format is independent of the
 filename. (finador's own tooling gitignores `*.fin`; the committed sample in this
 spec is named `sample.ledger` for that reason.)
 
@@ -585,9 +586,11 @@ tie-breaking.
 The market quote cache is **never** stored in the ledger. It is a separate local
 file:
 
-- **Directory**: `os.UserCacheDir()/finador/`, i.e. on macOS
-  `~/Library/Caches/finador/`, on Linux `~/.cache/finador/`. The environment
-  variable **`FINADOR_CACHE_DIR`** overrides the base directory (used by tests).
+- **Directory**: `~/.cache/finador/` on every platform
+  (`$XDG_CACHE_HOME/finador/` when that variable is set). The environment
+  variable **`FINADOR_CACHE_DIR`** names that directory outright (used by
+  tests). Ledgers written before v0.2 may still find it at
+  `~/Library/Caches/finador/` on macOS; finador moves it on its next run.
 - **Filename**: `<id>.cache`, where `<id>` is the header `id` (16 bytes) encoded as
   **base64 RawURL** (URL-safe alphabet, **no padding**). This makes the path
   deterministic and stable across machines for the same ledger.

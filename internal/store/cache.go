@@ -9,27 +9,20 @@ import (
 	"path/filepath"
 
 	"finador/internal/domain"
+	"finador/internal/paths"
 )
 
 const cacheMagic = "FINCACHE2"
 
-// cacheDir is os.UserCacheDir() unless FINADOR_CACHE_DIR overrides it (tests).
-func cacheDir() (string, error) {
-	if d := os.Getenv("FINADOR_CACHE_DIR"); d != "" {
-		return d, nil
-	}
-	return os.UserCacheDir()
-}
-
 // cachePath derives the sidecar path from the file id: deterministic and stable
 // across machines, physically outside any git repo.
 func (f *File) cachePath() (string, error) {
-	dir, err := cacheDir()
+	dir, err := paths.Cache()
 	if err != nil {
 		return "", err
 	}
 	id := base64.RawURLEncoding.EncodeToString(f.hdr.ID)
-	return filepath.Join(dir, "finador", id+".cache"), nil
+	return filepath.Join(dir, id+".cache"), nil
 }
 
 // SaveCache writes the market cache to its encrypted sidecar (cache subkey). It

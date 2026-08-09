@@ -1,11 +1,31 @@
 package store
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"finador/internal/domain"
 )
+
+// TestCachePathUsesTheFinadorDirectory pins the sidecar's location: the env
+// override names finador's own directory, and nothing is appended to it.
+func TestCachePathUsesTheFinadorDirectory(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("FINADOR_CACHE_DIR", dir)
+	f, err := Create(filepath.Join(t.TempDir(), "t.fin"), "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SaveCache(); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 || !strings.HasSuffix(entries[0].Name(), ".cache") {
+		t.Fatalf("want one .cache file directly in %s, got %v (%v)", dir, entries, err)
+	}
+}
 
 func TestMarketCacheRoundTripsViaSidecar(t *testing.T) {
 	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())

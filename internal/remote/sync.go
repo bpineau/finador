@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"finador/internal/paths"
 )
 
 // state is the sidecar that tracks what the local working copy knows about the
@@ -41,15 +44,6 @@ type Syncer struct {
 	clock         func() time.Time
 }
 
-// cacheDir mirrors store.cacheDir: os.UserCacheDir() unless FINADOR_CACHE_DIR
-// overrides it (honored first, for tests and the rest of the code).
-func cacheDir() (string, error) {
-	if d := os.Getenv("FINADOR_CACHE_DIR"); d != "" {
-		return d, nil
-	}
-	return os.UserCacheDir()
-}
-
 // hashKey derives a stable, filesystem-safe key from owner/repo/path so the
 // working copy and state live at a deterministic location across runs.
 func hashKey(gh GitHub) string {
@@ -57,24 +51,33 @@ func hashKey(gh GitHub) string {
 	return hex.EncodeToString(sum[:16])
 }
 
+// WorkingCopyPath is where the working copy of gh lives. Derived from a stable
+// hash of owner/repo/path, so it is the same on every run - and knowable
+// without a Backend, which is how the CLI can advertise it as the --db default.
+func WorkingCopyPath(gh GitHub) (string, error) {
+	base, err := paths.Cache()
+	if err != nil {
+		return "", fmt.Errorf("cache dir: %w", err)
+	}
+	return filepath.Join(base, "checkout", hashKey(gh)+".fin"), nil
+}
+
 // NewSyncer builds a Syncer for the given backend and remote coordinates. The
 // working copy and state paths are derived from a stable hash of the
 // owner/repo/path under the checkout directory.
 func NewSyncer(b Backend, gh GitHub, readPullAfter time.Duration) (*Syncer, error) {
-	base, err := cacheDir()
+	copyPath, err := WorkingCopyPath(gh)
 	if err != nil {
-		return nil, fmt.Errorf("cache dir: %w", err)
+		return nil, err
 	}
 	if readPullAfter <= 0 {
 		readPullAfter = time.Hour
 	}
-	dir := filepath.Join(base, "finador", "checkout")
-	key := hashKey(gh)
 	return &Syncer{
 		backend:       b,
 		gh:            gh,
-		copyPath:      filepath.Join(dir, key+".fin"),
-		statePath:     filepath.Join(dir, key+".state.json"),
+		copyPath:      copyPath,
+		statePath:     strings.TrimSuffix(copyPath, ".fin") + ".state.json",
 		readPullAfter: readPullAfter,
 		clock:         time.Now,
 	}, nil
