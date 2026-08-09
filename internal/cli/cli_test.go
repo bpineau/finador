@@ -1399,3 +1399,13 @@ func TestPluralAliases(t *testing.T) {
 		t.Errorf("--assets should reach the --asset flag: %v", err)
 	}
 }
+
+// TestInitCreatesTheDataDirectory: the default ledger lives in a directory a
+// fresh machine does not have yet, so init must create it.
+func TestInitCreatesTheDataDirectory(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "data", "finador", "finador.fin")
+	run(t, db, "init")
+	if _, err := os.Stat(db); err != nil {
+		t.Fatalf("init should have created %s: %v", db, err)
+	}
+}

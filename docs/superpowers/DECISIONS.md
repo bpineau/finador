@@ -576,3 +576,50 @@ de Yahoo - suivi d'un repli muet sur FT/Morningstar, donc sur du EOD.
 déjà, et ça reste de l'ergotage) ; remonter warnings et périmés dans l'UI
 Android ; un TTL sur le cache disque de pofo (finador n'en a pas - le sidecar
 chiffré est son cache).
+
+## D30 - Chemins XDG partout, migration par rename
+
+Les répertoires macOS (`~/Library/…`) contredisaient une doc qui annonçait déjà
+`~/.config/finador/config.json`. `internal/paths` résout désormais les trois
+répertoires (config, cache, données) en XDG sur toutes les plateformes, et le
+ledger par défaut passe de `~/.finador.fin` à
+`~/.local/share/finador/finador.fin`. `FINADOR_CONFIG_DIR`, `FINADOR_CACHE_DIR`
+et `FINADOR_DATA_DIR` désignent uniformément le répertoire de finador lui-même
+(avant, `FINADOR_CACHE_DIR` désignait une base à laquelle on ajoutait
+`finador/`), `XDG_*_HOME` désigne la base.
+
+`Migrate` est appelé une fois depuis `main`, jamais depuis `cli.New()` : un
+binaire de test ne déplace donc jamais les vraies données du développeur. Il ne
+copie jamais - `os.Rename` du répertoire entier, ou rien - pour qu'il ne puisse
+pas exister deux ledgers divergents. Si la destination existe déjà, elle gagne
+et l'ancien emplacement est laissé intact. Si le rename échoue, l'ancien
+emplacement continue d'être lu pour ce run, avec un avertissement : les données
+restent toujours joignables. Effet de bord assumé et annoncé : la clé du
+trousseau est indexée par chemin, donc le mot de passe est redemandé une fois
+après le déplacement.
+
+Corollaire : `--db` affiche enfin le fichier réellement ouvert (la copie de
+travail GitHub en mode remote), et `remote adopt` lit explicitement le ledger
+local (`localDB`), puisqu'il tourne précisément quand le défaut est la copie de
+travail qu'il est en train de semer.
+
+**Écarté :** garder `~/.finador.fin` (l'un des trois chemins serait resté hors
+layout) ; migrer par copie (deux ledgers divergents possibles) ; migrer depuis
+`cli.New()` (la suite de tests aurait déplacé les données réelles).
+
+## D31 - `--asset` est un filtre de Scope, pas un ScopeKind
+
+`value/perf/chart/export --asset` ajoute `Scope.Only`, jumeau de `Excluded`,
+plutôt qu'un sixième `ScopeKind`. Les deux prédicats `hasAsset`/`hasCash` sont
+le seul point de filtrage partagé par la valorisation, la série (donc les flux),
+les arbres et le web : un champ y suffit pour que le filtre atteigne tout d'un
+coup, sans risquer de dissocier valeur et flux (invariant D29). `Only` exclut le
+cash - le cash n'est pas un asset - et se compose avec `[scope]` et `--label` au
+lieu de les remplacer ; `--exclude` gagne quand les deux nomment le même asset.
+`EnvelopeScope` propage `Only` (une ligne d'arbre doit mesurer les mêmes
+positions que son scope) ; `PairScope` et `IntersectScope` n'en ont pas besoin,
+elles partent de lignes déjà filtrées par `FilterScope`.
+
+**Écarté :** un `ScopeKind` multi-assets (aurait dupliqué la logique dans
+`lineLabel`, `EnvelopeScope` et le web) ; remplacer le `[scope]` au lieu de le
+croiser (on n'aurait pas pu dire « ce titre, dans cette enveloppe »).
