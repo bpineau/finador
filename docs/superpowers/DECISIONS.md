@@ -653,3 +653,18 @@ un échec réseau ou `--offline` ne prouvant rien contre le token.
 automatiquement (`Migrate` ne copie jamais, invariant D30) ; ne plus mémoriser du
 tout un token tapé hors `remote login` (on retomberait sur un prompt à chaque
 commande).
+
+## D33 - Un prompt de mot de passe inattendu s'annonce
+
+En mode GitHub, la copie de travail vit *dans* le répertoire de cache : le
+déplacer renomme la base, et le trousseau est indexé par chemin. La migration
+provoque donc un « Wallet password: » que rien n'expliquait, la note n'étant
+imprimée que pour le ledger local. C'est précisément par là qu'un secret se
+perd : un prompt qu'on ne comprend pas, on y répond avec la mauvaise chose.
+`Migrate` émet désormais la note dès qu'un chemin de base a changé - ledger
+déplacé *ou* répertoire de cache déplacé - et une seule fois, en un seul endroit
+(`migrateLedger` renvoie s'il a bougé au lieu d'imprimer lui-même).
+
+**Écarté :** ré-indexer le trousseau sur le nouveau chemin (il faudrait déchiffrer
+pour vérifier que le secret déplacé est le bon) ; se taire au motif que le prompt
+est légitime (le coût d'un prompt incompris est une saisie à l'aveugle).
