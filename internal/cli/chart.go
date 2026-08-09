@@ -16,12 +16,13 @@ func chartCmd(a *app) *cobra.Command {
 	var ccy, from, to, label string
 	var net bool
 	var width, height int
-	var exclude []string
+	var exclude, only []string
 	cmd := &cobra.Command{
-		Use:     "chart [scope]",
-		Short:   "Value history chart, rendered in the terminal",
-		Example: "  finador chart",
-		Args:    cobra.MaximumNArgs(1),
+		Use:   "chart [scope]",
+		Short: "Value history chart, rendered in the terminal",
+		Example: "  finador chart\n" +
+			"  finador chart --asset cw8,aapl",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := a.open()
 			if err != nil {
@@ -33,7 +34,7 @@ func chartCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := resolveScope(b, ref, label, exclude)
+			scope, err := resolveScope(b, ref, label, exclude, only)
 			if err != nil {
 				return err
 			}
@@ -86,6 +87,7 @@ func chartCmd(a *app) *cobra.Command {
 	cmd.Flags().IntVar(&width, "width", 70, "width in characters")
 	cmd.Flags().IntVar(&height, "height", 12, "height in lines")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
+	cmd.Flags().StringArrayVar(&only, "asset", nil, "keep only this asset (repeatable or comma list); several are compounded into one figure")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	return cmd
 }

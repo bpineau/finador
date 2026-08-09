@@ -466,7 +466,7 @@ and performance recompute instantly.
 
 ```sh
 finador value [scope] [--at YYYY-MM-DD] [--ccy USD] [--gross]
-              [--by group|account] [--exclude refs]... [--what-if asset=price]...
+              [--by group|account] [--asset refs]... [--exclude refs]... [--what-if asset=price]...
 finador value --tree       # envelope-grouped tree, gross & net per holding
 finador value pea --tree   # same, scoped (envelope, group or label)
 ```
@@ -475,6 +475,11 @@ finador value pea --tree   # same, scoped (envelope, group or label)
 - `--tree` renders the envelope-grouped holdings tree instead of the flat table
   (the same output as `export --tree`, honoring scope, `--label`, `--exclude`
   and `--at`).
+- `--asset cw8` keeps only that holding, across every envelope; `--asset cw8,aapl`
+  keeps both and compounds them into one figure. Cash is left out (it is not an
+  asset), and the filter narrows a `[scope]` rather than replacing it:
+  `finador value "PEA Zephyr" --asset cw8` is one position inside one envelope.
+  It works the same on `perf`, `chart` and `export`.
 - `--at` values the portfolio at any past date (quotes are forward-filled).
 - `--by account` breaks lines down by envelope (cash included) instead of group.
 - `--what-if cw8=600 --what-if country=520000` revalues with throwaway price
@@ -487,7 +492,7 @@ finador value pea --tree   # same, scoped (envelope, group or label)
 ### Performance: `perf`
 
 ```sh
-finador perf [scope] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c] [--exclude refs]...
+finador perf [scope] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c] [--asset refs]... [--exclude refs]...
 finador perf --tree        # per-envelope tree: net value, 1d/7d/1m/3m returns
 finador perf pea --tree    # same, scoped to one envelope, group or label
 ```
@@ -531,7 +536,7 @@ returns to their envelope row.
 ### Charts: `chart`
 
 ```sh
-finador chart [scope] [--net] [--from d] [--to d] [--ccy c]
+finador chart [scope] [--net] [--from d] [--to d] [--ccy c] [--asset refs]...
               [--width 70] [--height 12] [--exclude refs]...
 ```
 
@@ -541,7 +546,7 @@ after-tax curve.
 ### Export: `export`
 
 ```sh
-finador export [scope] [--at YYYY-MM-DD] [--ccy USD] [--label l] [--exclude refs] > assets.csv
+finador export [scope] [--at YYYY-MM-DD] [--ccy USD] [--label l] [--asset refs] [--exclude refs] > assets.csv
 finador export pea > pea.csv     # scoped: an envelope, a group or a label
 finador export pea --tree        # envelope-grouped text (see `value --tree`)
 finador export --script          # replayable finador commands (rebuild recipe)

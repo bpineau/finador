@@ -15,7 +15,7 @@ import (
 
 func perfCmd(a *app) *cobra.Command {
 	var ccy, from, to, label string
-	var exclude []string
+	var exclude, only []string
 	var tree bool
 	cmd := &cobra.Command{
 		Use:   "perf [scope]",
@@ -25,6 +25,7 @@ func perfCmd(a *app) *cobra.Command {
 			"  finador perf equities/world\n" +
 			"  finador perf --tree            # per-envelope tree: net, 1d/7d/1m/3m\n" +
 			"  finador perf --label retraite\n" +
+			"  finador perf --asset cw8       # one position, across every envelope\n" +
 			"  finador perf --exclude CW8,AAPL",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -38,7 +39,7 @@ func perfCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := resolveScope(b, ref, label, exclude)
+			scope, err := resolveScope(b, ref, label, exclude, only)
 			if err != nil {
 				return err
 			}
@@ -153,6 +154,7 @@ func perfCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&from, "from", "", "start of a custom window YYYY-MM-DD")
 	cmd.Flags().StringVar(&to, "to", "", "valuation date YYYY-MM-DD (default: today)")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
+	cmd.Flags().StringArrayVar(&only, "asset", nil, "keep only this asset (repeatable or comma list); several are compounded into one figure")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	cmd.Flags().BoolVar(&tree, "tree", false, "envelope-grouped tree: net value and 1d/7d/1m/3m returns per line")
 	return cmd

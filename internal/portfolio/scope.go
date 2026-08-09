@@ -23,6 +23,10 @@ const (
 // Scope is what a command evaluates: everything, a group subtree, one
 // envelope, or one asset. Resolution order on a free reference: group
 // prefix first, then account, then asset.
+//
+// Excluded and Only are throwaway filters the CLI lays over any of those
+// shapes (--exclude, --asset): they narrow what the scope already selected
+// rather than being shapes of their own.
 type Scope struct {
 	Kind     ScopeKind
 	Group    string // lowercase path
@@ -30,7 +34,8 @@ type Scope struct {
 	Asset    *domain.Asset
 	Label    string
 	Pairs    map[pairKey]bool        // populated for ByLabel
-	Excluded map[domain.AssetID]bool // assets removed from the scope (throwaway, CLI --exclude)
+	Excluded map[domain.AssetID]bool // assets removed from the scope (CLI --exclude)
+	Only     map[domain.AssetID]bool // when non-nil, the only assets kept (CLI --asset)
 }
 
 // ParseScope resolves the free scope argument of value/perf/chart: empty is
@@ -89,6 +94,8 @@ func IntersectScope(acc *domain.Account, group string) Scope {
 
 // PairScope is the scope of a single (account, asset) position: what one
 // line of a tree view measures. Cash is excluded (the envelope row owns it).
+// It needs no throwaway filter: the pair comes from lines FilterScope already
+// kept, so a filtered-out asset never reaches here.
 func PairScope(acc *domain.Account, asset *domain.Asset) Scope {
 	return Scope{
 		Kind:  ByLabel,
@@ -98,9 +105,11 @@ func PairScope(acc *domain.Account, asset *domain.Asset) Scope {
 }
 
 // EnvelopeScope restricts s to one account: what the account's row of a tree
-// view measures. Cash is kept exactly when s itself keeps it.
+// view measures. Cash is kept exactly when s itself keeps it, and both
+// throwaway filters are carried through - the row must measure the same
+// positions as the scope it belongs to.
 func EnvelopeScope(s Scope, acc *domain.Account) Scope {
-	out := Scope{Kind: ByAccount, Account: acc, Label: acc.Name, Excluded: s.Excluded}
+	out := Scope{Kind: ByAccount, Account: acc, Label: acc.Name, Excluded: s.Excluded, Only: s.Only}
 	switch s.Kind {
 	case All, ByAccount:
 		return out
@@ -108,7 +117,7 @@ func EnvelopeScope(s Scope, acc *domain.Account) Scope {
 		out.Kind, out.Group = ByAccountGroup, s.Group
 		return out
 	case ByAsset:
-		return Scope{Kind: ByLabel, Label: acc.Name, Excluded: s.Excluded,
+		return Scope{Kind: ByLabel, Label: acc.Name, Excluded: s.Excluded, Only: s.Only,
 			Pairs: map[pairKey]bool{{acc: acc.ID, asset: s.Asset.ID}: true}}
 	case ByLabel:
 		pairs := map[pairKey]bool{}
@@ -117,7 +126,7 @@ func EnvelopeScope(s Scope, acc *domain.Account) Scope {
 				pairs[k] = true
 			}
 		}
-		return Scope{Kind: ByLabel, Label: acc.Name, Excluded: s.Excluded, Pairs: pairs}
+		return Scope{Kind: ByLabel, Label: acc.Name, Excluded: s.Excluded, Only: s.Only, Pairs: pairs}
 	}
 	return out
 }
@@ -157,6 +166,9 @@ func (s Scope) hasAsset(acc *domain.Account, asset *domain.Asset) bool {
 	if s.Excluded[asset.ID] {
 		return false
 	}
+	if s.Only != nil && !s.Only[asset.ID] {
+		return false
+	}
 	switch s.Kind {
 	case All:
 		return true
@@ -175,6 +187,9 @@ func (s Scope) hasAsset(acc *domain.Account, asset *domain.Asset) bool {
 }
 
 func (s Scope) hasCash(acc *domain.Account) bool {
+	if s.Only != nil {
+		return false // an asset filter excludes cash: cash is not an asset
+	}
 	switch s.Kind {
 	case All:
 		return true
