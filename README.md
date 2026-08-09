@@ -38,7 +38,7 @@ go build -trimpath -o bin/finador ./cmd/finador
 ## Quick start
 
 ```sh
-finador init                                            # creates ~/.finador.fin
+finador init                                            # creates ~/.local/share/finador/finador.fin
 finador account add "PEA Zephyr" --tax gains:18.6%
 finador account add "Savings"
 
@@ -320,7 +320,7 @@ ledger is re-sealed in place; the previous file is kept as `.bak`.
 
 **The file is the database.** Everything - accounts, assets, the transaction
 ledger, the quote cache - lives in one encrypted `.fin` file (default
-`~/.finador.fin`, override with `--db` or `FINADOR_DB`). Copying that file *is*
+`~/.local/share/finador/finador.fin`, override with `--db` or `FINADOR_DB`). Copying that file *is*
 your backup. All derived state (positions, cost bases, series) is recomputed by
 replaying the ledger, so transactions can always be edited or deleted safely.
 
@@ -378,10 +378,25 @@ positions carrying that label (cannot be combined with a positional scope argume
 Global flags, valid on every command:
 
 ```
---db <path>      encrypted data file (default ~/.finador.fin, or $FINADOR_DB)
+--db <path>      encrypted data file - naming one forces local mode
+                 (default: the GitHub working copy in remote mode, otherwise
+                 ~/.local/share/finador/finador.fin, or $FINADOR_DB)
 --offline        never touch the network; work from the quote cache
 --no-keychain    do not store the password in the macOS Keychain
 --no-color       disable ANSI colors (also honored: $NO_COLOR)
+```
+
+Where finador keeps things (the same layout on macOS and Linux):
+
+```
+~/.local/share/finador/finador.fin   # the ledger        ($XDG_DATA_HOME, $FINADOR_DATA_DIR)
+~/.config/finador/config.json        # remote settings   ($XDG_CONFIG_HOME, $FINADOR_CONFIG_DIR)
+~/.cache/finador/                    # quote cache and GitHub working copy
+                                     #                   ($XDG_CACHE_HOME, $FINADOR_CACHE_DIR)
+
+# Upgrading from a version that used ~/.finador.fin (or ~/Library on macOS)?
+# finador moves them here on its next run and says so - by rename, never a copy.
+# The wallet password is then asked once more: the Keychain entry is keyed by path.
 ```
 
 ### Setup and accounts
@@ -631,7 +646,7 @@ default; these commands are only for GitHub mode.
 ```sh
 finador remote set <owner>/<repo> [--path finador.fin] [--branch master]  # switch to GitHub mode
 finador remote login                                                       # store the token (Keychain)
-finador remote adopt                                                       # upload an existing ~/.finador.fin (migration)
+finador remote adopt                                                       # upload an existing local ledger (migration)
 finador remote show                                                        # mode, repo, sync state (never the token)
 finador remote off                                                         # back to local file mode
 finador sync                                                               # force pull, push pending changes
@@ -641,9 +656,9 @@ finador sync                                                               # for
 |---|---|
 | `remote set <owner>/<repo>` | Writes `~/.config/finador/config.json` with `source: github`. `--path` (default `finador.fin`) is the file's path inside the repo; `--branch` (default **`master`** - pass `--branch main` if that's your repo's default branch, finador doesn't auto-detect it). |
 | `remote login` | Prompts for the fine-grained PAT, stores it in the macOS Keychain (re-run to rotate), and **verifies it can reach the repo** (a bad/expired token is reported now, not at the next sync). `GITHUB_TOKEN` overrides it. |
-| `remote adopt` | Uploads an existing local `.fin` (`--from`, default `~/.finador.fin`) to the remote as-is - a one-time migration. Refuses to overwrite an existing remote file unless `--force`. |
+| `remote adopt` | Uploads an existing local `.fin` (`--from`, default `~/.local/share/finador/finador.fin`) to the remote as-is - a one-time migration. Refuses to overwrite an existing remote file unless `--force`. |
 | `remote show` | Prints the active mode, the repo/path/branch and the sync state (last pull, unpushed changes). Never prints the token. |
-| `remote off` | Sets `source: local` - commands use `~/.finador.fin` again. |
+| `remote off` | Sets `source: local` - commands use `~/.local/share/finador/finador.fin` again. |
 | `sync` | Forces a pull now (don't wait the hourly refresh) and pushes pending offline changes, reconciling via `merge` if the remote moved. |
 
 **Config file** `~/.config/finador/config.json` (plain JSON, hand-editable):
@@ -670,7 +685,7 @@ local mode for a single invocation, whatever the config says.
 - The GitHub Contents API caps a file at ~1 MB; the ledger (market cache excluded) stays well
   under it. `finador lock` forgets both cached passwords and the GitHub token.
 - **Already have a local file?** `init` starts fresh and `sync` only pulls an existing remote -
-  neither imports a pre-existing `~/.finador.fin`. Migrate it with **`finador remote adopt`**,
+  neither imports a pre-existing `~/.local/share/finador/finador.fin`. Migrate it with **`finador remote adopt`**,
   which uploads the encrypted file as-is (no password needed) and installs it as the working
   copy.
 - **The file's name in the repo** is `finador.fin` by default; name it whatever you like with
@@ -792,7 +807,7 @@ with no terminal), use `FINADOR_PASSWORD`.
 
 ## Use a private GitHub repo (optional)
 
-By default your data is a local file (`~/.finador.fin`). Optionally, finador keeps it in a
+By default your data is a local file (`~/.local/share/finador/finador.fin`). Optionally, finador keeps it in a
 **private GitHub repository** and syncs transparently, so you use the same portfolio from
 several machines. The repo holds only the **encrypted** file, and the token is scoped to that
 one repo. Local mode stays the default and the fallback.
@@ -815,10 +830,10 @@ one repo. Local mode stays the default and the fallback.
    **If your repo's default branch isn't `master`** (e.g. `main`), add `--branch main` to
    `remote set` - finador defaults to `master` and does **not** auto-detect the repo's branch.
 
-   **Already have a populated `~/.finador.fin`?** Don't run `init` (it would start empty).
+   **Already have a populated `~/.local/share/finador/finador.fin`?** Don't run `init` (it would start empty).
    After `remote set` + `remote login`, migrate it in one command:
    ```sh
-   finador remote adopt          # uploads ~/.finador.fin as-is (still encrypted), then reads it
+   finador remote adopt          # uploads ~/.local/share/finador/finador.fin as-is (still encrypted), then reads it
    ```
    On another machine, repeat steps 1–3 with the same repo/token (and matching `--branch`),
    then run any command - it pulls the existing `finador.fin`.

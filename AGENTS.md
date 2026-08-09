@@ -91,7 +91,8 @@ cmd/finador → cli ─┬→ store ──→ domain
                    ├→  market → domain, pofo/marketdata
                    ├→  chart → perf, pofo/chart
                    ├→  remote                      (GitHub sync, never decrypts)
-                   └→  keyring                     (passwords: env → Keychain → prompt)
+                   ├→  keyring                     (passwords: env → Keychain → prompt)
+                   └→  paths                       (XDG dirs + one-time migration)
 ```
 
 - **domain** - the pure model, no I/O, imports no internal package. Start

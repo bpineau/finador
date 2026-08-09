@@ -2,6 +2,7 @@ package remote
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -91,12 +92,12 @@ func TestConfigDirEnvOverride(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("FINADOR_CONFIG_DIR", dir)
 
-	got, err := configDir()
+	got, err := ConfigPath()
 	if err != nil {
-		t.Fatalf("configDir: %v", err)
+		t.Fatalf("ConfigPath: %v", err)
 	}
-	if got != dir {
-		t.Errorf("configDir: got %q, want %q", got, dir)
+	if want := filepath.Join(dir, "config.json"); got != want {
+		t.Errorf("ConfigPath: got %q, want %q", got, want)
 	}
 }
 
@@ -150,7 +151,7 @@ func TestSaveAtomicMode(t *testing.T) {
 	if err := Save(c); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	path, _ := configPath()
+	path, _ := ConfigPath()
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat: %v", err)

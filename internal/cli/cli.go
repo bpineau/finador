@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,6 +13,7 @@ import (
 	"finador/internal/domain"
 	"finador/internal/keyring"
 	"finador/internal/market"
+	"finador/internal/paths"
 	"finador/internal/remote"
 	"finador/internal/store"
 	"finador/internal/web"
@@ -71,7 +71,7 @@ func New(opts ...Option) *cobra.Command {
 			return nil
 		},
 	}
-	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "encrypted data file")
+	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "encrypted data file - naming one forces local mode")
 	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "do not store the password in the keychain")
 	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "never access the network (cache only)")
 	root.PersistentFlags().BoolVar(&a.noColor, "no-color", false, "disable colors")
@@ -204,12 +204,35 @@ func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
 	}
 }
 
+// defaultDB is the ledger a command opens when --db is absent: FINADOR_DB, the
+// GitHub working copy when config.json selects it, otherwise the local default.
+// The help text shows this value, so what it advertises is the file finador
+// really opens - in GitHub mode that is the working copy, not a local path
+// nothing ever wrote to.
 func defaultDB() string {
 	if p := os.Getenv("FINADOR_DB"); p != "" {
 		return p
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".finador.fin")
+	if cfg, err := remote.Load(); err == nil && cfg.Source == "github" && cfg.GitHub != nil {
+		if p, err := remote.WorkingCopyPath(*cfg.GitHub); err == nil {
+			return p
+		}
+	}
+	return localDB()
+}
+
+// localDB is the ledger of a machine that syncs with nothing: FINADOR_DB, or
+// the file in the data directory. `remote adopt` reads it while GitHub mode is
+// already configured, which is precisely when defaultDB answers something else.
+func localDB() string {
+	if p := os.Getenv("FINADOR_DB"); p != "" {
+		return p
+	}
+	p, err := paths.Ledger()
+	if err != nil {
+		return paths.LedgerName // no home directory: the current one will do
+	}
+	return p
 }
 
 func (a *app) cache() keyring.Cache {
