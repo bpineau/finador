@@ -16,8 +16,9 @@ import (
 
 func assetCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "asset",
-		Short: "Declare and record activity on securities and properties",
+		Use:     "asset",
+		Aliases: []string{"assets"},
+		Short:   "Declare and record activity on securities and properties",
 		Long: `Manage assets (securities and properties) and record all activity on them.
 
 Which subcommand to use:

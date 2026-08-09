@@ -375,6 +375,9 @@ positions carrying that label (cannot be combined with a positional scope argume
 
 ## Command reference
 
+Plural spellings are the same commands and the same flags: `finador perfs`,
+`finador accounts list`, `finador value --assets cw8` all work.
+
 Global flags, valid on every command:
 
 ```
