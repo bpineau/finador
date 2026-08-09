@@ -18,8 +18,9 @@ func perfCmd(a *app) *cobra.Command {
 	var exclude, only []string
 	var tree bool
 	cmd := &cobra.Command{
-		Use:   "perf [scope]",
-		Short: "Returns (TWR, gain) by period and risk metrics",
+		Use:     "perf [scope]",
+		Aliases: []string{"perfs"},
+		Short:   "Returns (TWR, gain) by period and risk metrics",
 		Example: "  finador perf\n" +
 			"  finador perf \"PEA Zephyr\"\n" +
 			"  finador perf equities/world\n" +

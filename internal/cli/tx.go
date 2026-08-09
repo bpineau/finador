@@ -15,6 +15,7 @@ import (
 func txCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "tx",
+		Aliases: []string{"txs", "transactions"},
 		Short:   "List and edit ledger transactions",
 		Example: "  finador tx list --account \"PEA Zephyr\"",
 	}

@@ -1371,3 +1371,31 @@ func TestAssetFilterOnReadCommands(t *testing.T) {
 		t.Errorf("--asset nope should fail on the flag: err=%v out=%q", err, out)
 	}
 }
+
+// TestPluralAliases: the noun commands answer to their plural, and a plural
+// flag name reaches its singular flag.
+func TestPluralAliases(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")
+	run(t, db, "asset", "buy", "cw8", "10", "@100", "2026-01-05")
+
+	for _, args := range [][]string{
+		{"accounts", "list"},
+		{"assets", "list"},
+		{"labels", "list"},
+		{"txs", "list"},
+		{"transactions", "list"},
+		{"values", "--gross"},
+		{"perfs"},
+		{"charts"},
+	} {
+		if _, err := tryRun(t, db, args...); err != nil {
+			t.Errorf("finador %s: %v", strings.Join(args, " "), err)
+		}
+	}
+	if _, err := tryRun(t, db, "value", "--assets", "cw8", "--gross"); err != nil {
+		t.Errorf("--assets should reach the --asset flag: %v", err)
+	}
+}

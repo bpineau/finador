@@ -13,6 +13,7 @@ import (
 func accountCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "account",
+		Aliases: []string{"accounts"},
 		Short:   "Manage accounts (PEA, CTO, PER, bank accounts…)",
 		Example: "  finador account add \"PEA Zephyr\" --tax gains:18.6% --alias pea",
 	}

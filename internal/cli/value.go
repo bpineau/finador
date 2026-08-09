@@ -19,8 +19,9 @@ func valueCmd(a *app) *cobra.Command {
 	var gross, tree bool
 	var exclude, whatIf, only []string
 	cmd := &cobra.Command{
-		Use:   "value [scope]",
-		Short: "Portfolio value (gross, estimated tax, net) - all, a group, an account or an asset",
+		Use:     "value [scope]",
+		Aliases: []string{"values"},
+		Short:   "Portfolio value (gross, estimated tax, net) - all, a group, an account or an asset",
 		Example: "  finador value                 # gross, estimated tax and net (default)\n" +
 			"  finador value --gross         # gross value only\n" +
 			"  finador value equities/world  # scope to a group\n" +

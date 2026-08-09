@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"finador/internal/domain"
 	"finador/internal/keyring"
@@ -71,6 +72,22 @@ func New(opts ...Option) *cobra.Command {
 			return nil
 		},
 	}
+	// A plural flag name is the same flag: --assets is --asset. Stated once
+	// here, inherited by every subcommand's flag set - as the plural command
+	// aliases (`finador perfs`, `finador accounts list`) are stated on each
+	// noun command.
+	root.SetGlobalNormalizationFunc(func(_ *pflag.FlagSet, name string) pflag.NormalizedName {
+		switch name {
+		case "assets":
+			name = "asset"
+		case "excludes":
+			name = "exclude"
+		case "what-ifs":
+			name = "what-if"
+		}
+		return pflag.NormalizedName(name)
+	})
+
 	root.PersistentFlags().StringVar(&a.dbPath, "db", defaultDB(), "encrypted data file - naming one forces local mode")
 	root.PersistentFlags().BoolVar(&a.noKeychain, "no-keychain", false, "do not store the password in the keychain")
 	root.PersistentFlags().BoolVar(&a.offline, "offline", false, "never access the network (cache only)")

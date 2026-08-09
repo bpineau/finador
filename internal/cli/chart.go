@@ -18,8 +18,9 @@ func chartCmd(a *app) *cobra.Command {
 	var width, height int
 	var exclude, only []string
 	cmd := &cobra.Command{
-		Use:   "chart [scope]",
-		Short: "Value history chart, rendered in the terminal",
+		Use:     "chart [scope]",
+		Aliases: []string{"charts"},
+		Short:   "Value history chart, rendered in the terminal",
 		Example: "  finador chart\n" +
 			"  finador chart --asset cw8,aapl",
 		Args: cobra.MaximumNArgs(1),
