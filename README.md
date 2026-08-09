@@ -626,8 +626,17 @@ otherwise).
 
 ```sh
 finador config set <key> <value>
-finador config get [key]
-finador lock                # purge cached passwords from the Keychain
+finador config get              # paths first, then every setting and its default
+# ledger: /home/you/.local/share/finador/finador.fin
+# config: /home/you/.config/finador/config.json   (source = local)
+currency        = EUR  # default
+default-account =      # unset
+keychain-ttl    = 12h  # default
+risk-free       = 2.5%
+made-up         = x    # unknown
+
+finador config get keychain-ttl # one raw value, defaults included, for scripts
+finador lock                    # purge cached passwords from the Keychain
 ```
 
 | Key | Effect | Example |

@@ -171,8 +171,62 @@ func TestConfigSetGet(t *testing.T) {
 	if out := run(t, db, "config", "get", "risk-free"); !strings.Contains(out, "2.4%") {
 		t.Fatalf("config get: %q", out)
 	}
-	if out := run(t, db, "config", "get"); !strings.Contains(out, "risk-free = 2.4%") {
-		t.Fatalf("config get (tout): %q", out)
+	if l := configLine(t, run(t, db, "config", "get"), "risk-free"); !strings.Contains(l, "= 2.4%") {
+		t.Fatalf("config get (tout): %q", l)
+	}
+}
+
+// configLine returns the `config get` line describing key.
+func configLine(t *testing.T, out, key string) string {
+	t.Helper()
+	for _, l := range strings.Split(out, "\n") {
+		if fields := strings.Fields(l); len(fields) > 0 && fields[0] == key {
+			return l
+		}
+	}
+	t.Fatalf("no line for %q in:\n%s", key, out)
+	return ""
+}
+
+// TestConfigGetShowsPathsDefaultsAndUnknownKeys: `config get` is the one place
+// that shows where the settings live, every key finador understands, and the
+// keys it does not.
+func TestConfigGetShowsPathsDefaultsAndUnknownKeys(t *testing.T) {
+	t.Setenv("FINADOR_CONFIG_DIR", t.TempDir())
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "config", "set", "risk-free", "2.5%")
+	run(t, db, "config", "set", "made-up", "x")
+
+	out := run(t, db, "config", "get")
+	for _, want := range []string{"# ledger: " + db, "# config: ", "(source = local)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("config get: %q missing from:\n%s", want, out)
+		}
+	}
+	for _, c := range []struct{ key, want string }{
+		{"risk-free", "= 2.5%"},           // set in the ledger, no comment
+		{"currency", "= EUR  # default"},  // unset, documented default
+		{"default-account", "=  # unset"}, // unset, no default
+		{"made-up", "= x  # unknown"},     // set but not a key finador knows
+	} {
+		if l := configLine(t, out, c.key); !strings.Contains(strings.Join(strings.Fields(l), " "), strings.Join(strings.Fields(c.want), " ")) {
+			t.Errorf("config get %s: %q, want it to carry %q", c.key, l, c.want)
+		}
+	}
+	if l := configLine(t, out, "risk-free"); strings.HasSuffix(l, " ") {
+		t.Errorf("no trailing padding on a line without a comment: %q", l)
+	}
+	if !strings.HasPrefix(out, "# ledger: ") {
+		t.Errorf("config get must start with the ledger path:\n%s", out)
+	}
+	// one key still prints one raw value, now the effective one
+	if got := run(t, db, "config", "get", "keychain-ttl"); strings.TrimSpace(got) != "12h" {
+		t.Errorf("config get keychain-ttl = %q, want the default 12h", got)
+	}
+	// an unknown key is still set, with a warning
+	if out := run(t, db, "config", "set", "typo-key", "8h"); !strings.Contains(out, "unknown config key") {
+		t.Errorf("config set should warn on an unknown key:\n%s", out)
 	}
 }
 
@@ -1236,10 +1290,15 @@ func TestExportScriptRoundTrip(t *testing.T) {
 		run(t, db2, args[1:]...)
 	}
 
-	// stripIDs blanks the random, regenerated id column of the list views.
+	// stripIDs blanks the random, regenerated id column of the list views, and
+	// drops comment lines: `config get` opens on the file it read, and the two
+	// copies are deliberately two different files.
 	stripIDs := func(out string) string {
 		var sb strings.Builder
 		for line := range strings.SplitSeq(out, "\n") {
+			if strings.HasPrefix(line, "#") {
+				continue
+			}
 			if f := strings.Fields(line); len(f) > 1 && len(f[0]) > 20 {
 				line = strings.TrimPrefix(line, f[0])
 			}
