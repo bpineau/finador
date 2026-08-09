@@ -17,7 +17,7 @@ import (
 func valueCmd(a *app) *cobra.Command {
 	var ccy, at, by, label string
 	var gross, tree bool
-	var exclude, whatIf []string
+	var exclude, whatIf, only []string
 	cmd := &cobra.Command{
 		Use:   "value [scope]",
 		Short: "Portfolio value (gross, estimated tax, net) - all, a group, an account or an asset",
@@ -26,6 +26,7 @@ func valueCmd(a *app) *cobra.Command {
 			"  finador value equities/world  # scope to a group\n" +
 			"  finador value --tree          # envelope-grouped tree, gross & net\n" +
 			"  finador value --label retraite\n" +
+			"  finador value --asset cw8,aapl  # only those two, compounded\n" +
 			"  finador value --at 2024-12-31",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,7 +40,7 @@ func valueCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := resolveScope(b, ref, label, exclude)
+			scope, err := resolveScope(b, ref, label, exclude, only)
 			if err != nil {
 				return err
 			}
@@ -98,6 +99,7 @@ func valueCmd(a *app) *cobra.Command {
 	cmd.Flags().Bool("net", false, "") // net is now the default; kept (hidden) for back-compat
 	_ = cmd.Flags().MarkHidden("net")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
+	cmd.Flags().StringArrayVar(&only, "asset", nil, "keep only this asset (repeatable or comma list); several are compounded into one figure")
 	cmd.Flags().StringVar(&by, "by", "group", "line breakdown: group or account")
 	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "disposable hypothesis asset=price (repeatable), e.g. vizr=280")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")

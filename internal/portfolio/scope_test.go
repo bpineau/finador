@@ -206,3 +206,32 @@ func TestFilterScope(t *testing.T) {
 		t.Fatalf("Excluded kept %d lines, want 3 (cw8 dropped)", len(got))
 	}
 }
+
+func TestScopeOnlyFiltersAssetsAndDropsCash(t *testing.T) {
+	acc := &domain.Account{ID: "acc1", Name: "PEA Zephyr", Currency: domain.EUR}
+	kept := &domain.Asset{ID: "a1", Kind: domain.Security, Name: "CW8", Currency: domain.EUR}
+	dropped := &domain.Asset{ID: "a2", Kind: domain.Security, Name: "AAPL", Currency: domain.EUR}
+
+	s := Scope{Kind: All, Label: "portfolio", Only: map[domain.AssetID]bool{kept.ID: true}}
+	if !s.HasAsset(acc, kept) {
+		t.Error("an asset named by --asset must stay in scope")
+	}
+	if s.HasAsset(acc, dropped) {
+		t.Error("an asset not named by --asset must leave the scope")
+	}
+	if s.HasCash(acc) {
+		t.Error("an asset filter excludes cash: cash is not an asset")
+	}
+
+	// --exclude still wins: the two flags may name the same asset.
+	s.Excluded = map[domain.AssetID]bool{kept.ID: true}
+	if s.HasAsset(acc, kept) {
+		t.Error("--exclude must win over --asset")
+	}
+
+	// A tree's envelope rows measure the same positions as the scope itself.
+	env := EnvelopeScope(Scope{Kind: All, Only: map[domain.AssetID]bool{kept.ID: true}}, acc)
+	if env.HasAsset(acc, dropped) || !env.HasAsset(acc, kept) {
+		t.Error("EnvelopeScope must carry Only through")
+	}
+}

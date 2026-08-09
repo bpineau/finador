@@ -11,7 +11,7 @@ import (
 
 func exportCmd(a *app) *cobra.Command {
 	var ccy, at, label string
-	var exclude []string
+	var exclude, only []string
 	var tree, script bool
 	cmd := &cobra.Command{
 		Use:   "export [scope]",
@@ -40,7 +40,7 @@ func exportCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := resolveScope(b, ref, label, exclude)
+			scope, err := resolveScope(b, ref, label, exclude, only)
 			if err != nil {
 				return err
 			}
@@ -74,6 +74,7 @@ func exportCmd(a *app) *cobra.Command {
 	cmd.Flags().BoolVar(&tree, "tree", false, "indented, envelope-grouped text instead of CSV")
 	cmd.Flags().BoolVar(&script, "script", false, "replayable finador commands that rebuild the portfolio")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
+	cmd.Flags().StringArrayVar(&only, "asset", nil, "keep only this asset (repeatable or comma list); several are compounded into one figure")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	return cmd
 }

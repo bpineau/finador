@@ -1328,3 +1328,46 @@ func TestExportScriptRoundTrip(t *testing.T) {
 		t.Errorf("tx count differs:\n%s\nvs\n%s", got, want)
 	}
 }
+
+// TestAssetFilterOnReadCommands: --asset narrows value/perf/chart to one or
+// more assets, compounded into a single figure, drops cash, and composes with
+// a [scope] instead of replacing it.
+func TestAssetFilterOnReadCommands(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "PEA Zephyr")
+	run(t, db, "account", "add", "CTO Meridia")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--name", "World", "--group", "equities/world")
+	run(t, db, "asset", "add", "AAPL", "--alias", "aapl", "--name", "Apple", "--group", "equities/us")
+	run(t, db, "asset", "buy", "cw8", "10", "@100", "2026-01-05", "--account", "PEA Zephyr")
+	run(t, db, "asset", "buy", "aapl", "10", "@50", "2026-01-05", "--account", "CTO Meridia")
+	run(t, db, "cash", "set", "PEA Zephyr", "1000")
+
+	// one asset: its value only, cash excluded, and the scope names it
+	out := run(t, db, "value", "--asset", "cw8", "--gross")
+	if !strings.Contains(out, "1000.00 EUR") || !strings.Contains(out, "World") {
+		t.Errorf("value --asset cw8 should total the 10x100 position:\n%s", out)
+	}
+	if strings.Contains(out, "cash") {
+		t.Errorf("an asset filter must exclude cash:\n%s", out)
+	}
+	// two assets: one compounded figure
+	if out := run(t, db, "value", "--asset", "cw8,aapl", "--gross"); !strings.Contains(out, "1500.00 EUR") {
+		t.Errorf("value --asset cw8,aapl should total both positions:\n%s", out)
+	}
+	// intersection with a [scope]: the CTO holds no CW8
+	out = run(t, db, "value", "CTO Meridia", "--asset", "cw8", "--gross")
+	if !strings.Contains(out, "TOTAL") || strings.Contains(out, "1000.00") {
+		t.Errorf("--asset must intersect the [scope], not replace it:\n%s", out)
+	}
+	// perf takes it too, and Value()/Series() agree: the chart's last point is
+	// the value of the same scope
+	run(t, db, "perf", "--asset", "cw8")
+	if out := run(t, db, "chart", "--asset", "cw8"); !strings.Contains(out, "last point: 1000.00 EUR") {
+		t.Errorf("chart --asset cw8 should end on the figure value prints:\n%s", out)
+	}
+	// an unknown asset is an error naming the flag
+	if out, err := tryRun(t, db, "value", "--asset", "nope"); err == nil || !strings.Contains(err.Error(), "--asset") {
+		t.Errorf("--asset nope should fail on the flag: err=%v out=%q", err, out)
+	}
+}

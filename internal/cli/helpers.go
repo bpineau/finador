@@ -9,10 +9,14 @@ import (
 	"finador/internal/portfolio"
 )
 
-// resolveScope resolves the [scope]/--label/--exclude triple every read
-// command shares: an empty ref is the whole portfolio, --label restricts to
-// labelled positions, --exclude prunes assets and tags the scope label.
-func resolveScope(b *domain.Book, ref, label string, exclude []string) (portfolio.Scope, error) {
+// resolveScope resolves the [scope]/--label/--asset/--exclude quadruple every
+// read command shares: an empty ref is the whole portfolio, --label restricts
+// to labelled positions, --asset keeps only the named assets (and drops cash,
+// which is not an asset), --exclude prunes assets. The two asset flags narrow
+// whatever the scope argument selected - they compose with it rather than
+// replacing it, so `perf "PEA Zephyr" --asset cw8` is one position inside one
+// envelope.
+func resolveScope(b *domain.Book, ref, label string, exclude, only []string) (portfolio.Scope, error) {
 	if ref != "" && label != "" {
 		return portfolio.Scope{}, fmt.Errorf("use either a [scope] argument or --label, not both")
 	}
@@ -26,7 +30,19 @@ func resolveScope(b *domain.Book, ref, label string, exclude []string) (portfoli
 	if err != nil {
 		return portfolio.Scope{}, err
 	}
-	excluded, err := parseExclusions(b, exclude)
+	kept, names, err := parseAssetRefs(b, "--asset", only)
+	if err != nil {
+		return portfolio.Scope{}, err
+	}
+	if len(kept) > 0 {
+		scope.Only = kept
+		if list := strings.Join(names, ", "); ref == "" && label == "" {
+			scope.Label = list
+		} else {
+			scope.Label += " › " + list
+		}
+	}
+	excluded, _, err := parseAssetRefs(b, "--exclude", exclude)
 	if err != nil {
 		return portfolio.Scope{}, err
 	}
@@ -50,12 +66,15 @@ func dateOrToday(s string) (domain.Date, error) {
 	return domain.ParseDate(s)
 }
 
-// parseExclusions resolves a comma-or-repeated --exclude list into asset IDs.
-func parseExclusions(b *domain.Book, refs []string) (map[domain.AssetID]bool, error) {
+// parseAssetRefs resolves a comma-or-repeated list of asset references into a
+// set of IDs, plus their names in the order given (for the scope label). flag
+// names the flag being parsed, so an unresolvable reference blames the right one.
+func parseAssetRefs(b *domain.Book, flag string, refs []string) (map[domain.AssetID]bool, []string, error) {
 	if len(refs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	out := map[domain.AssetID]bool{}
+	var names []string
 	for _, chunk := range refs {
 		for _, ref := range strings.Split(chunk, ",") {
 			ref = strings.TrimSpace(ref)
@@ -64,12 +83,15 @@ func parseExclusions(b *domain.Book, refs []string) (map[domain.AssetID]bool, er
 			}
 			asset, err := b.Asset(ref)
 			if err != nil {
-				return nil, fmt.Errorf("--exclude %s: %w", ref, err)
+				return nil, nil, fmt.Errorf("%s %s: %w", flag, ref, err)
+			}
+			if !out[asset.ID] {
+				names = append(names, asset.Name)
 			}
 			out[asset.ID] = true
 		}
 	}
-	return out, nil
+	return out, names, nil
 }
 
 // accountFor picks the envelope of a new transaction: the --account flag, the
