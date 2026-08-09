@@ -623,3 +623,33 @@ elles partent de lignes déjà filtrées par `FilterScope`.
 **Écarté :** un `ScopeKind` multi-assets (aurait dupliqué la logique dans
 `lineLabel`, `EnvelopeScope` et le web) ; remplacer le `[scope]` au lieu de le
 croiser (on n'aurait pas pu dire « ce titre, dans cette enveloppe »).
+
+## D32 - Un répertoire vide n'est pas une destination, et un secret n'est acquis qu'une fois accepté
+
+Deux pièges d'une même panne : après la bascule XDG, `finador chart` réclamait un
+token GitHub alors que la copie de travail existait toujours.
+
+`paths.move` traitait « la destination existe » comme un succès muet. Or un build
+intermédiaire (résolveur XDG livré avant `paths.Migrate`) avait créé un
+`~/.cache/finador` vide : la migration suivante l'a vu, s'est tue, et les 1219
+quotes et le checkout GitHub sont restés orphelins dans `~/Library/Caches`.
+Désormais un répertoire de destination vide est supprimé puis la migration a lieu
+(un répertoire vide ne contient pas de données, il ne peut pas gagner contre
+elles), et une destination réellement occupée est signalée par un `warning:`
+nommant les deux chemins. La politique « la destination gagne » ne change pas -
+c'est le silence qui était le bug, des données dans deux endroits étant
+indevinables. `clearEmptyDir` ne touche jamais un fichier : un fichier, même
+vide, est une donnée.
+
+`githubToken` stockait au trousseau, avec une TTL de cent ans, ce qui venait
+d'être tapé au prompt - une frappe parasite s'y était installée et faisait
+échouer chaque commande avec un message accusant les scopes du token. Le prompt
+implicite vérifie maintenant par `CheckAccess` avant de graver, comme le fait
+déjà `remote login` : seul un refus (`ErrRemoteAuth`) empêche la mise en cache,
+un échec réseau ou `--offline` ne prouvant rien contre le token.
+
+**Écarté :** faire regagner l'ancien répertoire quand les deux sont pleins
+(l'utilisateur tourne déjà sur le nouveau) ; fusionner les deux répertoires
+automatiquement (`Migrate` ne copie jamais, invariant D30) ; ne plus mémoriser du
+tout un token tapé hors `remote login` (on retomberait sur un prompt à chaque
+commande).

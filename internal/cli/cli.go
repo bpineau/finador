@@ -296,6 +296,12 @@ func tokenKey(cfg remote.Config) string {
 // githubToken resolves the PAT: GITHUB_TOKEN env → keychain → interactive prompt
 // (then stored). A missing token is tolerated - the backend surfaces
 // remote.ErrRemoteAuth on the first request.
+//
+// A freshly typed token is only stored once GitHub has not rejected it: the
+// secret slot has a hundred-year lifetime, so a mistyped token stored blindly
+// makes every later command fail with an error that blames the token's scopes.
+// An unverifiable answer (--offline, or GitHub unreachable) is still stored -
+// the user typed it, and only a refusal proves it wrong.
 func (a *app) githubToken(cfg remote.Config) string {
 	if t := os.Getenv("GITHUB_TOKEN"); t != "" {
 		return t
@@ -308,6 +314,9 @@ func (a *app) githubToken(cfg remote.Config) string {
 	t, err := keyring.Prompt("GitHub token: ")
 	if err != nil || t == "" {
 		return ""
+	}
+	if !a.offline && cfg.GitHub != nil && errors.Is(remote.NewGitHub(*cfg.GitHub, t).CheckAccess(context.Background()), remote.ErrRemoteAuth) {
+		return t // rejected: used for this command, never kept
 	}
 	keyring.PutSecret(cache, key, t)
 	return t
