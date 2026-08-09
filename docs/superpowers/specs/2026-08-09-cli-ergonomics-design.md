@@ -32,9 +32,12 @@ func Data() (string, error)   // <base>/finador  - finador.fin
 
 Resolution order per directory, first hit wins:
 
-1. `FINADOR_CONFIG_DIR` / `FINADOR_CACHE_DIR` / `FINADOR_DATA_DIR` (the first two
-   already exist and keep their exact meaning: they name the finador directory
-   itself, not a base, and disable migration).
+1. `FINADOR_CONFIG_DIR` / `FINADOR_CACHE_DIR` / `FINADOR_DATA_DIR`, each naming
+   finador's own directory (not a base), and each disabling the migration of
+   that directory. *Amended:* today `FINADOR_CONFIG_DIR` names the directory
+   itself while `FINADOR_CACHE_DIR` names a base that gets `finador/` appended;
+   the three are unified on the first meaning. No test asserts that
+   subdirectory, and neither variable is documented in the README.
 2. `XDG_CONFIG_HOME` / `XDG_CACHE_HOME` / `XDG_DATA_HOME` when set and absolute.
 3. `~/.config`, `~/.cache`, `~/.local/share`.
 
@@ -61,8 +64,12 @@ Rules:
   (cross-device, permissions), the migration is abandoned and the **legacy path
   is used for this run**, with one warning on stderr. Never a partial state.
 - One `migrated <old> -> <new>` line on stderr per migration, once.
-- A `FINADOR_*_DIR` or `FINADOR_DB` override, or an explicit `--db`, skips the
-  corresponding migration entirely: the user named a path, we obey it.
+- A `FINADOR_*_DIR` or `FINADOR_DB` override skips the corresponding migration
+  entirely: the user named a path, we obey it. *Amended:* an explicit `--db`
+  does **not** skip it - the migration tidies finador's own default location,
+  never the file the user named, and cobra does not know about `--db` before
+  the flag defaults are built. `Migrate` is called from `cmd/finador/main.go`
+  rather than `cli.New()`, so a test binary never moves real data.
 - The ledger migration also moves `<db>.bak` when present, after the ledger.
 - Consequence, documented in the release note: the keychain entry is keyed by
   path (`keyring.Key`), so the password is prompted once after the move.
