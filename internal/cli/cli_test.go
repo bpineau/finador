@@ -248,6 +248,11 @@ func (fakeSource) Resolve(_ context.Context, q string) (market.SymbolInfo, error
 	if strings.EqualFold(q, "CW8.PA") {
 		return market.SymbolInfo{Symbol: "CW8.PA", Name: "Amundi MSCI World UCITS ETF"}, nil
 	}
+	if strings.EqualFold(q, "ERES_DATADOG") || q == "990000124099" {
+		// An employee-savings fund: the catalog id resolves to a share code,
+		// the same shape pofo's airfund source has.
+		return market.SymbolInfo{Symbol: "990000124099", Name: "Actions Datadog C"}, nil
+	}
 	return market.SymbolInfo{}, domain.ErrNotFound
 }
 
@@ -284,6 +289,11 @@ func (fakeSource) Daily(_ context.Context, ref market.Ref, _ domain.Date) (marke
 			{Date: day("2026-01-01"), Close: 1.25},
 			{Date: day("2026-06-01"), Close: 1.25},
 			{Date: day("2026-06-05"), Close: 1.25},
+		}}, nil
+	case "ERES_DATADOG", "990000124099":
+		return market.DailyData{Currency: domain.EUR, Closes: []domain.PricePoint{
+			{Date: day("2026-06-01"), Close: 200},
+			{Date: day("2026-06-05"), Close: 208},
 		}}, nil
 	}
 	return market.DailyData{}, domain.ErrNotFound
@@ -407,6 +417,29 @@ func TestAssetAddResolvesFromYahoo(t *testing.T) {
 	list := run(t, db, "asset", "list")
 	if !strings.Contains(list, "CW8.PA") { // canonical ticker resolved
 		t.Errorf("asset list:\n%s", list)
+	}
+}
+
+// A catalog identifier that resolves to a worse symbol (an employee-savings
+// fund keyed by "ERES_DATADOG" resolving to its share code "990000124099")
+// keeps the typed id as its ticker, so a later buy by that id finds the asset
+// instead of re-resolving and colliding on the share code.
+func TestAssetAddKeepsCatalogTicker(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "PEE Amundi")
+	runNet(t, db, "asset", "add", "ERES_DATADOG", "--ccy", "EUR", "--group", "equities/us/tech", "--alias", "eres-ddog")
+	list := run(t, db, "asset", "list")
+	if !strings.Contains(list, "ERES_DATADOG") || strings.Contains(list, "990000124099") {
+		t.Errorf("ticker should stay ERES_DATADOG, not the share code:\n%s", list)
+	}
+	// The buy by the typed ticker must find the existing asset, not collide.
+	out := runNet(t, db, "asset", "buy", "ERES_DATADOG", "2950", "4203", "2021-08-02", "--account", "PEE Amundi", "--ccy", "EUR")
+	if strings.Contains(out, "already exists") || strings.Contains(out, "already used") {
+		t.Errorf("buy by ticker collided:\n%s", out)
+	}
+	txs := run(t, db, "tx", "list", "--account", "PEE Amundi")
+	if !strings.Contains(txs, "2950") {
+		t.Errorf("buy not recorded:\n%s", txs)
 	}
 }
 
