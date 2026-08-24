@@ -371,9 +371,22 @@ func enrichFromMarket(cmd *cobra.Command, a *app, asset *domain.Asset, query str
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: resolving %q: %v\n", query, err)
 		return
 	}
-	asset.Ticker = info.Symbol
 	if !nameSet && info.Name != "" {
 		asset.Name = info.Name
+	}
+	// The ticker is normally the resolved symbol, which turns a bare Yahoo
+	// ticker into its exchange form ("cw8" -> "CW8.PA"). But some catalog
+	// identifiers resolve to a symbol that is a WORSE ticker: an employee-
+	// savings fund keyed by "ERES_DATADOG" resolves to its share code
+	// "990000124099", which then no longer matches a later lookup by the id the
+	// user typed. So when resolution changed the identifier, keep the user's
+	// one if it fetches directly, and fall back to the resolved symbol only
+	// otherwise.
+	asset.Ticker = info.Symbol
+	if !strings.EqualFold(query, info.Symbol) {
+		if data, err := src.Daily(cmd.Context(), market.Ref{Symbol: query}, domain.Today().AddDays(-7)); err == nil && len(data.Closes) > 0 {
+			asset.Ticker = query
+		}
 	}
 	if data, err := src.Daily(cmd.Context(), market.Ref{Symbol: asset.Ticker}, domain.Today().AddDays(-7)); err == nil {
 		if !ccySet && data.Currency != "" {
