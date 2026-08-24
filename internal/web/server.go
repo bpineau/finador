@@ -229,6 +229,9 @@ func (s *Server) mergeSpot(quotes map[domain.AssetID]market.Quote) {
 // close. Callers hold at least the read lock.
 func (s *Server) quoteNote(asset *domain.Asset) string {
 	if q, ok := s.spot[asset.ID]; ok {
+		if q.Live && q.Estimated {
+			return fmt.Sprintf("last quote %.2f %s · estimated at %s (proxy, no NAV yet)", q.Price, q.Currency, q.Time.Format("15:04 MST"))
+		}
 		if q.Live {
 			return fmt.Sprintf("last quote %.2f %s · live at %s", q.Price, q.Currency, q.Time.Format("15:04 MST"))
 		}

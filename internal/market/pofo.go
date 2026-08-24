@@ -108,10 +108,11 @@ func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
 		return Quote{}, err
 	}
 	return Quote{
-		Price:    q.Price,
-		Time:     q.Time,
-		Currency: domain.Currency(q.Currency),
-		Live:     q.Live,
+		Price:     q.Price,
+		Time:      q.Time,
+		Currency:  domain.Currency(q.Currency),
+		Live:      q.Live,
+		Estimated: q.Source == "nowcast",
 	}, nil
 }
 

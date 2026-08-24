@@ -94,3 +94,20 @@ func TestRefreshOnceNoopOffline(t *testing.T) {
 		t.Fatal("offline refreshOnce must not fetch")
 	}
 }
+
+// A nowcast quote (a fund priced once a day, carried forward by a proxy) is
+// captioned as an estimate, never as a live print.
+func TestQuoteNoteSaysEstimated(t *testing.T) {
+	srv, f := testServer(t)
+	srv.offline = false
+	srv.source = &spotSrc{quote: market.Quote{Price: 71.15, Time: time.Now(), Currency: domain.EUR, Live: true, Estimated: true}}
+	srv.refreshOnce(context.Background())
+	asset, err := f.Book.Asset("cw8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note := srv.quoteNote(asset)
+	if !strings.Contains(note, "71.15 EUR") || !strings.Contains(note, "estimated at") || strings.Contains(note, "live at") {
+		t.Errorf("quote note = %q, want the estimate flagged as such", note)
+	}
+}
