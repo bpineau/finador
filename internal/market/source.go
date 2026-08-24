@@ -46,6 +46,12 @@ type Quote struct {
 	Time     time.Time
 	Currency domain.Currency
 	Live     bool
+
+	// Estimated marks a nowcast rather than a print: a fund priced once a
+	// day and published with a lag (an employee-savings fund) carried
+	// forward by a listed proxy. Live says it moves with the session;
+	// Estimated says nobody has struck that number yet.
+	Estimated bool
 }
 
 // Source provides daily market data. finador fetches serially, politely.
