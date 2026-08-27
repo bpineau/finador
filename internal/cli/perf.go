@@ -14,7 +14,7 @@ import (
 )
 
 func perfCmd(a *app) *cobra.Command {
-	var ccy, from, to, label string
+	var ccy, from, to, label, account string
 	var exclude, only []string
 	var tree bool
 	cmd := &cobra.Command{
@@ -24,6 +24,7 @@ func perfCmd(a *app) *cobra.Command {
 		Example: "  finador perf\n" +
 			"  finador perf \"PEA Zephyr\"\n" +
 			"  finador perf equities/world\n" +
+			"  finador perf --account \"PEA Zephyr\" equities/world  # that group, inside that envelope\n" +
 			"  finador perf --tree            # per-envelope tree: net, 1d/7d/1m/3m\n" +
 			"  finador perf --label retraite\n" +
 			"  finador perf --asset cw8       # one position, across every envelope\n" +
@@ -40,7 +41,9 @@ func perfCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := resolveScope(b, ref, label, exclude, only)
+			scope, err := resolveScope(b, scopeArgs{
+				ref: ref, account: account, label: label, exclude: exclude, only: only,
+			})
 			if err != nil {
 				return err
 			}
@@ -156,6 +159,7 @@ func perfCmd(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "", "valuation date YYYY-MM-DD (default: today)")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "asset(s) to exclude from scope (repeatable or comma list)")
 	cmd.Flags().StringArrayVar(&only, "asset", nil, "keep only this asset (repeatable or comma list); several are compounded into one figure")
+	cmd.Flags().StringVar(&account, "account", "", "restrict scope to this envelope (with a group [scope], their intersection)")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	cmd.Flags().BoolVar(&tree, "tree", false, "envelope-grouped tree: net value and 1d/7d/1m/3m returns per line")
 	return cmd

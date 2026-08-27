@@ -9,48 +9,89 @@ import (
 	"finador/internal/portfolio"
 )
 
-// resolveScope resolves the [scope]/--label/--asset/--exclude quadruple every
-// read command shares: an empty ref is the whole portfolio, --label restricts
-// to labelled positions, --asset keeps only the named assets (and drops cash,
-// which is not an asset), --exclude prunes assets. The two asset flags narrow
-// whatever the scope argument selected - they compose with it rather than
-// replacing it, so `perf "PEA Zephyr" --asset cw8` is one position inside one
-// envelope.
-func resolveScope(b *domain.Book, ref, label string, exclude, only []string) (portfolio.Scope, error) {
-	if ref != "" && label != "" {
-		return portfolio.Scope{}, fmt.Errorf("use either a [scope] argument or --label, not both")
-	}
-	var scope portfolio.Scope
-	var err error
-	if label != "" {
-		scope, err = portfolio.LabelScope(b, label)
-	} else {
-		scope, err = portfolio.ParseScope(b, ref)
-	}
+// scopeArgs is the scope selection every read command (value, perf, chart,
+// export) shares: the positional [scope], --account, --label, --asset and
+// --exclude.
+type scopeArgs struct {
+	ref     string   // positional [scope]: a group, an account or an asset
+	account string   // --account: an envelope, and only an envelope
+	label   string   // --label: positions carrying that label
+	exclude []string // --exclude: assets pruned from the scope
+	only    []string // --asset: the only assets kept
+}
+
+// resolveScope turns those into one portfolio.Scope. The shape comes from
+// [scope]/--account/--label, then --asset and --exclude narrow it: they
+// compose with the shape rather than replacing it, so
+// `perf "PEA Zephyr" --asset cw8` is one position inside one envelope.
+func resolveScope(b *domain.Book, s scopeArgs) (portfolio.Scope, error) {
+	scope, err := scopeShape(b, s)
 	if err != nil {
 		return portfolio.Scope{}, err
 	}
-	kept, names, err := parseAssetRefs(b, "--asset", only)
+	kept, names, err := parseAssetRefs(b, "--asset", s.only)
 	if err != nil {
 		return portfolio.Scope{}, err
 	}
 	if len(kept) > 0 {
 		scope.Only = kept
-		if list := strings.Join(names, ", "); ref == "" && label == "" {
+		if list := strings.Join(names, ", "); scope.Kind == portfolio.All {
 			scope.Label = list
 		} else {
 			scope.Label += " › " + list
 		}
 	}
-	excluded, _, err := parseAssetRefs(b, "--exclude", exclude)
+	excluded, _, err := parseAssetRefs(b, "--exclude", s.exclude)
 	if err != nil {
 		return portfolio.Scope{}, err
 	}
 	if len(excluded) > 0 {
 		scope.Excluded = excluded
-		scope.Label += " (excluding " + strings.Join(exclude, ",") + ")"
+		scope.Label += " (excluding " + strings.Join(s.exclude, ",") + ")"
 	}
 	return scope, nil
+}
+
+// scopeShape resolves the shape --account/[scope]/--label select, before the
+// throwaway asset filters narrow it. --account names an envelope and only an
+// envelope (never a group or an asset); what accompanies it may only narrow
+// it: a group reference intersects it, a label keeps that label's positions
+// held inside it, and a second envelope or an asset is a conflict.
+func scopeShape(b *domain.Book, s scopeArgs) (portfolio.Scope, error) {
+	if s.ref != "" && s.label != "" {
+		return portfolio.Scope{}, fmt.Errorf("use either a [scope] argument or --label, not both")
+	}
+	if s.account == "" {
+		if s.label != "" {
+			return portfolio.LabelScope(b, s.label)
+		}
+		return portfolio.ParseScope(b, s.ref)
+	}
+	acc, err := b.Account(s.account)
+	if err != nil {
+		return portfolio.Scope{}, fmt.Errorf("--account: %w", err)
+	}
+	switch {
+	case s.label != "":
+		labelled, err := portfolio.LabelScope(b, s.label)
+		if err != nil {
+			return portfolio.Scope{}, err
+		}
+		scope := portfolio.EnvelopeScope(labelled, acc)
+		scope.Label = acc.Name + " › " + s.label
+		return scope, nil
+	case s.ref == "":
+		return portfolio.AccountScope(acc), nil
+	}
+	sub, err := portfolio.ParseScope(b, s.ref)
+	if err != nil {
+		return portfolio.Scope{}, err
+	}
+	if sub.Kind != portfolio.ByGroup {
+		return portfolio.Scope{}, fmt.Errorf(
+			"--account %s and [scope] %q conflict: only a group narrows an envelope", s.account, s.ref)
+	}
+	return portfolio.IntersectScope(acc, sub.Group), nil
 }
 
 // currencyOr parses a user-supplied currency, empty meaning fallback.

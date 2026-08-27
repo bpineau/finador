@@ -52,7 +52,7 @@ func ParseScope(b *domain.Book, ref string) (Scope, error) {
 		}
 	}
 	if acc, err := b.Account(ref); err == nil {
-		return Scope{Kind: ByAccount, Account: acc, Label: acc.Name}, nil
+		return AccountScope(acc), nil
 	} else if errors.Is(err, domain.ErrAmbiguous) {
 		return Scope{}, err
 	}
@@ -62,6 +62,11 @@ func ParseScope(b *domain.Book, ref string) (Scope, error) {
 		return Scope{}, err
 	}
 	return Scope{}, fmt.Errorf("unknown scope %q (not a group, account or asset): %w", ref, domain.ErrNotFound)
+}
+
+// AccountScope is one envelope: everything it holds, its cash included.
+func AccountScope(acc *domain.Account) Scope {
+	return Scope{Kind: ByAccount, Account: acc, Label: acc.Name}
 }
 
 // LabelScope builds a scope limited to the (account, asset) pairs that carry

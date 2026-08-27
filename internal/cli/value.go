@@ -15,7 +15,7 @@ import (
 )
 
 func valueCmd(a *app) *cobra.Command {
-	var ccy, at, by, label string
+	var ccy, at, by, label, account string
 	var gross, tree bool
 	var exclude, whatIf, only []string
 	cmd := &cobra.Command{
@@ -26,6 +26,7 @@ func valueCmd(a *app) *cobra.Command {
 			"  finador value --gross         # gross value only\n" +
 			"  finador value equities/world  # scope to a group\n" +
 			"  finador value --tree          # envelope-grouped tree, gross & net\n" +
+			"  finador value --account \"PEA Zephyr\"\n" +
 			"  finador value --label retraite\n" +
 			"  finador value --asset cw8,aapl  # only those two, compounded\n" +
 			"  finador value --at 2024-12-31",
@@ -41,7 +42,9 @@ func valueCmd(a *app) *cobra.Command {
 			if len(args) == 1 {
 				ref = args[0]
 			}
-			scope, err := resolveScope(b, ref, label, exclude, only)
+			scope, err := resolveScope(b, scopeArgs{
+				ref: ref, account: account, label: label, exclude: exclude, only: only,
+			})
 			if err != nil {
 				return err
 			}
@@ -103,6 +106,7 @@ func valueCmd(a *app) *cobra.Command {
 	cmd.Flags().StringArrayVar(&only, "asset", nil, "keep only this asset (repeatable or comma list); several are compounded into one figure")
 	cmd.Flags().StringVar(&by, "by", "group", "line breakdown: group or account")
 	cmd.Flags().StringArrayVar(&whatIf, "what-if", nil, "disposable hypothesis asset=price (repeatable), e.g. vizr=280")
+	cmd.Flags().StringVar(&account, "account", "", "restrict scope to this envelope (with a group [scope], their intersection)")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
 	cmd.Flags().BoolVar(&tree, "tree", false, "indented, envelope-grouped text (gross & net per line)")
 	return cmd

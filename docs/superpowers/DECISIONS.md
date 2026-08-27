@@ -668,3 +668,30 @@ déplacé *ou* répertoire de cache déplacé - et une seule fois, en un seul en
 **Écarté :** ré-indexer le trousseau sur le nouveau chemin (il faudrait déchiffrer
 pour vérifier que le secret déplacé est le bon) ; se taire au motif que le prompt
 est légitime (le coût d'un prompt incompris est une saisie à l'aveugle).
+
+## D34 - `--account` nomme une enveloppe, et rien d'autre
+
+Le `[scope]` positionnel résout dans l'ordre groupe, compte, asset : pratique,
+mais indécidable quand un nom d'enveloppe ressemble à un groupe (« pee »). Le
+nouveau `--account <ref>` de `value/perf/chart/export` ne résout que parmi les
+comptes (`Book.Account`, mêmes règles id/alias/nom/préfixe) et échoue plutôt que
+de retomber sur un groupe ou un asset : le silence serait pire que l'erreur,
+l'utilisateur croirait mesurer son enveloppe.
+
+Ce qui l'accompagne ne peut que le *restreindre*, jamais le concurrencer : un
+`[scope]` de groupe donne l'intersection (`IntersectScope`, `ByAccountGroup`,
+donc sans le cash de l'enveloppe, invariant du croisement web), `--label` donne
+l'intersection elle aussi (`EnvelopeScope` sur un scope `ByLabel` filtre déjà
+les paires du compte, il ne restait que le libellé à écrire), `--asset` et
+`--exclude` se composent comme partout ailleurs (D31). Un second compte ou un
+asset en positionnel est un conflit : deux formes de scope, pas une portée.
+
+Un seul compte par appel, pas de liste : la valeur ou la TWR de deux enveloppes
+mélangées est déjà ce que rend le scope global filtré, et la règle de fiscalité
+exacte par enveloppe (`Kind == All || ByAccount`) ne saurait pas quoi faire d'un
+`ByAccounts`.
+
+**Écarté :** faire de `--account` un raccourci qui retombe sur `ParseScope`
+(rendrait le drapeau inutile) ; refuser `--account` avec `--label` (l'intersection
+existait déjà, la refuser aurait été une incohérence avec le cas groupe) ; une
+liste `--account a,b` (aucun `ScopeKind` ne la porte).
