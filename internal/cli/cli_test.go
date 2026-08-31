@@ -1235,10 +1235,14 @@ func TestPerfTree(t *testing.T) {
 	run(t, db, "cash", "set", "Livret", "23000", "--at", "2026-06-01")
 
 	out := runNet(t, db, "perf", "--tree", "--to", "2026-06-05")
-	for _, want := range []string{"CTO Meridia", "Amundi MSCI World", "Livret", "TOTAL", "NET", "1d", "7d", "1m", "3m"} {
+	for _, want := range []string{"CTO Meridia", "Amundi MSCI World", "Livret", "TOTAL", "GROSS", "NET", "1d", "7d", "1m", "3m"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf --tree: %q manquant dans:\n%s", want, out)
 		}
+	}
+	// The GROSS column sits just before NET.
+	if h := lineContaining(t, out, "GROSS"); !strings.Contains(h, "NET") || strings.Index(h, "GROSS") > strings.Index(h, "NET") {
+		t.Errorf("GROSS must precede NET in the header: %q", h)
 	}
 	// CW8 bought 2026-06-02, evaluated 2026-06-05: the 1m and 3m windows
 	// predate the pair's history → dashes on the asset line.

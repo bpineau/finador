@@ -511,7 +511,7 @@ finador value pea --tree   # same, scoped (envelope, group or label)
 ```sh
 finador perf [scope] [--account ref] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c]
              [--asset refs]... [--exclude refs]...
-finador perf --tree        # per-envelope tree: net value, 1d/7d/1m/3m returns
+finador perf --tree        # per-envelope tree: gross/net value, 1d/7d/1m/3m returns
 finador perf pea --tree    # same, scoped to one envelope, group or label
 ```
 
