@@ -18,8 +18,9 @@ import (
 // doubles as the header row.
 var perfTreePeriods = [4]string{"1d", "7d", "1m", "3m"}
 
-// perfTree renders the scope as an envelope-grouped tree: after-tax net
-// value per line, then the flow-neutralized TWR over each period column.
+// perfTree renders the scope as an envelope-grouped tree: gross and
+// after-tax net value per line, then the flow-neutralized TWR over each
+// period column.
 // Every number agrees with the flat `perf` table run on the same sub-scope;
 // a dash marks a window the line's own history does not cover. Cash lines
 // (and cash-only envelopes) show no period returns: their market effect, FX
@@ -63,22 +64,23 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 	}
 
 	type row struct {
-		label string
-		net   string
-		cells [4]string
-		signs [4]float64
+		label      string
+		gross, net string
+		cells      [4]string
+		signs      [4]float64
 	}
 	num := func(f float64) string { return strconv.FormatFloat(f, 'f', 0, 64) }
 
 	var rows []row
-	var totNet float64
+	var totGross, totNet float64
 	for _, env := range envs {
+		totGross += env.Gross
 		totNet += env.Net
 		envTexts, envSigns := dashes()
 		if !env.CashOnly() { // a cash-only envelope has no market performance to show
 			envTexts, envSigns = cells(portfolio.EnvelopeScope(scope, env.Account))
 		}
-		rows = append(rows, row{label: env.Account.Name, net: num(env.Net), cells: envTexts, signs: envSigns})
+		rows = append(rows, row{label: env.Account.Name, gross: num(env.Gross), net: num(env.Net), cells: envTexts, signs: envSigns})
 		if env.CashOnly() { // its lone cash child would only echo the envelope row
 			continue
 		}
@@ -87,21 +89,23 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 			if it.Asset != nil {
 				t, s = cells(portfolio.PairScope(env.Account, it.Asset))
 			}
-			rows = append(rows, row{label: "  " + it.Label(), net: num(it.Net), cells: t, signs: s})
+			rows = append(rows, row{label: "  " + it.Label(), gross: num(it.Gross), net: num(it.Net), cells: t, signs: s})
 		}
 	}
 	totTexts, totSigns := cells(scope)
 
 	out := cmd.OutOrStdout()
 	colored := a.colorsEnabled(cmd)
-	labelW, netW, cellW := len("TOTAL"), len("NET"), len("+12.34%")
+	labelW, grossW, netW, cellW := len("TOTAL"), len("GROSS"), len("NET"), len("+12.34%")
 	for _, r := range rows {
 		labelW = max(labelW, len([]rune(r.label)))
+		grossW = max(grossW, len(r.gross))
 		netW = max(netW, len(r.net))
 		for _, c := range r.cells {
 			cellW = max(cellW, len(c))
 		}
 	}
+	grossW = max(grossW, len(num(totGross)))
 	netW = max(netW, len(num(totNet)))
 
 	pad := func(s string, w int) string {
@@ -110,19 +114,19 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 		}
 		return s
 	}
-	printRow := func(label, net string, texts [4]string, signs [4]float64) {
+	printRow := func(label, gross, net string, texts [4]string, signs [4]float64) {
 		fmt.Fprintf(out, "%-*s", labelW, label)
 		for i, c := range texts {
 			fmt.Fprintf(out, "  %s", tint(pad(c, cellW), signs[i], colored))
 		}
-		fmt.Fprintf(out, "  %s\n", pad(net, netW))
+		fmt.Fprintf(out, "  %s  %s\n", pad(gross, grossW), pad(net, netW))
 	}
 	fmt.Fprintf(out, "%s - performance (%s), as of %s\n\n", scope.Label, display, evalTo)
-	printRow("", "NET", perfTreePeriods, [4]float64{})
+	printRow("", "GROSS", "NET", perfTreePeriods, [4]float64{})
 	for _, r := range rows {
-		printRow(r.label, r.net, r.cells, r.signs)
+		printRow(r.label, r.gross, r.net, r.cells, r.signs)
 	}
-	fmt.Fprintln(out, strings.Repeat("-", labelW+2+netW+4*(cellW+2)))
-	printRow("TOTAL", num(totNet), totTexts, totSigns)
+	fmt.Fprintln(out, strings.Repeat("-", labelW+2+grossW+2+netW+4*(cellW+2)))
+	printRow("TOTAL", num(totGross), num(totNet), totTexts, totSigns)
 	return nil
 }

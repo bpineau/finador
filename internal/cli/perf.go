@@ -25,7 +25,7 @@ func perfCmd(a *app) *cobra.Command {
 			"  finador perf \"PEA Zephyr\"\n" +
 			"  finador perf equities/world\n" +
 			"  finador perf --account \"PEA Zephyr\" equities/world  # that group, inside that envelope\n" +
-			"  finador perf --tree            # per-envelope tree: net, 1d/7d/1m/3m\n" +
+			"  finador perf --tree            # per-envelope tree: gross, net, 1d/7d/1m/3m\n" +
 			"  finador perf --label retraite\n" +
 			"  finador perf --asset cw8       # one position, across every envelope\n" +
 			"  finador perf --exclude CW8,AAPL",
@@ -161,7 +161,7 @@ func perfCmd(a *app) *cobra.Command {
 	cmd.Flags().StringArrayVar(&only, "asset", nil, "keep only this asset (repeatable or comma list); several are compounded into one figure")
 	cmd.Flags().StringVar(&account, "account", "", "restrict scope to this envelope (with a group [scope], their intersection)")
 	cmd.Flags().StringVar(&label, "label", "", "restrict scope to positions carrying this label")
-	cmd.Flags().BoolVar(&tree, "tree", false, "envelope-grouped tree: net value and 1d/7d/1m/3m returns per line")
+	cmd.Flags().BoolVar(&tree, "tree", false, "envelope-grouped tree: gross/net value and 1d/7d/1m/3m returns per line")
 	return cmd
 }
 
