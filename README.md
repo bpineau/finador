@@ -511,7 +511,7 @@ finador value pea --tree   # same, scoped (envelope, group or label)
 ```sh
 finador perf [scope] [--account ref] [--to YYYY-MM-DD] [--from YYYY-MM-DD] [--ccy c]
              [--asset refs]... [--exclude refs]...
-finador perf --tree        # per-envelope tree: gross/net value, 1d/7d/1m/3m returns
+finador perf --tree        # per-envelope tree: gross/net value, 1d/3d/7d/1m/3m/ytd/1y returns
 finador perf pea --tree    # same, scoped to one envelope, group or label
 ```
 
@@ -546,7 +546,7 @@ acquisition price and today's value never books years of appreciation as a singl
 day's return.
 
 `--tree` swaps the period table for the envelope-grouped holdings tree: one line
-per envelope and per position, with the after-tax net value and the 1d/7d/1m/3m
+per envelope and per position, with the after-tax net value and the 1d/3d/7d/1m/3m/ytd/1y
 returns of that line's own series (flows neutralized, like everywhere else). A
 dash means the line's history does not cover the window; cash lines leave the
 returns to their envelope row.

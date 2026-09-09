@@ -43,6 +43,8 @@ func PeriodRange(name string, today domain.Date) (from, to domain.Date, err erro
 		return today.AddDays(-1), to, nil
 	case "2d":
 		return today.AddDays(-2), to, nil
+	case "3d":
+		return today.AddDays(-3), to, nil
 	case "5d":
 		return today.AddDays(-5), to, nil
 	case "7d":
@@ -59,7 +61,7 @@ func PeriodRange(name string, today domain.Date) (from, to domain.Date, err erro
 		return domain.Date{Year: today.Year - 2, Month: 12, Day: 31},
 			domain.Date{Year: today.Year - 1, Month: 12, Day: 31}, nil
 	}
-	return from, to, fmt.Errorf("unknown period %q (1d, 2d, 5d, 7d, 1m, 3m, ytd, 1y, prev-yr)", name)
+	return from, to, fmt.Errorf("unknown period %q (1d, 2d, 3d, 5d, 7d, 1m, 3m, ytd, 1y, prev-yr)", name)
 }
 
 // Names lists the period table shown by `finador perf`, in display order.

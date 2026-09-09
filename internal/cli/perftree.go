@@ -14,9 +14,9 @@ import (
 	"finador/internal/portfolio"
 )
 
-// perfTreePeriods are the tree's return columns, shortest first; the array
+// perfTreePeriods are the tree's return columns, shortest first; the slice
 // doubles as the header row.
-var perfTreePeriods = [4]string{"1d", "7d", "1m", "3m"}
+var perfTreePeriods = []string{"1d", "3d", "7d", "1m", "3m", "ytd", "1y"}
 
 // perfTree renders the scope as an envelope-grouped tree: gross and
 // after-tax net value per line, then the flow-neutralized TWR over each
@@ -36,11 +36,17 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 		return errors.New("nothing to show in this scope")
 	}
 
-	// cells computes the four period returns of one sub-scope.
-	cells := func(sc portfolio.Scope) (texts [4]string, signs [4]float64) {
+	// dashes is the all-dashed row: no period return to show.
+	dashes := func() (texts []string, signs []float64) {
+		texts, signs = make([]string, len(perfTreePeriods)), make([]float64, len(perfTreePeriods))
 		for i := range texts {
 			texts[i] = "-"
 		}
+		return texts, signs
+	}
+	// cells computes the period returns of one sub-scope, one per column.
+	cells := func(sc portfolio.Scope) (texts []string, signs []float64) {
+		texts, signs = dashes()
 		res, err := portfolio.Series(b, sc, domain.Date{}, evalTo, display, fx)
 		if err != nil || len(res.Points) < 2 {
 			return texts, signs
@@ -59,15 +65,11 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 		}
 		return texts, signs
 	}
-	dashes := func() (t [4]string, s [4]float64) {
-		return [4]string{"-", "-", "-", "-"}, s
-	}
-
 	type row struct {
 		label      string
 		gross, net string
-		cells      [4]string
-		signs      [4]float64
+		cells      []string
+		signs      []float64
 	}
 	num := func(f float64) string { return strconv.FormatFloat(f, 'f', 0, 64) }
 
@@ -114,7 +116,7 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 		}
 		return s
 	}
-	printRow := func(label, gross, net string, texts [4]string, signs [4]float64) {
+	printRow := func(label, gross, net string, texts []string, signs []float64) {
 		fmt.Fprintf(out, "%-*s", labelW, label)
 		for i, c := range texts {
 			fmt.Fprintf(out, "  %s", tint(pad(c, cellW), signs[i], colored))
@@ -122,11 +124,11 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 		fmt.Fprintf(out, "  %s  %s\n", pad(gross, grossW), pad(net, netW))
 	}
 	fmt.Fprintf(out, "%s - performance (%s), as of %s\n\n", scope.Label, display, evalTo)
-	printRow("", "GROSS", "NET", perfTreePeriods, [4]float64{})
+	printRow("", "GROSS", "NET", perfTreePeriods, make([]float64, len(perfTreePeriods)))
 	for _, r := range rows {
 		printRow(r.label, r.gross, r.net, r.cells, r.signs)
 	}
-	fmt.Fprintln(out, strings.Repeat("-", labelW+2+grossW+2+netW+4*(cellW+2)))
+	fmt.Fprintln(out, strings.Repeat("-", labelW+2+grossW+2+netW+len(perfTreePeriods)*(cellW+2)))
 	printRow("TOTAL", num(totGross), num(totNet), totTexts, totSigns)
 	return nil
 }
