@@ -69,7 +69,7 @@ behaviour change end to end, not just its tests:
 ```sh
 export FINADOR_PASSWORD=pw FINADOR_CACHE_DIR=$(mktemp -d)
 bin/finador --offline --no-keychain --db /tmp/t.fin init
-bin/finador --offline --no-keychain --db /tmp/t.fin account add "CTO Meridia" --tax gains:30%
+bin/finador --offline --no-keychain --db /tmp/t.fin account add "CTO Meridia" --tax gains:31.4%
 bin/finador --offline --no-keychain --db /tmp/t.fin value
 ```
 

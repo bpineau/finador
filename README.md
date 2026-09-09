@@ -217,7 +217,7 @@ A property is valued by dated `asset set` statements: the **first** is the acqui
 (a contribution), **later** ones are performance - it's all in the comments.
 
 ```sh
-finador account add "Patrimoine immo" --tax gains:37.6%   # --tax = your regime (private gain 19% + 18.6% social; vs pro/BIC)
+finador account add "Patrimoine immo" --tax gains:36.2%   # --tax = your regime (private gain 19% + 17.2% social; vs pro/BIC)
 finador asset add "Appart Lyon" --kind property --group realestate
 
 finador asset set "Appart Lyon" 250000 --account "Patrimoine immo" --at 2022-06-01  # acquisition basis = price + works + notaire fees
@@ -331,6 +331,17 @@ out). `--tax value:20%` taxes the whole value. `--tax none` (default) taxes
 nothing. Estimated tax shows up in `value`, on net curves and on the web.
 Cash that *earns* (a fonds euros, a yielding balance) should be modelled as an
 asset rather than declared cash, otherwise its gain is never taxed.
+
+**French rates, 2026 (the numbers used in the examples).** The LFSS 2026 (loi
+n° 2025-1403 of 30 December 2025, art. 12) raised the CSG on capital income
+from 9.2 % to 10.6 %, so the social levies went from 17.2 % to **18.6 %** and
+the flat tax (PFU) from 30 % to **31.4 %**. At 18.6 % of social levies: CTO,
+dividends, interest, securities gains, crypto, PEA, PEE, LMNP. Explicitly left
+at **17.2 %**: assurance-vie and capitalisation contracts, bare rental income
+and SCPI, private real-estate capital gains (so 19 % + 17.2 % = **36.2 %**),
+PEL/CEL/PEP. A mature assurance-vie (over 8 years, under 150 k of premiums) is
+7.5 % + 17.2 % = **24.7 %**. These are defaults for the examples, not advice:
+set each account's rule to your own situation.
 
 **Cash is declarative.** An account's cash balance is what you declared with
 `cash deposit`, `cash withdraw` and `cash set`, and nothing else. Buys, sells,
@@ -872,7 +883,7 @@ one repo. Local mode stays the default and the fallback.
    ```sh
    finador remote adopt          # uploads ~/.local/share/finador/finador.fin as-is (still encrypted), then reads it
    ```
-   On another machine, repeat steps 1–3 with the same repo/token (and matching `--branch`),
+   On another machine, repeat steps 1-3 with the same repo/token (and matching `--branch`),
    then run any command - it pulls the existing `finador.fin`.
 
 **How sync works**

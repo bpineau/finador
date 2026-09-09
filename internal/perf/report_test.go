@@ -160,7 +160,7 @@ func TestReportMetricsGating(t *testing.T) {
 		t.Error("40d: InceptionTWR should be reported even when annualized stats are hidden")
 	}
 
-	// 90–365 days: risk stats appear, CAGR still hidden (sub-year).
+	// 90-365 days: risk stats appear, CAGR still hidden (sub-year).
 	pts, evalTo = rampSeries(d("2025-01-01"), 200)
 	_, m = Report(pts, nil, evalTo, rf)
 	if !m.HasRisk {
