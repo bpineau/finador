@@ -64,11 +64,11 @@ finador remote adopt               # uploads your existing .fin as-is
 Those are off course fictional accounts and assets, should be replaced by your own.
 
 ```sh
-# Flat tax / PFU = 31.4 % on gains; PEA & PEE social levies = 18.6 %.
+# Flat tax / PFU = 31.4 % on gains; PEA & PEE social levies = 18.6 %; assurance-vie stayed at 17.2 %.
 finador account add "CTO Meridia"              --tax gains:31.4%  --alias meridia
 finador account add "PEA Fortuneo"          --tax gains:18.6%  --alias pea --alias fortuneo
 finador account add "PEA-PME Bourse Direct" --tax gains:18.6%  --alias pea-pme --alias pme
-finador account add "Assurance Vie Linxea"  --tax gains:31.4%  --alias av --alias linxea
+finador account add "Assurance Vie Linxea"  --tax gains:24.7%  --alias av --alias linxea  # mature contract: 7.5 % + 17.2 %
 finador account add "PEE"                   --tax gains:18.6%  --alias pee
 
 # example with free shares (taxes applies to the whole "value" not just "gains").
@@ -90,7 +90,7 @@ finador account add "Wise USD" --ccy USD --alias wiseusd # this one holds dollar
 ### 3. A real-estate envelope (to hold the property)
 
 ```sh
-finador account add "Real Estate" --tax gains:37.6% --alias immo   # 19 % + 18.6 % social, on the gain
+finador account add "Real Estate" --tax gains:36.2% --alias immo   # 19 % + 17.2 % social, on the gain
 ```
 
 ### 4. Declare your assets
@@ -148,7 +148,7 @@ finador cash set wiseusd 12000        # USD account → 12 000 $
 ```sh
 finador asset set empfund 9000 --account pee                    # employee fund: current value, by hand
 finador asset set studio 220000 --account immo --at 2022-03-10  # purchase (+ works) = the acquisition basis
-finador asset set studio 260000                                 # current value → 40 000 € gain, taxed at 37.6 %
+finador asset set studio 260000                                 # current value → 40 000 € gain, taxed at 36.2 %
 ```
 
 For a property, the **first** `asset set` is the acquisition (the basis); **later** ones are
