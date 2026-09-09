@@ -1235,7 +1235,7 @@ func TestPerfTree(t *testing.T) {
 	run(t, db, "cash", "set", "Livret", "23000", "--at", "2026-06-01")
 
 	out := runNet(t, db, "perf", "--tree", "--to", "2026-06-05")
-	for _, want := range []string{"CTO Meridia", "Amundi MSCI World", "Livret", "TOTAL", "GROSS", "NET", "1d", "7d", "1m", "3m"} {
+	for _, want := range []string{"CTO Meridia", "Amundi MSCI World", "Livret", "TOTAL", "GROSS", "NET", "1d", "3d", "7d", "1m", "3m", "ytd", "1y"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("perf --tree: %q manquant dans:\n%s", want, out)
 		}
@@ -1249,8 +1249,8 @@ func TestPerfTree(t *testing.T) {
 	if l := lineContaining(t, out, "Amundi"); strings.Count(l, " -") < 2 {
 		t.Errorf("expected dashed long windows on the asset line: %q", l)
 	}
-	// Livret is cash-only: all four period cells dashed.
-	if l := lineContaining(t, out, "Livret"); strings.Count(l, " -") < 4 {
+	// Livret is cash-only: all seven period cells dashed.
+	if l := lineContaining(t, out, "Livret"); strings.Count(l, " -") < 7 {
 		t.Errorf("cash-only envelope must be dashed: %q", l)
 	}
 	// --from is incompatible with the fixed tree windows.
