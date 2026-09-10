@@ -825,6 +825,47 @@ finador import --format ibkr --account "CTO Meridia" ActivityStatement.csv
 - Dates must be the **ISO** ones IBKR exports by default (`2026-01-15`); a
   statement configured for `01/15/2026` is refused rather than guessed.
 
+### Lines you had already entered by hand
+
+That fingerprint is what makes a replay free - and a transaction you typed
+yourself carries none, so without help the statement would book your trades a
+second time. Three flags, and one habit: **`--dry-run` first**.
+
+```sh
+finador import --format ibkr --account "CTO Meridia" --dry-run ActivityStatement.csv
+# 1 imported, 0 skipped (duplicates), 1 matched (manual entries) (dry run: nothing written)
+# line 24: 2026-01-20 buy CW8 20 9007 EUR matches manual entry 06g8rqdztqe8yh31x9raf3g
+
+finador import --format ibkr --account "CTO Meridia" --since 2026-01-01 \
+    --reconcile ActivityStatement.csv        # adopt what you typed, import the rest
+# 1 imported, 0 skipped (duplicates), 1 adopted (manual entries), 37 before --since
+# line 24: 2026-01-20 buy CW8 20 9007 EUR adopted manual entry 06g8rqdztqe8yh31x9raf3g
+```
+
+- **`--since YYYY-MM-DD`** ignores the lines dated before that day - the years
+  already booked - counted apart as `before --since`. It applies before
+  everything else, so an old line never fails the import over a security you
+  no longer declare.
+- **The guard is on by default**: a line a hand-entered transaction already
+  records is *not* imported, and the report names that transaction. The match
+  is deliberately narrow - same account, same kind, same day, same asset (none
+  on both sides for pure cash), amount within **0.5 %** (a commission folded
+  into a trade, a fee rounded to the cent), plus the exact same **quantity** on
+  a buy or a sell. A transaction that already carries another broker's
+  fingerprint is never a match: it is a different event.
+- **`--reconcile`** goes further: instead of skipping the line, it *adopts*
+  your transaction, which takes the statement's fingerprint and **nothing
+  else** - date, quantity, amount and note stay exactly as you typed them.
+  From then on the statement is idempotent, so this is the flag that ends the
+  problem for good rather than working around it every month.
+- **Two candidates for one line** are reported as `ambiguous: <id>, <id>` and
+  nothing is imported nor adopted: only you know which is which. Sort the
+  ledger out (`tx list`, `tx rm`), then re-run.
+- **`--no-guard`** imports every line regardless, duplicates included - the way
+  back when a match is wrong.
+- **`--dry-run`** works on both formats: it reads the whole file, reports
+  exactly what the real run would do, and writes nothing.
+
 ## Advanced usage
 
 **Scripting.** Set `FINADOR_PASSWORD` to skip the prompt (less secure - prefer the

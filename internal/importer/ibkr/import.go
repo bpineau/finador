@@ -12,6 +12,19 @@
 // importHash namespaced "ibkr:" (FORMAT.md section 4.5) and the shared
 // portfolio.AddImported write path drops the ones already in the book.
 //
+// A statement covering trades the user had already typed by hand is the other
+// half of that problem: a hand-entered transaction has no importHash, so the
+// dedup rule cannot see it. Two answers, both in Options:
+//
+//   - Since drops the lines dated before a day, the years already booked.
+//   - Guard decides what happens to a line a hand-entered transaction already
+//     records (the rule is [portfolio.ManualMatches]): report it and import
+//     nothing ([GuardSkip], the default), adopt the manual transaction by
+//     giving it the line's importHash ([GuardReconcile]), or import anyway
+//     ([GuardOff]). Either way the numbers the user typed are never rewritten,
+//     and an ambiguity - two manual candidates for one line - is reported
+//     rather than resolved.
+//
 // Conventions worth knowing before reading the mapping:
 //
 //   - A trade's commission is folded INTO the trade amount (added on a buy,
@@ -51,14 +64,98 @@ type Options struct {
 	// CreateMissing declares the securities the statement names but the book
 	// does not, instead of failing with the list of them.
 	CreateMissing bool
+	// Since drops every statement line dated before it - the years already
+	// booked - which are then counted apart in the result. It applies before
+	// every other rule, so a line out of range is counted once, as out of
+	// range, and never resolves a security. The zero Date reads the whole
+	// statement.
+	Since domain.Date
+	// Guard says what to do with a line a hand-entered transaction already
+	// records; the zero value reports the match and imports nothing.
+	Guard Guard
 }
 
-// Result reports what one import did. Added plus Skipped plus the Ignored
-// counts is the number of statement lines that carried an event.
+// Guard is the policy for a statement line that a hand-entered transaction -
+// one with no importHash, which the dedup rule of FORMAT.md 4.5 therefore
+// cannot recognise - already records. See [portfolio.ManualMatches] for the
+// matching rule.
+type Guard uint8
+
+const (
+	// GuardSkip leaves the line out and reports which manual entry covers
+	// it. The default: it can never double-book, and it never touches a
+	// transaction the user typed.
+	GuardSkip Guard = iota
+	// GuardReconcile adopts the manual transaction instead - it receives the
+	// line's importHash and nothing else changes - so the statement is
+	// idempotent from then on.
+	GuardReconcile
+	// GuardOff imports the line regardless, duplicates included.
+	GuardOff
+)
+
+// Result reports what one import did. Added, Skipped, Matched, Adopted,
+// Ambiguous, BeforeSince and the Ignored counts partition the statement lines
+// that carried an event.
 type Result struct {
-	Added   int            // transactions written to the ledger
-	Skipped int            // lines already imported (idempotent replay)
-	Ignored map[string]int // reason -> lines deliberately left out
+	Added       int            // transactions written to the ledger
+	Skipped     int            // lines already imported (idempotent replay)
+	Matched     int            // lines a hand-entered transaction already records
+	Adopted     int            // manual transactions given the line's importHash
+	Ambiguous   int            // lines several manual transactions could be
+	BeforeSince int            // lines dated before Options.Since
+	Ignored     map[string]int // reason -> lines deliberately left out
+	Matches     []Match        // one entry per matched, adopted or ambiguous line
+}
+
+// A Match is one statement line the guard recognised as already booked by
+// hand: what the line said, and the hand-entered transactions that could be
+// it (exactly one, unless the line is ambiguous).
+type Match struct {
+	Line    int           // the statement's own line number
+	What    string        // the line's event: "2026-01-20 buy CW8 20 9007 EUR"
+	Manual  []domain.TxID // the candidates, in ledger order
+	Adopted bool          // the single candidate now carries the line's importHash
+}
+
+// String renders one report line, in the vocabulary the CLI prints.
+func (m Match) String() string {
+	ids := make([]string, len(m.Manual))
+	for i, id := range m.Manual {
+		ids[i] = string(id)
+	}
+	switch {
+	case len(m.Manual) > 1:
+		return fmt.Sprintf("line %d: %s ambiguous: %s (nothing imported, nothing adopted)",
+			m.Line, m.What, strings.Join(ids, ", "))
+	case m.Adopted:
+		return fmt.Sprintf("line %d: %s adopted manual entry %s", m.Line, m.What, ids[0])
+	default:
+		return fmt.Sprintf("line %d: %s matches manual entry %s", m.Line, m.What, ids[0])
+	}
+}
+
+// Summary renders the counts as one line: "12 imported, 3 skipped
+// (duplicates)", plus the parts that are not zero.
+func (r Result) Summary() string {
+	parts := []string{
+		fmt.Sprintf("%d imported", r.Added),
+		fmt.Sprintf("%d skipped (duplicates)", r.Skipped),
+	}
+	for _, extra := range []struct {
+		n    int
+		what string
+	}{
+		{r.Matched, "matched (manual entries)"},
+		{r.Adopted, "adopted (manual entries)"},
+		{r.Ambiguous, "ambiguous"},
+		{r.BeforeSince, "before --since"},
+	} {
+		if extra.n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", extra.n, extra.what))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // IgnoredReport renders Ignored as "Trades: Forex (3), Fees (2)", sorted by
@@ -129,15 +226,51 @@ func Import(b *domain.Book, r io.Reader, opts Options) (Result, error) {
 			strings.Join(slices.Sorted(maps.Keys(im.missing)), ", "))
 	}
 
-	res := Result{Ignored: im.ignored}
-	for _, tx := range im.txs {
-		if portfolio.AddImported(b, tx) {
+	res := Result{Ignored: im.ignored, BeforeSince: im.beforeSince}
+	for _, st := range im.txs {
+		if b.HasImportHash(st.tx.ImportHash) {
+			res.Skipped++ // already imported: the dedup rule wins over any lookalike
+			continue
+		}
+		if opts.Guard != GuardOff {
+			if match, ok := im.guard(st, opts.Guard, &res); ok {
+				res.Matches = append(res.Matches, match)
+				continue
+			}
+		}
+		if portfolio.AddImported(b, st.tx) {
 			res.Added++
 		} else {
 			res.Skipped++
 		}
 	}
 	return res, nil
+}
+
+// guard applies the already-booked policy to one staged line: ok reports that
+// a hand-entered transaction covers it, so the line must not be imported. In
+// GuardReconcile the single candidate adopts the line's importHash - the only
+// write this makes - and an ambiguity adopts nothing, in either policy.
+func (im *importer) guard(st staged, policy Guard, res *Result) (Match, bool) {
+	hits := portfolio.ManualMatches(im.b, st.tx)
+	if len(hits) == 0 {
+		return Match{}, false
+	}
+	match := Match{Line: st.line, What: st.what}
+	for _, m := range hits {
+		match.Manual = append(match.Manual, m.ID)
+	}
+	switch {
+	case len(hits) > 1:
+		res.Ambiguous++
+	case policy == GuardReconcile:
+		portfolio.Adopt(hits[0], st.tx.ImportHash)
+		match.Adopted = true
+		res.Adopted++
+	default:
+		res.Matched++
+	}
+	return match, true
 }
 
 type importer struct {
@@ -148,10 +281,30 @@ type importer struct {
 	assets      map[string]*domain.Asset // symbol -> resolved security
 	missing     map[string]bool
 	ignored     map[string]int
-	txs         []domain.Transaction
+	beforeSince int
+	txs         []staged
+}
+
+// staged is one mapped statement line waiting to be written, kept with what
+// it takes to name its source in the report.
+type staged struct {
+	tx   domain.Transaction
+	line int
+	what string
 }
 
 func (im *importer) ignore(reason string) { im.ignored[reason]++ }
+
+// before reports that a line predates Options.Since, and counts it. Called as
+// soon as a line's date is known - before its security is resolved - so the
+// years already booked cannot fail an import over a symbol the book dropped.
+func (im *importer) before(date domain.Date) bool {
+	if im.opts.Since.IsZero() || !date.Before(im.opts.Since) {
+		return false
+	}
+	im.beforeSince++
+	return true
+}
 
 // row maps one statement line onto the ledger. Sections this cut does not
 // read fall through to the counter.
@@ -180,16 +333,21 @@ func (im *importer) trade(r row) error {
 	if d := r.get("DataDiscriminator"); d != "" && d != "Order" {
 		return nil // ClosedLot lines restate an order lot by lot
 	}
+	// The date filter comes first, and everywhere: a line out of range is
+	// counted once, as out of range, whatever else it is.
+	date, err := tradeDate(r.getAny("Date/Time", "Date", "Trade Date"))
+	if err != nil {
+		return err
+	}
+	if im.before(date) {
+		return nil
+	}
 	if category := r.get("Asset Category"); category != "Stocks" {
 		// Forex, futures and options price and settle unlike a share line.
 		im.ignore("Trades: " + cmp.Or(category, "unknown category"))
 		return nil
 	}
 	ccy, err := currency(r.get("Currency"))
-	if err != nil {
-		return err
-	}
-	date, err := tradeDate(r.getAny("Date/Time", "Date", "Trade Date"))
 	if err != nil {
 		return err
 	}
@@ -315,7 +473,8 @@ func (im *importer) cashFlow(r row) error {
 // income reads the shape the cash sections share: Currency, a date, a
 // description and a signed Amount. ok is false for the per-currency total
 // lines some statements emit as Data, recognisable by a Currency cell that
-// is not a currency ("Total", "Total in EUR").
+// is not a currency ("Total", "Total in EUR") - and for a line dated before
+// Options.Since, which the caller drops just the same.
 func (im *importer) income(r row) (ccy domain.Currency, date domain.Date, amount decimal.Decimal, description string, ok bool, err error) {
 	raw := r.get("Currency")
 	if len(raw) != 3 {
@@ -330,6 +489,9 @@ func (im *importer) income(r row) (ccy domain.Currency, date domain.Date, amount
 	if amount, err = number(r.get("Amount")); err != nil {
 		return "", date, amount, "", false, err
 	}
+	if im.before(date) {
+		return "", date, amount, "", false, nil
+	}
 	return ccy, date, amount, r.get("Description"), true, nil
 }
 
@@ -339,7 +501,21 @@ func (im *importer) income(r row) (ccy domain.Currency, date domain.Date, amount
 // otherwise identical lines.
 func (im *importer) add(r row, tx domain.Transaction, symbol string, qty, amount decimal.Decimal, ccy domain.Currency) {
 	tx.ImportHash = importHash(r, tx.Date, symbol, qty, amount, ccy)
-	im.txs = append(im.txs, tx)
+	im.txs = append(im.txs, staged{tx: tx, line: r.line, what: event(tx, symbol)})
+}
+
+// event names a mapped line the way the guard reports it: what happened, in
+// the order a human reads it, skipping what the line does not carry (a symbol
+// for pure cash, a quantity for income).
+func event(tx domain.Transaction, symbol string) string {
+	parts := []string{tx.Date.String(), tx.Kind.String()}
+	if symbol != "" {
+		parts = append(parts, symbol)
+	}
+	if !tx.Quantity.IsZero() {
+		parts = append(parts, tx.Quantity.String())
+	}
+	return strings.Join(append(parts, tx.Amount.String()), " ")
 }
 
 // importHash is the transaction's external reference (FORMAT.md 4.5),

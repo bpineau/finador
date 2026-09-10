@@ -3,6 +3,9 @@ package portfolio
 import (
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/shopspring/decimal"
 
 	"finador/internal/domain"
 )
@@ -165,5 +168,64 @@ func TestImportPropagatesAmbiguity(t *testing.T) {
 	csv := "date,kind,account,asset,quantity,price,currency\n2026-01-15,buy,PEA,dup,1,10,EUR\n"
 	if _, _, err := ImportCSV(b, strings.NewReader(csv)); err == nil || !strings.Contains(err.Error(), "ambiguous") {
 		t.Fatalf("err = %v, attendu ambiguïté propagée", err)
+	}
+}
+
+// The already-booked guard, on the library side: which live transactions a
+// statement line is allowed to recognise as itself.
+func TestManualMatches(t *testing.T) {
+	b := domain.NewBook()
+	addAccount(t, b, "CTO Meridia", domain.EUR)
+	line := domain.Transaction{
+		Date: domain.Date{Year: 2026, Month: time.January, Day: 20}, Account: "cto-meridia",
+		Asset: "cw8", Kind: domain.Buy, Quantity: decimal.NewFromInt(20),
+		Amount:     domain.Money{Amount: decimal.NewFromInt(9007), Currency: domain.EUR},
+		ImportHash: "ibkr:8451327",
+	}
+	// Every candidate is the same event with one thing changed.
+	manual := func(fn func(*domain.Transaction)) domain.Transaction {
+		t := line
+		t.ImportHash = "" // hand-entered: no fingerprint
+		fn(&t)
+		return t
+	}
+	tests := []struct {
+		name  string
+		tx    domain.Transaction
+		match bool
+	}{
+		{"the same event", manual(func(*domain.Transaction) {}), true},
+		{"a rounding, within 0.5 %", manual(func(t *domain.Transaction) {
+			t.Amount.Amount = decimal.RequireFromString("8961.965")
+		}), true},
+		{"past 0.5 %", manual(func(t *domain.Transaction) {
+			t.Amount.Amount = decimal.RequireFromString("8961.96")
+		}), false},
+		{"another currency", manual(func(t *domain.Transaction) { t.Amount.Currency = domain.USD }), false},
+		{"another quantity", manual(func(t *domain.Transaction) { t.Quantity = decimal.NewFromInt(21) }), false},
+		{"already imported", manual(func(t *domain.Transaction) { t.ImportHash = "meridia:1" }), false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			b.Transactions = nil
+			stored := b.Add(tc.tx)
+			hits := ManualMatches(b, line)
+			if got := len(hits) == 1 && hits[0] == stored; got != tc.match {
+				t.Fatalf("matched=%v (%d hits), want %v", got, len(hits), tc.match)
+			}
+			if !tc.match {
+				return
+			}
+			// Adopting the line changes the fingerprint and nothing else.
+			before := *stored
+			Adopt(stored, line.ImportHash)
+			before.ImportHash = line.ImportHash
+			if *stored != before {
+				t.Errorf("adoption changed more than the fingerprint: %+v", *stored)
+			}
+			if !b.HasImportHash(line.ImportHash) {
+				t.Error("the adopted transaction does not answer the dedup rule")
+			}
+		})
 	}
 }

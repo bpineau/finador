@@ -31,7 +31,12 @@ Context that explains most design choices:
   per broker over the shared, idempotent write path `portfolio.AddImported`.
   Interactive Brokers activity statements are in `ibkr`; Saxo is next. The
   ledger's `importHash` field is the dedup key (FORMAT.md §4.5), namespaced
-  per broker (`ibkr:…`).
+  per broker (`ibkr:…`). A hand-entered transaction has none, so the
+  broker-agnostic **already-booked guard** (`portfolio.ManualMatches` /
+  `portfolio.Adopt`, decision D37) matches a statement line against the lines
+  the user typed: `import` then skips it (default), adopts the manual entry
+  (`--reconcile`) or imports anyway (`--no-guard`), with `--since` and
+  `--dry-run` alongside.
 - `./TODO` and `demo.fin` are gitignored personal files (roadmap, scratch
   ledger); `*.fin` files are never committed.
 
@@ -171,7 +176,10 @@ cmd/finador → cli ─┬→ store ──→ domain
   `store/merge.go tsInstant`; the Android client had the same bug.
 - **An edit is not a re-import**: a `tx-edit` must carry `importHash` through
   unchanged, or replaying the same broker statement duplicates the corrected
-  transaction.
+  transaction. Read the other way round, that is what lets `--reconcile` stamp
+  a hand-entered transaction with a statement's fingerprint and change nothing
+  else: the store diffs the record's JSON, so an adoption must touch exactly
+  one field.
 - **A security statement declares the pair's TOTAL value at that date.** Use it
   per share (total / qty-at-statement × current qty) or later buys and sells
   make it lie. Property statements are whole-estimate re-declarations: every
