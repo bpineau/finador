@@ -165,6 +165,59 @@ func TestImportCommand(t *testing.T) {
 	}
 }
 
+// An Interactive Brokers activity statement: sections, a repeated header,
+// Total lines, an unsupported section. Fictitious account and amounts.
+const ibkrStatement = "Statement,Header,Field Name,Field Value\r\n" +
+	"Statement,Data,Account,U1234567\r\n" +
+	"Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Code\r\n" +
+	"Trades,Data,Order,Stocks,EUR,CW8,\"2026-01-20, 09:12:00\",20,450.25,\"-9,005\",-2,\"9,007\",O\r\n" +
+	"Trades,Total,,Stocks,EUR,,,,,\"-9,005\",-2,,\r\n" +
+	"Deposits & Withdrawals,Header,Currency,Settle Date,Description,Amount\r\n" +
+	"Deposits & Withdrawals,Data,EUR,2026-01-05,Electronic Fund Transfer,\"10,000\"\r\n" +
+	"Fees,Header,Subtitle,Currency,Date,Description,Amount\r\n" +
+	"Fees,Data,Other Fees,EUR,2026-02-28,Market data subscription,-10\r\n"
+
+func TestImportIBKRCommand(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "CTO Meridia")
+	path := filepath.Join(t.TempDir(), "ActivityStatement.csv")
+	if err := os.WriteFile(path, []byte("\ufeff"+ibkrStatement), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// The securities must be declared, or the import names the missing ones.
+	out, err := tryRun(t, db, "import", "--format", "ibkr", "--account", "CTO Meridia", path)
+	if err == nil || !strings.Contains(out+err.Error(), "CW8") {
+		t.Fatalf("undeclared security should fail: err=%v out=%q", err, out)
+	}
+
+	out = run(t, db, "import", "--format", "ibkr", "--account", "CTO Meridia", "--create-missing", path)
+	if !strings.Contains(out, "2 imported, 0 skipped") {
+		t.Fatalf("import: %q", out)
+	}
+	if !strings.Contains(out, "not imported: Fees (1)") {
+		t.Fatalf("unsupported sections should be reported: %q", out)
+	}
+	if out := run(t, db, "import", "--format", "ibkr", "--account", "CTO Meridia", path); !strings.Contains(out, "0 imported, 2 skipped") {
+		t.Fatalf("re-import: %q", out)
+	}
+	// The buy carries its commission: 9005 + 2.
+	if out := run(t, db, "tx", "list", "--kind", "buy"); !strings.Contains(out, "9007") {
+		t.Fatalf("tx list: %q", out)
+	}
+
+	// Guards: the account is required, and the csv format takes neither flag.
+	if _, err := tryRun(t, db, "import", "--format", "ibkr", path); err == nil {
+		t.Error("--format ibkr without --account should fail")
+	}
+	if _, err := tryRun(t, db, "import", "--account", "CTO Meridia", path); err == nil {
+		t.Error("--account with the csv format should fail")
+	}
+	if _, err := tryRun(t, db, "import", "--format", "saxo", path); err == nil {
+		t.Error("an unknown format should fail")
+	}
+}
+
 func TestConfigSetGet(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "config", "set", "risk-free", "2.4%")
