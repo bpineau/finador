@@ -42,11 +42,31 @@ type ValueOption func(*valuer)
 // envelope line carries its positions AND its cash.
 func WithLinesByAccount() ValueOption { return func(v *valuer) { v.byAccount = true } }
 
+// PriceOverride forces one asset's price for a single valuation.
+type PriceOverride struct {
+	Price float64 // in the asset's quote currency
+	// Kind is the one word the freshness note uses for this override
+	// ("what-if"). Empty says nothing at all: the caller has already
+	// labelled the price itself - an extended-hours print names its session
+	// and its instant - and the valuation must not say it a second time.
+	Kind string
+}
+
 // WithPriceOverrides forces the price of given assets, in their quote
-// currency - the throwaway hypotheses of « value --what-if vizr=280 ».
-// For a property, the override replaces the whole estimate.
-func WithPriceOverrides(p map[domain.AssetID]float64) ValueOption {
+// currency - the throwaway hypotheses of « value --what-if vizr=280 », or a
+// pre/post-market print of « value --extended ». For a property, the override
+// replaces the whole estimate. Nothing is ever persisted (see ValueOption).
+func WithPriceOverrides(p map[domain.AssetID]PriceOverride) ValueOption {
 	return func(v *valuer) { v.overrides = p }
+}
+
+// note records an override's freshness note, unless the caller labels it.
+func (v *valuer) noteOverride(name string, ov PriceOverride, ccy domain.Currency) {
+	if ov.Kind == "" {
+		return
+	}
+	v.stale = append(v.stale, fmt.Sprintf("%s: %s at %s %s",
+		ov.Kind, name, trimFloat(ov.Price), ccy))
 }
 
 // Value prices a scope at a date, in the display currency ccy: security
@@ -192,7 +212,7 @@ type valuer struct {
 	ccy       domain.Currency
 	stale     []string
 	byAccount bool
-	overrides map[domain.AssetID]float64
+	overrides map[domain.AssetID]PriceOverride
 }
 
 // trimFloat formats a float64 without trailing zeros.
@@ -214,9 +234,8 @@ func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (
 // would read as a loss). Each fallback is flagged.
 func (v *valuer) positionValue(h Holding) (float64, error) {
 	if ov, ok := v.overrides[h.Asset.ID]; ok {
-		v.stale = append(v.stale, fmt.Sprintf("what-if: %s at %s %s",
-			h.Asset.Name, trimFloat(ov), h.Asset.Currency))
-		return v.fx.Convert(toF(h.Qty)*ov, h.Asset.Currency, v.ccy, v.at)
+		v.noteOverride(h.Asset.Name, ov, h.Asset.Currency)
+		return v.fx.Convert(toF(h.Qty)*ov.Price, h.Asset.Currency, v.ccy, v.at)
 	}
 	if close, cdate, ok := v.b.Market.Prices[h.Asset.ID].At(v.at); ok {
 		if cdate.AddDays(staleAfterDays).Before(v.at) {
@@ -249,9 +268,8 @@ func (v *valuer) positionValue(h Holding) (float64, error) {
 
 func (v *valuer) statementValue(acc domain.AccountID, asset *domain.Asset) (float64, error) {
 	if ov, ok := v.overrides[asset.ID]; ok {
-		v.stale = append(v.stale, fmt.Sprintf("what-if: %s at %s %s",
-			asset.Name, trimFloat(ov), asset.Currency))
-		return v.fx.Convert(ov, asset.Currency, v.ccy, v.at)
+		v.noteOverride(asset.Name, ov, asset.Currency)
+		return v.fx.Convert(ov.Price, asset.Currency, v.ccy, v.at)
 	}
 	tx, ok := v.lastStatement(acc, asset.ID)
 	if !ok {

@@ -29,6 +29,7 @@ var configKeys = []configKey{
 	{"default-account", "", "envelope used when a command omits --account"},
 	{"keychain-ttl", "12h", "how long the wallet password stays in the keychain"},
 	{"risk-free", "0%", "annualized risk-free rate for Sharpe and Sortino"},
+	{"extended-hours", "false", "`value` counts pre/post-market prints by default (--extended overrides)"},
 }
 
 // configDefault returns the documented default of a key, and whether finador

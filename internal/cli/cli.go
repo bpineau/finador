@@ -203,13 +203,29 @@ func warn(cmd *cobra.Command, groups ...[]string) {
 // It never fails hard: offline is a no-op and network trouble degrades to
 // warnings, stale data stays usable.
 func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
+	a.ensureFreshSpot(cmd, f, false)
+}
+
+// ensureFreshSpot is ensureFresh with the extended-hours opt-in, and returns
+// what the spot pass observed so a caller can label its prices.
+//
+// Under the opt-in the pass ALWAYS runs: an off-hours print is never merged
+// into the cached series (market.SpotRefreshExtended), so a pass skipped as
+// "recent enough" would leave nothing to show at all. Everything else is
+// unchanged - only the freshly observed quotes carry a session, and the cache
+// stores exactly what the regular pass would have stored.
+func (a *app) ensureFreshSpot(cmd *cobra.Command, f *store.File, extended bool) market.SpotSummary {
+	var spot market.SpotSummary
 	if a.offline {
-		return
+		return spot
 	}
 	sum := market.Refresh(cmd.Context(), f.Book, a.marketSource(), false)
 	spotted := false
-	var spot market.SpotSummary
-	if time.Since(f.Book.Market.SpotAt) > spotMaxAge {
+	switch {
+	case extended:
+		spot = market.SpotRefreshExtended(cmd.Context(), f.Book, a.marketSource())
+		spotted = true
+	case time.Since(f.Book.Market.SpotAt) > spotMaxAge:
 		spot = market.SpotRefresh(cmd.Context(), f.Book, a.marketSource())
 		spotted = true
 	}
@@ -219,6 +235,7 @@ func (a *app) ensureFresh(cmd *cobra.Command, f *store.File) {
 			fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)
 		}
 	}
+	return spot
 }
 
 // defaultDB is the ledger a command opens when --db is absent: FINADOR_DB, the

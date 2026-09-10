@@ -267,7 +267,7 @@ func TestValueWhatIf(t *testing.T) {
 	at := mustDate("2026-06-05")
 	// what-if: cw8 at 600 (instead of the 560 quote) and house at 500000
 	v, err := Value(b, scopeOf(t, b, ""), at, domain.EUR, fxStub{},
-		WithPriceOverrides(map[domain.AssetID]float64{"cw8": 600, "maison": 500000}))
+		WithPriceOverrides(map[domain.AssetID]PriceOverride{"cw8": {Price: 600, Kind: "what-if"}, "maison": {Price: 500000, Kind: "what-if"}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestParseScopeOrderAndErrors(t *testing.T) {
 func TestValueWhatIfNoteDeduped(t *testing.T) {
 	b := valuationBook(t) // cw8 held in both pea (12) and cto (2)
 	v, err := Value(b, scopeOf(t, b, ""), mustDate("2026-06-05"), domain.EUR, fxStub{},
-		WithPriceOverrides(map[domain.AssetID]float64{"cw8": 600}))
+		WithPriceOverrides(map[domain.AssetID]PriceOverride{"cw8": {Price: 600, Kind: "what-if"}}))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -52,7 +52,24 @@ type Quote struct {
 	// forward by a listed proxy. Live says it moves with the session;
 	// Estimated says nobody has struck that number yet.
 	Estimated bool
+
+	// Session names the trading session the price was struck in: "regular",
+	// "pre", "post", or "" when the source names no session (a daily close,
+	// a fund NAV, a nowcast - which therefore never claims one). Only the
+	// extended-hours opt-in ever yields "pre" or "post".
+	Session string
 }
+
+// The sessions Quote.Session can name beyond the regular one.
+const (
+	SessionPre  = "pre"
+	SessionPost = "post"
+)
+
+// Extended reports whether the quote is an off-hours print: a pre-market or
+// after-hours trade rather than the regular session's. Such a print is
+// thinner than a close and is displayed, never stored.
+func (q Quote) Extended() bool { return q.Session == SessionPre || q.Session == SessionPost }
 
 // Source provides daily market data. finador fetches serially, politely.
 // The standard implementation is Pofo (see Default).
@@ -74,6 +91,15 @@ type Source interface {
 // so SpotRefresh never re-asks per instrument behind a batch.
 type BatchSource interface {
 	LatestBatch(ctx context.Context, refs []Ref) BatchQuotes
+}
+
+// ExtendedSource is an optional Source capability: the same batched pass as
+// BatchSource, but allowed to answer with a venue's extended-hours print when
+// one is newer than the regular session's last price. A source that does not
+// implement it simply never serves off-hours prices, and the opt-in degrades
+// to the regular batch.
+type ExtendedSource interface {
+	LatestBatchExtended(ctx context.Context, refs []Ref) BatchQuotes
 }
 
 // BatchQuotes is what one batched spot pass learned: a quote per ref the
