@@ -243,6 +243,12 @@ func diffTransaction(b *domain.Book, prev, next *domain.Transaction) string {
 
 func diffAsset(prev, next *domain.Asset) string {
 	var lines []string
+	// Kind first, and never omitted: it decides how the line is valued (a
+	// property statement re-declares the whole estimate, a security's is read
+	// per share), so an edit that changes only it must not read as a no-op.
+	if prev.Kind != next.Kind {
+		lines = append(lines, "kind: "+prev.Kind.String()+" -> "+next.Kind.String())
+	}
 	if prev.Name != next.Name {
 		lines = append(lines, "name: "+prev.Name+" -> "+next.Name)
 	}

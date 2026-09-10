@@ -1,14 +1,19 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Compile-time check: GitHubClient satisfies the Backend interface.
@@ -357,5 +362,195 @@ func TestCheckAccess(t *testing.T) {
 	defer missing.Close()
 	if err := newTestClient(missing.URL).CheckAccess(context.Background()); !errors.Is(err, ErrRemoteAuth) {
 		t.Errorf("CheckAccess(404) = %v, want ErrRemoteAuth", err)
+	}
+}
+
+// --- Non-2xx statuses the API can answer with ---
+
+// Any status the switch does not name is reported verbatim (method, code and
+// the trimmed body), so an unexpected API answer is diagnosable instead of
+// silently becoming "offline".
+func TestUnexpectedStatusIsReported(t *testing.T) {
+	cases := []struct {
+		name string
+		call func(*GitHubClient) error
+		want string
+	}{
+		{"fetch", func(c *GitHubClient) error { _, _, err := c.Fetch(context.Background()); return err }, "github fetch: HTTP 451"},
+		{"push", func(c *GitHubClient) error {
+			_, err := c.Push(context.Background(), []byte("d"), Version("s"), "m")
+			return err
+		}, "github push: HTTP 451"},
+		{"check access", func(c *GitHubClient) error { return c.CheckAccess(context.Background()) }, "github repo check: HTTP 451"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusUnavailableForLegalReasons)
+				_, _ = w.Write([]byte("  blocked  \n"))
+			}))
+			defer srv.Close()
+			err := c.call(newTestClient(srv.URL))
+			if err == nil || !strings.Contains(err.Error(), c.want) || !strings.Contains(err.Error(), "blocked") {
+				t.Errorf("error = %v, want %q and the body", err, c.want)
+			}
+		})
+	}
+}
+
+// A 200 whose body is not the documented shape is an error, never an empty
+// file: decoding garbage as "no content" would push an empty ledger next.
+func TestMalformedResponsesAreErrors(t *testing.T) {
+	cases := []struct {
+		name, body, want string
+		push             bool
+	}{
+		{name: "fetch: not JSON", body: "<html>nope</html>", want: "decode response"},
+		{name: "fetch: content is not base64", body: `{"content":"!!!not-base64!!!","sha":"s"}`, want: "base64 decode"},
+		{name: "push: not JSON", body: "<html>nope</html>", want: "decode response", push: true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(c.body))
+			}))
+			defer srv.Close()
+			cl := newTestClient(srv.URL)
+			var err error
+			if c.push {
+				_, err = cl.Push(context.Background(), []byte("d"), Version(""), "m")
+			} else {
+				_, _, err = cl.Fetch(context.Background())
+			}
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("error = %v, want %q", err, c.want)
+			}
+		})
+	}
+}
+
+// A throttled push is retried with the same body: the PUT must be rebuilt, not
+// replayed from a drained reader, or the second attempt would upload nothing.
+func TestPushRetriesOn429WithTheSameBody(t *testing.T) {
+	const content = "line one\nline two\n"
+	var bodies []string
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body pushRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(body.Content)
+		if err != nil {
+			t.Fatalf("decode base64: %v", err)
+		}
+		bodies = append(bodies, string(decoded))
+		attempts++
+		if attempts < 2 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{"content": map[string]any{"sha": "s2"}})
+	}))
+	defer srv.Close()
+
+	v, err := newTestClient(srv.URL).Push(context.Background(), []byte(content), Version("s1"), "msg")
+	if err != nil {
+		t.Fatalf("Push: %v", err)
+	}
+	if v != "s2" || attempts != 2 {
+		t.Errorf("version %q after %d attempts, want s2 after 2", v, attempts)
+	}
+	for i, b := range bodies {
+		if b != content {
+			t.Errorf("attempt %d uploaded %q, want the file bytes unchanged", i+1, b)
+		}
+	}
+}
+
+// The bytes on the remote are exactly the bytes handed to Push: no
+// re-encoding, no trailing-newline fixing. Byte-stability is what keeps the
+// git diffs small and the hash chain intact.
+func TestPushIsByteStable(t *testing.T) {
+	data := []byte{0x00, 0x01, 'f', 'i', 'n', 0xff, '\n', '\n'}
+	var got []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body pushRequest
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		got, _ = base64.StdEncoding.DecodeString(body.Content)
+		_ = json.NewEncoder(w).Encode(map[string]any{"content": map[string]any{"sha": "s"}})
+	}))
+	defer srv.Close()
+	if _, err := newTestClient(srv.URL).Push(context.Background(), data, Version(""), "m"); err != nil {
+		t.Fatalf("Push: %v", err)
+	}
+	if !bytes.Equal(got, data) {
+		t.Errorf("uploaded % x, want % x", got, data)
+	}
+}
+
+// A cancelled context during the retry backoff stops the call instead of
+// sleeping on: the caller has gone away.
+func TestRetryStopsOnCancelledContext(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	c := newTestClient(srv.URL)
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+	_, _, err := c.Fetch(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Fetch with a cancelled context = %v, want context.Canceled", err)
+	}
+}
+
+// The token authenticates every call - and must never reach a log line, an
+// error message or the remote's own identifier, all of which end up on screen
+// or in a support paste.
+func TestTokenNeverLeaks(t *testing.T) {
+	const token = "ghp_supersecret_TOKEN"
+	seen := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Get("Authorization") == "Bearer "+token
+		w.WriteHeader(http.StatusInternalServerError) // force the error-message path
+		_, _ = w.Write([]byte("server said no"))
+	}))
+	defer srv.Close()
+
+	var logged bytes.Buffer
+	log.SetOutput(&logged)
+	defer log.SetOutput(os.Stderr)
+
+	c := newTestClient(srv.URL)
+	c.Token = token
+	_, _, ferr := c.Fetch(context.Background())
+	_, perr := c.Push(context.Background(), []byte("d"), Version("s"), "m")
+	aerr := c.CheckAccess(context.Background())
+	if !seen {
+		t.Fatal("the token never reached the Authorization header")
+	}
+	for _, s := range []string{fmt.Sprint(ferr), fmt.Sprint(perr), fmt.Sprint(aerr),
+		c.Describe(), logged.String()} {
+		if strings.Contains(s, token) {
+			t.Errorf("the token leaked into %q", s)
+		}
+	}
+}
+
+// A client built by hand (no BaseURL) still talks to GitHub itself: the two
+// endpoint builders fall back to the public API, they never produce a
+// relative URL.
+func TestEndpointsDefaultToTheGitHubAPI(t *testing.T) {
+	c := &GitHubClient{Owner: "alice", Repo: "data", Path: "dir/portfolio.fin", Branch: "main"}
+	if got, want := c.contentsURL(), defaultBaseURL+"/repos/alice/data/contents/dir/portfolio.fin"; got != want {
+		t.Errorf("contentsURL = %q, want %q", got, want)
+	}
+	if got, want := c.repoURL(), defaultBaseURL+"/repos/alice/data"; got != want {
+		t.Errorf("repoURL = %q, want %q", got, want)
 	}
 }
