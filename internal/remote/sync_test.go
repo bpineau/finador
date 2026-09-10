@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -720,5 +721,425 @@ func TestAdoptRefusesExistingUnlessForce(t *testing.T) {
 	}
 	if data, _, _ := b.Fetch(context.Background()); string(data) != "NEW" {
 		t.Fatalf("remote = %q, want NEW after forced adopt", data)
+	}
+}
+
+// scriptedBackend answers each call from a script, so a test can put the
+// remote in a state the in-memory fake cannot reach (a push that conflicts
+// forever, a fetch that goes offline mid-conflict).
+type scriptedBackend struct {
+	fetch  func() ([]byte, Version, error)
+	push   func(data []byte, base Version) (Version, error)
+	pushes int
+}
+
+func (s *scriptedBackend) Describe() string                  { return "scripted:remote" }
+func (s *scriptedBackend) CheckAccess(context.Context) error { return nil }
+
+func (s *scriptedBackend) Fetch(context.Context) ([]byte, Version, error) { return s.fetch() }
+
+func (s *scriptedBackend) Push(_ context.Context, data []byte, base Version, _ string) (Version, error) {
+	s.pushes++
+	return s.push(data, base)
+}
+
+// --- Sync on a dirty copy: push first, then refresh ---
+
+func TestSyncDirtyPushesThenRefreshes(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &fakeBackend{data: []byte("remote"), sha: "sha1", counter: 1}
+	s := newSyncer(t, b, &now)
+
+	writeCopy(t, s, "local edit")
+	if err := s.saveState(state{SHA: "sha1", LastPull: now.Add(-2 * time.Hour), Dirty: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	warnings, err := s.Sync(context.Background(), (&stubMerge{}).fn)
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %v, want none", warnings)
+	}
+	b.mu.Lock()
+	remote := string(b.data)
+	b.mu.Unlock()
+	if remote != "local edit" {
+		t.Errorf("remote = %q, want the pushed local edit", remote)
+	}
+	if got := readCopy(t, s); got != "local edit" {
+		t.Errorf("copy after the refresh = %q, want the pushed content", got)
+	}
+	sha, lastPull, dirty := s.Status()
+	if dirty || sha == "" || !lastPull.Equal(now) {
+		t.Errorf("state after Sync: sha=%q lastPull=%v dirty=%v", sha, lastPull, dirty)
+	}
+}
+
+// Offline, Sync says so and stops: it must not fall through to the refresh,
+// which would pull the remote over the unpushed working copy.
+func TestSyncDirtyOfflineKeepsTheCopy(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &fakeBackend{data: []byte("remote"), sha: "sha1", counter: 1, offline: true}
+	s := newSyncer(t, b, &now)
+
+	writeCopy(t, s, "local edit")
+	if err := s.saveState(state{SHA: "sha1", Dirty: true}); err != nil {
+		t.Fatal(err)
+	}
+	warnings, err := s.Sync(context.Background(), (&stubMerge{}).fn)
+	if err != nil {
+		t.Fatalf("Sync offline: %v", err)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "offline") {
+		t.Errorf("warnings = %v, want one offline warning", warnings)
+	}
+	if got := readCopy(t, s); got != "local edit" {
+		t.Errorf("copy = %q, want the unpushed edit kept", got)
+	}
+	if _, _, dirty := s.Status(); !dirty {
+		t.Error("state must stay dirty while the push is deferred")
+	}
+	if b.fetches != 0 {
+		t.Errorf("fetches = %d, an offline Sync must not try to refresh", b.fetches)
+	}
+}
+
+// A concurrent write from the other client turns Sync into a merge: the remote
+// ends up holding both sides, and so does the working copy.
+func TestSyncDirtyConflictMerges(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &fakeBackend{data: []byte("base"), sha: "sha1", counter: 1}
+	s := newSyncer(t, b, &now)
+
+	writeCopy(t, s, "local edit")
+	if err := s.saveState(state{SHA: "sha1", Dirty: true}); err != nil {
+		t.Fatal(err)
+	}
+	b.concurrentChange("android edit")
+
+	merge := &stubMerge{}
+	if _, err := s.Sync(context.Background(), merge.fn); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if merge.calls != 1 {
+		t.Errorf("merge calls = %d, want 1", merge.calls)
+	}
+	got := readCopy(t, s)
+	for _, want := range []string{"local edit", "android edit", mergeMarker} {
+		if !strings.Contains(got, want) {
+			t.Errorf("copy = %q, want it to contain %q", got, want)
+		}
+	}
+	if _, _, dirty := s.Status(); dirty {
+		t.Error("state should be clean after a successful merge-and-push")
+	}
+}
+
+// A remote that keeps moving cannot be pushed to forever: the loop is bounded,
+// says so, and leaves the working copy dirty for the next attempt.
+func TestPushGivesUpAfterBoundedConflicts(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	moving := 0
+	b := &scriptedBackend{
+		fetch: func() ([]byte, Version, error) {
+			moving++
+			return []byte(fmt.Sprintf("remote %d", moving)), Version(fmt.Sprintf("sha%d", moving)), nil
+		},
+		push: func([]byte, Version) (Version, error) { return "", ErrRemoteConflict },
+	}
+	s := newSyncer(t, b, &now)
+	writeCopy(t, s, "local")
+
+	merge := &stubMerge{}
+	_, err := s.AfterWrite(context.Background(), "msg", merge.fn)
+	if !errors.Is(err, ErrRemoteConflict) {
+		t.Fatalf("AfterWrite = %v, want a bounded-conflict error wrapping ErrRemoteConflict", err)
+	}
+	if !strings.Contains(err.Error(), "attempts") {
+		t.Errorf("error = %v, want it to name the attempt bound", err)
+	}
+	if b.pushes != maxPushRetries || merge.calls != maxPushRetries {
+		t.Errorf("pushes=%d merges=%d, want %d of each", b.pushes, merge.calls, maxPushRetries)
+	}
+	if _, _, dirty := s.Status(); !dirty {
+		t.Error("the copy must stay dirty after giving up")
+	}
+}
+
+// Going offline BETWEEN the conflicting push and the reconciling fetch must be
+// an error, not a silent "deferred": the merge never happened, so treating it
+// as offline-and-clean would lose the remote's side at the next push.
+func TestReconcileOfflineMidConflictIsAnError(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &scriptedBackend{
+		fetch: func() ([]byte, Version, error) { return nil, "", ErrOffline },
+		push:  func([]byte, Version) (Version, error) { return "", ErrRemoteConflict },
+	}
+	s := newSyncer(t, b, &now)
+	writeCopy(t, s, "local")
+
+	_, err := s.AfterWrite(context.Background(), "msg", (&stubMerge{}).fn)
+	if err == nil || !strings.Contains(err.Error(), "fetch remote for merge") {
+		t.Fatalf("AfterWrite = %v, want the mid-conflict fetch failure", err)
+	}
+	if !errors.Is(err, ErrOffline) {
+		t.Errorf("error = %v, want it to wrap ErrOffline", err)
+	}
+	if got := readCopy(t, s); got != "local" {
+		t.Errorf("copy = %q, want the local content preserved", got)
+	}
+	if _, _, dirty := s.Status(); !dirty {
+		t.Error("the copy must stay dirty after a failed reconcile")
+	}
+}
+
+// A conflict with no merge function is refused rather than resolved by
+// overwriting one side.
+func TestPushConflictWithoutMergeRefuses(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &fakeBackend{data: []byte("base"), sha: "sha1", counter: 1}
+	s := newSyncer(t, b, &now)
+	writeCopy(t, s, "local")
+	if err := s.saveState(state{SHA: "stale"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.AfterWrite(context.Background(), "msg", nil)
+	if err == nil || !strings.Contains(err.Error(), "no merge function") {
+		t.Fatalf("AfterWrite without a merge = %v, want a refusal", err)
+	}
+}
+
+// --- The state sidecar ---
+
+// A missing sidecar is the normal first-run state: zero values, no error.
+func TestStatusWithoutSidecar(t *testing.T) {
+	now := time.Now()
+	s := newSyncer(t, &fakeBackend{}, &now)
+	if s.HasWorkingCopy() {
+		t.Error("HasWorkingCopy should be false before anything is written")
+	}
+	sha, lastPull, dirty := s.Status()
+	if sha != "" || !lastPull.IsZero() || dirty {
+		t.Errorf("Status = %q/%v/%v, want the zero state", sha, lastPull, dirty)
+	}
+	if err := s.EnsureDir(); err != nil {
+		t.Fatalf("EnsureDir: %v", err)
+	}
+	info, err := os.Stat(filepath.Dir(s.WorkingCopy()))
+	if err != nil {
+		t.Fatalf("stat checkout dir: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o700 {
+		t.Errorf("checkout dir mode = %o, want 700", perm)
+	}
+	writeCopy(t, s, "x")
+	if !s.HasWorkingCopy() {
+		t.Error("HasWorkingCopy should be true once the copy exists")
+	}
+	// and it says so when the directory cannot be created at all
+	blocked := newSyncer(t, &fakeBackend{}, &now)
+	if err := os.WriteFile(filepath.Dir(blocked.WorkingCopy()), []byte("not a dir"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := blocked.EnsureDir(); err == nil || !strings.Contains(err.Error(), "checkout dir") {
+		t.Errorf("EnsureDir over a file = %v, want a checkout-directory error", err)
+	}
+	if s.Describe() != "fake:remote" {
+		t.Errorf("Describe = %q, want the backend's own identifier", s.Describe())
+	}
+}
+
+// A corrupted sidecar is never guessed at: Status degrades to the zero value,
+// but every path that would touch the remote refuses loudly - reading it wrong
+// is how an unpushed copy gets clobbered.
+func TestCorruptedSidecarIsLoud(t *testing.T) {
+	now := time.Now()
+	b := &fakeBackend{data: []byte("remote"), sha: "sha1", counter: 1}
+	s := newSyncer(t, b, &now)
+	writeCopy(t, s, "local")
+	if err := atomicWrite(s.statePath, []byte("{not json")); err != nil {
+		t.Fatal(err)
+	}
+	if sha, lastPull, dirty := s.Status(); sha != "" || !lastPull.IsZero() || dirty {
+		t.Errorf("Status on a corrupted sidecar = %q/%v/%v, want the zero state", sha, lastPull, dirty)
+	}
+	ctx := context.Background()
+	merge := (&stubMerge{}).fn
+	for name, err := range map[string]error{
+		"ForRead":    firstErr(s.ForRead(ctx)),
+		"ForWrite":   firstErr(s.ForWrite(ctx, merge)),
+		"AfterWrite": firstErr(s.AfterWrite(ctx, "msg", merge)),
+		"Sync":       firstErr(s.Sync(ctx, merge)),
+		"Adopt":      s.Adopt(ctx, []byte("x"), "msg", true),
+	} {
+		if err == nil || !strings.Contains(err.Error(), "parse sync state") {
+			t.Errorf("%s = %v, want a parse error", name, err)
+		}
+	}
+	if got := readCopy(t, s); got != "local" {
+		t.Errorf("copy = %q, want it untouched while the state is unreadable", got)
+	}
+}
+
+// firstErr drops the warnings of a (warnings, error) pair.
+func firstErr(_ []string, err error) error { return err }
+
+// Adopt is a one-time migration: when the push fails, nothing is installed
+// locally either, so a retry starts from the same place.
+func TestAdoptPushFailureLeavesNothingBehind(t *testing.T) {
+	now := time.Now()
+	b := &fakeBackend{offline: true}
+	s := newSyncer(t, b, &now)
+	if err := s.Adopt(context.Background(), []byte("ENCRYPTED"), "adopt", false); !errors.Is(err, ErrOffline) {
+		t.Fatalf("Adopt offline = %v, want ErrOffline", err)
+	}
+	if s.HasWorkingCopy() {
+		t.Error("a failed adopt must not install a working copy")
+	}
+	if sha, _, _ := s.Status(); sha != "" {
+		t.Errorf("sha = %q, want the state untouched", sha)
+	}
+}
+
+// The working copy and its sidecar live side by side under the checkout
+// directory, at a path derived from the remote's coordinates alone - which is
+// how the CLI can name it as the --db default without a Backend.
+func TestWorkingCopyLayout(t *testing.T) {
+	now := time.Now()
+	s := newSyncer(t, &fakeBackend{}, &now)
+	gh := GitHub{Owner: "alice", Repo: "data", Path: "portfolio.fin", Branch: "main"}
+	standalone, err := WorkingCopyPath(gh)
+	if err != nil {
+		t.Fatalf("WorkingCopyPath: %v", err)
+	}
+	if standalone != s.WorkingCopy() {
+		t.Errorf("WorkingCopyPath = %q, want the syncer's own copy %q", standalone, s.WorkingCopy())
+	}
+	if filepath.Base(filepath.Dir(standalone)) != "checkout" {
+		t.Errorf("copy = %q, want it under a checkout/ directory", standalone)
+	}
+	if want := strings.TrimSuffix(s.WorkingCopy(), ".fin") + ".state.json"; s.statePath != want {
+		t.Errorf("state path = %q, want %q", s.statePath, want)
+	}
+	// the branch is not part of the identity: the same file on another branch
+	// would still be the same ledger
+	other := GitHub{Owner: "alice", Repo: "data", Path: "portfolio.fin", Branch: "prod"}
+	if hashKey(other) != hashKey(gh) {
+		t.Error("hashKey should not depend on the branch")
+	}
+}
+
+// NewSyncer falls back to the default freshness window when handed a
+// meaningless one, instead of pulling on every single read.
+func TestNewSyncerDefaultsPullWindow(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	gh := GitHub{Owner: "a", Repo: "b", Path: "c.fin"}
+	for _, d := range []time.Duration{0, -time.Minute} {
+		s, err := NewSyncer(&fakeBackend{}, gh, d)
+		if err != nil {
+			t.Fatalf("NewSyncer(%v): %v", d, err)
+		}
+		if s.readPullAfter != time.Hour {
+			t.Errorf("readPullAfter = %v for %v, want 1h", s.readPullAfter, d)
+		}
+	}
+}
+
+// An auth failure is not an outage: it must surface on every path instead of
+// degrading to "offline, using the local copy", which would hide a revoked
+// token for as long as the working copy answers.
+func TestAuthErrorSurfacesOnEveryPath(t *testing.T) {
+	ctx := context.Background()
+	merge := (&stubMerge{}).fn
+	cases := map[string]func(*Syncer) error{
+		"ForRead":  func(s *Syncer) error { return firstErr(s.ForRead(ctx)) },
+		"ForWrite": func(s *Syncer) error { return firstErr(s.ForWrite(ctx, merge)) },
+		"Sync":     func(s *Syncer) error { return firstErr(s.Sync(ctx, merge)) },
+	}
+	for name, call := range cases {
+		t.Run(name, func(t *testing.T) {
+			now := time.Now()
+			s := newSyncer(t, &fakeBackend{authError: true}, &now)
+			writeCopy(t, s, "local")
+			if err := call(s); !errors.Is(err, ErrRemoteAuth) {
+				t.Errorf("%s = %v, want ErrRemoteAuth", name, err)
+			}
+			if got := readCopy(t, s); got != "local" {
+				t.Errorf("copy = %q, want it untouched", got)
+			}
+		})
+	}
+}
+
+// A checkout directory that cannot be read or written is reported by every
+// path: silently skipping the state or the copy is what turns a crash into a
+// clobbered working copy.
+func TestUnusableCheckoutDirSurfaces(t *testing.T) {
+	ctx := context.Background()
+	merge := (&stubMerge{}).fn
+	calls := map[string]func(*Syncer) error{
+		"ForRead":    func(s *Syncer) error { return firstErr(s.ForRead(ctx)) },
+		"ForWrite":   func(s *Syncer) error { return firstErr(s.ForWrite(ctx, merge)) },
+		"AfterWrite": func(s *Syncer) error { return firstErr(s.AfterWrite(ctx, "msg", merge)) },
+		"Sync":       func(s *Syncer) error { return firstErr(s.Sync(ctx, merge)) },
+		"Adopt":      func(s *Syncer) error { return s.Adopt(ctx, []byte("x"), "msg", true) },
+	}
+	// break says how the checkout directory is made unusable, and what the
+	// resulting error must name.
+	breaks := map[string]struct {
+		apply func(*testing.T, *Syncer)
+		want  string
+	}{
+		"a file sits where the directory belongs": {
+			apply: func(t *testing.T, s *Syncer) {
+				if err := os.WriteFile(filepath.Dir(s.WorkingCopy()), []byte("not a dir"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: "sync state", // loadState cannot even read the sidecar
+		},
+		"the directory is read-only": {
+			apply: func(t *testing.T, s *Syncer) {
+				writeCopy(t, s, "local")
+				if err := s.saveState(state{SHA: "sha1"}); err != nil {
+					t.Fatal(err)
+				}
+				dir := filepath.Dir(s.WorkingCopy())
+				if err := os.Chmod(dir, 0o500); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+			},
+			want: "temp file", // nothing can be written atomically any more
+		},
+	}
+	for how, brk := range breaks {
+		for name, call := range calls {
+			t.Run(how+"/"+name, func(t *testing.T) {
+				now := time.Now()
+				s := newSyncer(t, &fakeBackend{data: []byte("remote"), sha: "sha1", counter: 1}, &now)
+				brk.apply(t, s)
+				if err := call(s); err == nil || !strings.Contains(err.Error(), brk.want) {
+					t.Errorf("%s = %v, want an error naming %q", name, err, brk.want)
+				}
+			})
+		}
+	}
+}
+
+// With no home directory and no override, there is nowhere to put the working
+// copy: say so rather than guessing a path and writing the ledger there.
+func TestNoHomeDirectoryIsReported(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", "")
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("HOME", "")
+	gh := GitHub{Owner: "a", Repo: "b", Path: "c.fin"}
+	if _, err := WorkingCopyPath(gh); err == nil {
+		t.Error("WorkingCopyPath should fail with no home and no override")
+	}
+	if _, err := NewSyncer(&fakeBackend{}, gh, time.Hour); err == nil {
+		t.Error("NewSyncer should fail when the working copy has no home")
 	}
 }
