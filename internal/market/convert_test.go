@@ -51,3 +51,14 @@ func TestConvertMissingRate(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// Both legs of the cross must be known: a missing rate on the TARGET currency
+// fails just as loudly as a missing source rate, and names what to refresh.
+func TestConvertMissingTargetRate(t *testing.T) {
+	c := testFX()
+	_, err := c.Convert(100, domain.EUR, "JPY", mustDate("2026-06-01"))
+	if err == nil || !strings.Contains(err.Error(), "JPY") ||
+		!strings.Contains(err.Error(), "finador refresh") {
+		t.Fatalf("err = %v, want a missing-JPY error naming the fix", err)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ func stubPofo(p *Pofo, base string) {
 	c.ChartBase, c.SearchBase, c.StooqBase = base, base, base
 	c.FTBase, c.BoursoramaBase, c.MorningstarBase = base, base, base
 	c.JustETFBase, c.EurostatBase, c.FredBase = base, base, base
+	c.CookieBase = base // the quote batch needs Yahoo's cookie+crumb pair
 }
 
 // pofoChartJSON is a minimal Yahoo chart payload with raw and adjusted
@@ -288,5 +290,237 @@ func TestQuoteOfSessions(t *testing.T) {
 					q.Estimated, q.Session, q.Extended(), tc.estimated, tc.session, tc.extended)
 			}
 		})
+	}
+}
+
+// The standard source is cache-less on purpose: plaintext quote files on disk
+// would reveal the holdings the encrypted book protects.
+func TestDefaultSourceIsCacheless(t *testing.T) {
+	p := Default()
+	if p == nil || p.Client == nil {
+		t.Fatal("Default() has no client")
+	}
+	if p.Client.CacheDir != "" {
+		t.Errorf("cache dir = %q, want none: no plaintext quotes on disk", p.Client.CacheDir)
+	}
+	var _ Source = p
+	var _ BatchSource = p
+	var _ ExtendedSource = p
+}
+
+// yahooAuthMux registers the cookie+crumb bootstrap the v7 quote API needs.
+func yahooAuthMux(mux *http.ServeMux) {
+	mux.HandleFunc("/v1/test/getcrumb", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "crumb1")
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Set-Cookie", "A1=cookie1; Path=/")
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// quoteBatchJSON is a v7 quote payload: one regular print, plus an optional
+// after-hours one an hour later.
+func quoteBatchJSON(symbol string, at time.Time, post float64) string {
+	extra := ""
+	if post > 0 {
+		extra = fmt.Sprintf(`,"postMarketPrice":%g,"postMarketTime":%d`, post, at.Add(time.Hour).Unix())
+	}
+	return fmt.Sprintf(`{"quoteResponse":{"result":[{"symbol":%q,"currency":"EUR","exchangeTimezoneName":"Europe/Paris","marketState":"CLOSED","regularMarketPrice":550,"regularMarketTime":%d%s}]}}`,
+		symbol, at.Unix(), extra)
+}
+
+// TestPofoLatestBatch pins the batch contract finador's spot pass relies on:
+// one quote call keyed on the declared tickers (deduplicated), the per-ref
+// fallback for whatever the batch did not answer, and an error kept for every
+// ref no source could serve - never a silent drop.
+func TestPofoLatestBatch(t *testing.T) {
+	day := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	at := day.Add(17 * time.Hour)
+	var asked []string
+	mux := http.NewServeMux()
+	yahooAuthMux(mux)
+	mux.HandleFunc("/v7/finance/quote", func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Query().Get("symbols"))
+		fmt.Fprint(w, quoteBatchJSON("CW8.PA", at, 0))
+	})
+	mux.HandleFunc("/v8/finance/chart/NAV.FUND", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, chartCcy("NAV.FUND", "EUR", day, 40, 41))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	quoted := Ref{Symbol: "CW8.PA", Currency: domain.EUR}
+	twin := Ref{Symbol: "CW8.PA", ISIN: "FR0010315770", Currency: domain.EUR}
+	fund := Ref{Symbol: "NAV.FUND", Currency: domain.EUR}
+	missing := Ref{Symbol: "NOSUCH.XX", Currency: domain.EUR}
+
+	got := p.LatestBatch(context.Background(), []Ref{quoted, twin, fund, missing})
+
+	if len(asked) != 1 || asked[0] != "CW8.PA,NAV.FUND,NOSUCH.XX" {
+		t.Fatalf("quote calls = %q, want one call over the deduplicated tickers", asked)
+	}
+	for _, ref := range []Ref{quoted, twin} {
+		q, ok := got.Quotes[ref]
+		if !ok || q.Price != 550 || !q.Live || q.Currency != domain.EUR || q.Session != "regular" {
+			t.Errorf("batched quote of %+v = %+v (ok=%v)", ref, q, ok)
+		}
+		if !q.Time.Equal(at) {
+			t.Errorf("quote time = %v, want %v", q.Time, at)
+		}
+	}
+	// The batch answers exact symbols only: a fund NAV comes from the
+	// per-ref fallback, as the last daily close.
+	if q, ok := got.Quotes[fund]; !ok || q.Price != 41 || q.Live {
+		t.Errorf("fallback quote = %+v (ok=%v), want the last close 41", q, ok)
+	}
+	if got.Errs[missing] == nil {
+		t.Error("a ref no source can serve must be reported, not dropped")
+	}
+	if _, ok := got.Quotes[missing]; ok {
+		t.Error("a failed ref must not appear in Quotes")
+	}
+}
+
+// TestPofoLatestBatchExtended: with the opt-in, an after-hours print newer
+// than the regular session's wins and says which session it came from - the
+// label the display depends on, and what keeps it out of the series.
+func TestPofoLatestBatchExtended(t *testing.T) {
+	at := time.Date(2026, 6, 1, 17, 0, 0, 0, time.UTC)
+	extended := false
+	mux := http.NewServeMux()
+	yahooAuthMux(mux)
+	mux.HandleFunc("/v7/finance/quote", func(w http.ResponseWriter, r *http.Request) {
+		post := 0.0
+		if extended {
+			post = 561
+		}
+		fmt.Fprint(w, quoteBatchJSON("CW8.PA", at, post))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	ref := Ref{Symbol: "CW8.PA", Currency: domain.EUR}
+	extended = true
+	q := p.LatestBatchExtended(context.Background(), []Ref{ref}).Quotes[ref]
+	if q.Price != 561 || q.Session != SessionPost || !q.Extended() {
+		t.Fatalf("extended quote = %+v, want the labelled 561 post print", q)
+	}
+
+	// The regular batch never sees an off-hours print, even when one exists.
+	q = p.LatestBatch(context.Background(), []Ref{ref}).Quotes[ref]
+	if q.Price != 550 || q.Extended() {
+		t.Fatalf("regular quote = %+v, want the 550 regular print", q)
+	}
+}
+
+// TestPofoIntradayPoints: the 5-minute path of the current day, mapped into
+// finador's types with the venue's currency.
+func TestPofoIntradayPoints(t *testing.T) {
+	t1 := time.Date(2026, 6, 1, 9, 30, 0, 0, time.UTC)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v8/finance/chart/CW8.PA", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"chart":{"result":[{"meta":{"currency":"EUR","exchangeTimezoneName":"UTC","longName":"Amundi MSCI World"},"timestamp":[%d,%d],"indicators":{"quote":[{"close":[550.1,551.2]}]}}],"error":null}}`,
+			t1.Unix(), t1.Add(5*time.Minute).Unix())
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	got, err := p.Intraday(context.Background(), Ref{Symbol: "CW8.PA", Currency: domain.EUR})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Currency != domain.EUR || len(got.Points) != 2 {
+		t.Fatalf("intraday = %+v", got)
+	}
+	if !got.Points[0].Time.Equal(t1) || got.Points[0].Close != 550.1 || got.Points[1].Close != 551.2 {
+		t.Errorf("points = %+v", got.Points)
+	}
+}
+
+// TestPofoIntradayPropagatesFailures: a source failure is not "not covered" -
+// the caller must be able to tell a broken fetch from an instrument nobody
+// quotes intraday.
+func TestPofoIntradayPropagatesFailures(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	_, err := p.Intraday(context.Background(), Ref{Symbol: "CW8.PA"})
+	if err == nil || errors.Is(err, ErrNotCovered) {
+		t.Fatalf("err = %v, want a transport failure rather than ErrNotCovered", err)
+	}
+}
+
+// TestPofoResolveFailure: a query nothing matches surfaces as an error naming
+// it (pofo's search reports "no results" itself), never as an empty
+// SymbolInfo the caller would store as a ticker.
+func TestPofoResolveFailure(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/finance/search", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"quotes":[]}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	info, err := p.Resolve(context.Background(), "no such instrument at all")
+	if err == nil {
+		t.Fatalf("want an error, got %+v", info)
+	}
+	if !strings.Contains(err.Error(), "no such instrument at all") {
+		t.Errorf("err = %v, want it to name the query", err)
+	}
+	if info != (SymbolInfo{}) {
+		t.Errorf("info = %+v, want the zero value on failure", info)
+	}
+}
+
+// errNotFound is the mapping the CLI's not-found handling hangs on: a source
+// error is passed through untouched, and a search that answered with nothing
+// at all becomes domain.ErrNotFound.
+func TestErrNotFound(t *testing.T) {
+	boom := errors.New("HTTP 500")
+	if got := errNotFound("q", boom); !errors.Is(got, boom) {
+		t.Errorf("errNotFound with a cause = %v, want %v", got, boom)
+	}
+	if got := errNotFound("q", nil); !errors.Is(got, domain.ErrNotFound) {
+		t.Errorf("errNotFound with no cause = %v, want domain.ErrNotFound", got)
+	}
+}
+
+// A fund pinned to a NAV source has no quotable symbol: Resolve keeps the
+// query, which pofo resolves again through the same pin at fetch time.
+// Storing an empty ticker instead would leave the asset unquotable.
+func TestPofoResolveKeepsQueryForPinnedFund(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/finance/search", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"quotes":[]}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	p := NewPofo()
+	stubPofo(p, srv.URL)
+
+	const isin = "FR0011147594" // catalogued, pinned to a NAV source, no ticker
+	info, err := p.Resolve(context.Background(), isin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Symbol != isin {
+		t.Errorf("symbol = %q, want the query %q kept", info.Symbol, isin)
+	}
+	if info.Name == "" {
+		t.Error("the pinned resolution should still carry a name")
 	}
 }
