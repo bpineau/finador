@@ -374,3 +374,92 @@ func TestSpotRefreshFlagsStaleQuotes(t *testing.T) {
 		t.Errorf("the stale close must still be merged, got %v (ok=%v)", close, ok)
 	}
 }
+
+// extendedBatchSource answers both batch shapes, recording which was used, so
+// a test can prove the opt-in reaches the source (and only then).
+type extendedBatchSource struct {
+	batchSource
+	extended      map[Ref]Quote
+	extendedCalls int
+}
+
+func (e *extendedBatchSource) LatestBatchExtended(_ context.Context, refs []Ref) BatchQuotes {
+	e.extendedCalls++
+	out := BatchQuotes{Quotes: map[Ref]Quote{}, Errs: map[Ref]error{}}
+	for _, r := range refs {
+		if q, ok := e.extended[r]; ok {
+			out.Quotes[r] = q
+		}
+	}
+	return out
+}
+
+// TestSpotRefreshExtendedNeverStored: an off-hours print is reported for
+// display and left out of the persisted series - the whole safety property of
+// the opt-in. The regular pass on the same source is untouched.
+func TestSpotRefreshExtendedNeverStored(t *testing.T) {
+	cw8 := Ref{Symbol: "CW8.PA", Currency: domain.EUR}
+	at := domain.Today().Time().Add(19*time.Hour + 59*time.Minute)
+	newSrc := func() *extendedBatchSource {
+		return &extendedBatchSource{
+			batchSource: batchSource{batch: map[Ref]Quote{
+				cw8: {Price: 550, Time: at, Currency: domain.EUR, Live: true, Session: "regular"},
+			}},
+			extended: map[Ref]Quote{
+				cw8: {Price: 561, Time: at, Currency: domain.EUR, Live: true, Session: SessionPost},
+			},
+		}
+	}
+
+	// Opt-in ON: the post print is served, reported, and NOT merged.
+	b := bookWithTrade(t)
+	src := newSrc()
+	sum := SpotRefreshExtended(context.Background(), b, src)
+	if src.extendedCalls != 1 || src.batchCalls != 0 {
+		t.Fatalf("calls: extended=%d regular=%d, want the extended batch only", src.extendedCalls, src.batchCalls)
+	}
+	q, ok := sum.Quotes["cw8"]
+	if !ok || q.Price != 561 || q.Session != SessionPost || !q.Extended() {
+		t.Fatalf("quote = %+v (ok=%v), want the post print", q, ok)
+	}
+	if _, _, ok := b.Market.Price("cw8").At(domain.Today()); ok {
+		t.Error("the off-hours print reached the price series: it must never be stored")
+	}
+	if len(sum.Stale) != 0 {
+		t.Errorf("stale = %v, want none: an off-hours print is today's", sum.Stale)
+	}
+
+	// Opt-in OFF on the same source: the regular batch, merged as before.
+	b = bookWithTrade(t)
+	src = newSrc()
+	sum = SpotRefresh(context.Background(), b, src)
+	if src.extendedCalls != 0 || src.batchCalls != 1 {
+		t.Fatalf("calls: extended=%d regular=%d, want the regular batch only", src.extendedCalls, src.batchCalls)
+	}
+	if q := sum.Quotes["cw8"]; q.Price != 550 || q.Extended() {
+		t.Fatalf("quote = %+v, want the regular 550", q)
+	}
+	if close, _, ok := b.Market.Price("cw8").At(domain.Today()); !ok || close != 550 {
+		t.Errorf("today's close = %v (ok=%v), want the regular spot 550", close, ok)
+	}
+}
+
+// TestSpotRefreshExtendedDegrades: a source that cannot serve off-hours
+// prints keeps its regular batch rather than losing batching.
+func TestSpotRefreshExtendedDegrades(t *testing.T) {
+	b := bookWithTrade(t)
+	at := domain.Today().Time().Add(15 * time.Hour)
+	src := &batchSource{batch: map[Ref]Quote{
+		{Symbol: "CW8.PA", Currency: domain.EUR}: {Price: 555.5, Time: at, Currency: domain.EUR, Live: true},
+	}}
+	sum := SpotRefreshExtended(context.Background(), b, src)
+	if src.batchCalls != 1 {
+		t.Fatalf("batch calls = %d, want 1", src.batchCalls)
+	}
+	if q, ok := sum.Quotes["cw8"]; !ok || q.Price != 555.5 || q.Extended() {
+		t.Fatalf("quote = %+v (ok=%v), want the regular batched 555.5", q, ok)
+	}
+	if close, _, ok := b.Market.Price("cw8").At(domain.Today()); !ok || close != 555.5 {
+		t.Errorf("today's close = %v, want it merged as usual", close)
+	}
+}

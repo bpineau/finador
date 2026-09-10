@@ -262,3 +262,31 @@ func TestPofoLatestConvertsSpotAsLastResort(t *testing.T) {
 		t.Fatalf("converted spot expected, got %+v", q)
 	}
 }
+
+// TestQuoteOfSessions: the mapping from a pofo quote, on the three shapes
+// that matter. A nowcast is an estimate and claims NO session - the whole
+// point of the captioning: nobody has struck that number, in any session.
+func TestQuoteOfSessions(t *testing.T) {
+	cases := []struct {
+		name      string
+		in        marketdata.Quote
+		estimated bool
+		session   string
+		extended  bool
+	}{
+		{"regular", marketdata.Quote{Source: "yahoo", Live: true, Session: "regular"}, false, "regular", false},
+		{"pre", marketdata.Quote{Source: "yahoo", Live: true, Session: "pre"}, false, "pre", true},
+		{"post", marketdata.Quote{Source: "yahoo", Live: true, Session: "post"}, false, "post", true},
+		{"nowcast", marketdata.Quote{Source: "nowcast", Live: true}, true, "", false},
+		{"fund NAV", marketdata.Quote{Source: "ft"}, false, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := quoteOf(&tc.in)
+			if q.Estimated != tc.estimated || q.Session != tc.session || q.Extended() != tc.extended {
+				t.Errorf("estimated=%v session=%q extended=%v, want %v/%q/%v",
+					q.Estimated, q.Session, q.Extended(), tc.estimated, tc.session, tc.extended)
+			}
+		})
+	}
+}

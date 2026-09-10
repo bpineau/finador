@@ -158,7 +158,7 @@ troncature) ; (4) cache marché sorti vers un **sidecar local chiffré** (`os.Us
 régénérable, hors git ; (5) **abandon total de FINADOR1, aucune migration** (validé : pas
 d'utilisateurs réels). **Alternatives si refusé :** store event-native (plus pur, plus
 invasif) ; cache laissé dans le fichier en section figée (portable hors-ligne mais
-~1,3–3 Mo de croissance git par refresh commité) ; garder FINADOR1 en parallèle.
+~1,3-3 Mo de croissance git par refresh commité) ; garder FINADOR1 en parallèle.
 **Noté pour plus tard :** fallback Stooq quand Yahoo 429/down (cf. `../portfodor/`).
 
 ## D16 - Format v3 : ids random + timestamps, comptes déclaratifs, CLI noun-first, format ouvert, merge
@@ -745,3 +745,48 @@ comptées et nommées dans le compte rendu) ; deviner un format de date non ISO
 silence) ; créer d'office les titres inconnus (une devise ou un groupe faux se
 propagerait partout - l'import échoue en les listant, `--create-missing` reste
 pour qui l'assume).
+
+## D36 - Séances étendues : sur option, à l'écran, jamais dans le cache
+
+*2026-09-10.*
+
+pofo sait depuis `v0.2.70` rendre le dernier échange d'une séance de pré-ouverture
+ou d'après-clôture (`Quote.Session` = `pre` / `post`) quand il est postérieur au
+dernier prix de la séance normale. Reste à décider ce que finador en fait.
+
+**Sur option, jamais par défaut.** Un prix hors séance se traite sur un carnet
+mince : l'écart entre l'achat et la vente y est large, quelques titres suffisent
+à le déplacer, et il ne vaut pas le cours d'ouverture du lendemain. Il répond
+pourtant à une vraie question, « où en est mon portefeuille ce soir », que la
+clôture de 17h30 n'adresse pas. D'où `finador value --extended`, et la clé
+`extended-hours` pour qui veut en faire son défaut.
+
+**Jamais persisté.** C'est l'invariant du lot, et il est tenu à l'endroit unique
+où l'écriture a lieu : `market.SpotRefreshExtended` renvoie l'échange hors séance
+dans `Quotes` et ne le fusionne dans aucune série de prix, donc rien ne peut
+atteindre le cache chiffré, ni le grand livre (qui n'a de toute façon jamais
+porté de cours). La valorisation le reçoit comme un `portfolio.PriceOverride`,
+le même mécanisme jetable que `--what-if` - « nothing is ever persisted » est
+déjà écrit sur `ValueOption`. Deux raisons de refuser la fusion plutôt qu'une
+seule : la finesse du prix, et son horodatage, qui appartient à une séance que la
+série quotidienne ne modélise pas (un échange d'après-clôture à New York tombe
+déjà le lendemain civil à Paris).
+
+**Toujours étiqueté.** Un chiffre hors séance qui se ferait passer pour une
+clôture serait pire que pas de chiffre du tout : chaque instrument concerné est
+nommé avec sa séance et son instant en heure locale (`≈ AAPL: post 22:31 CEST,
+231.40 USD (off-hours print, not a close)`), et l'en-tête porte `(extended
+hours)`. Mais seulement quand un prix hors séance est réellement dans le total :
+une option qui n'a rien changé ne doit pas prétendre le contraire. Un *nowcast*
+ne revendique aucune séance (pofo laisse `Session` vide) et garde sa mention
+d'estimation, inchangée.
+
+**Écarté :** l'étendre à `perf`, `chart` et `serve` (une série de performance
+mélangeant clôtures et échanges hors séance mesurerait le carnet du soir, pas le
+portefeuille ; le serveur rafraîchit tout seul toutes les deux minutes et
+n'aurait aucun moyen de dire à l'utilisateur ce qu'il regarde) ; le rendre
+compatible avec `--tree`, que `portfolio.Breakdown` construit sans surcharge de
+prix (l'option explicite est refusée, la clé de configuration ignorée là) ;
+persister l'échange hors séance en le datant du jour suivant (ce serait inventer
+une clôture qui n'a pas eu lieu). Le client Android reste à parité facultative :
+il ne lit que des cours déjà écrits, et rien ne l'est ici.

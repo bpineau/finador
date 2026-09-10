@@ -95,6 +95,10 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 // figure. Only an explicit refresh reports Stale; a market shut for the
 // weekend would otherwise make every command shout.
 type SpotSummary struct {
+	// Quotes is the freshest quote observed per asset. Under the
+	// extended-hours opt-in an entry may be an off-hours print (Quote.Extended):
+	// it is reported for display only and was deliberately not merged into the
+	// price series.
 	Quotes   map[domain.AssetID]Quote
 	Warnings []string
 	Stale    []string
@@ -122,6 +126,24 @@ func (s *SpotSummary) stale(label string, q Quote) {
 // degrades to a warning, and an instrument the source does not cover at all
 // is silently skipped (its last daily close already stands).
 func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
+	return spotRefresh(ctx, b, src, false)
+}
+
+// SpotRefreshExtended is SpotRefresh with the extended-hours opt-in: when the
+// source supports it (ExtendedSource), a venue's pre-market or after-hours
+// print is accepted for display when it is newer than the regular session's
+// last price.
+//
+// Such a print is DISPLAYED, NEVER STORED: it is a thinner trade than a close,
+// and its instant belongs to a session the persisted daily series does not
+// model (an after-hours print in New York already falls on the next civil day
+// in Paris). It is reported in Quotes, and nothing merges it into the price
+// series, so no caller can persist it by accident.
+func SpotRefreshExtended(ctx context.Context, b *domain.Book, src Source) SpotSummary {
+	return spotRefresh(ctx, b, src, true)
+}
+
+func spotRefresh(ctx context.Context, b *domain.Book, src Source, extended bool) SpotSummary {
 	sum := SpotSummary{Quotes: map[domain.AssetID]Quote{}}
 	// Stamped even when quotes fail: an outage must not turn every command
 	// into a hammering retry - the next pass tries again.
@@ -153,6 +175,10 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: undated quote ignored", ticker))
 					return
 				}
+				if q.Extended() {
+					sum.Quotes[id] = q // shown, never merged: see SpotRefreshExtended
+					return
+				}
 				sum.stale(ticker, q)
 				b.Market.Price(id).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 				sum.Quotes[id] = q
@@ -174,6 +200,9 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: undated quote ignored", symbol))
 					return
 				}
+				if q.Extended() {
+					return // a display-only print never enters an FX series
+				}
 				sum.stale(symbol, q)
 				series.Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 			},
@@ -182,12 +211,20 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 
 	var batched BatchQuotes
 	bs, isBatch := src.(BatchSource)
-	if isBatch && len(targets) > 0 {
+	es, isExtended := src.(ExtendedSource)
+	// The opt-in degrades quietly: a source that cannot serve off-hours
+	// prints keeps its regular batch rather than losing batching.
+	useExtended := extended && isExtended
+	if (isBatch || useExtended) && len(targets) > 0 {
 		refs := make([]Ref, len(targets))
 		for i, t := range targets {
 			refs[i] = t.ref
 		}
-		batched = bs.LatestBatch(ctx, refs)
+		if useExtended {
+			batched = es.LatestBatchExtended(ctx, refs)
+		} else {
+			batched = bs.LatestBatch(ctx, refs)
+		}
 	}
 	for _, t := range targets {
 		q, ok := batched.Quotes[t.ref]
@@ -198,7 +235,7 @@ func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 			// last daily close stands until the next pass - but say so,
 			// because a price that stopped moving looks exactly like a
 			// market that stopped moving.
-			if isBatch {
+			if isBatch || useExtended {
 				if err := batched.Errs[t.ref]; err != nil && !errors.Is(err, ErrNotCovered) {
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: %v", refLabel(t.ref), err))
 				}

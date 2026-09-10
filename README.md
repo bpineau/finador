@@ -492,8 +492,16 @@ and performance recompute instantly.
 ```sh
 finador value [scope] [--account ref] [--at YYYY-MM-DD] [--ccy USD] [--gross]
               [--by group|account] [--asset refs]... [--exclude refs]... [--what-if asset=price]...
+              [--extended]
 finador value --tree       # envelope-grouped tree, gross & net per holding
 finador value pea --tree   # same, scoped (envelope, group or label)
+
+finador value --extended   # count tonight's after-hours prints
+# portfolio - 2026-09-10 (extended hours)
+# LINE     VALUE
+# actions  6000.00 EUR
+# TOTAL    6000.00 EUR
+# ≈ AAPL: post 22:31 CEST, 231.40 USD (off-hours print, not a close)
 ```
 
 - By default `value` shows gross, estimated tax and net; `--gross` shows the gross value only.
@@ -514,8 +522,17 @@ finador value pea --tree   # same, scoped (envelope, group or label)
   hypotheses (in the asset's quote currency; a property override replaces its
   whole estimate), prints `what-if:` markers and a final
   `vs actual: gross … · net …` delta. Nothing is ever stored.
+- `--extended` counts a venue's pre-market and after-hours prints: the total is
+  the pre-market or post-close one, each such instrument is named with its
+  session and its instant (in your local zone), and the header says
+  `(extended hours)` - but only when an off-hours print really is in the
+  figures. Such a print is thinner than a close, so it is **shown, never
+  stored**: nothing reaches the quote cache and the next plain `value` is back
+  to the last real close. Only today can be valued that way (`--at` ignores the
+  flag), a European line usually has nothing to offer off-hours, and
+  `config set extended-hours true` makes it the default. Off by default.
 - Lines marked `≈` are approximations: stale quotes (older than 5 days), assets
-  valued from statements, or failed currency conversions.
+  valued from statements, off-hours prints, or failed currency conversions.
 
 ### Performance: `perf`
 
@@ -607,6 +624,9 @@ live price of everything you hold, and is what makes a running session show up:
 `finador refresh` always runs it, and `finador serve` runs it every 2 minutes
 plus on any page older than that.
 
+Both passes read the **regular** session. `finador value --extended` is the one
+opt-in that also accepts a pre-market or after-hours print, for display only.
+
 `refresh` is also the command that answers "is this price current?" - it lists
 every instrument whose price is a past close rather than a live quote, which is
 normal for a fund NAV and a problem for a listed share. Network failures degrade
@@ -680,6 +700,7 @@ finador lock                    # purge cached passwords from the Keychain
 | `risk-free` | annual risk-free rate for Sharpe/Sortino | `2.4%` |
 | `keychain-ttl` | how long a typed password is cached, per terminal | `8h` |
 | `default-account` | account used when `--account` is omitted | `pea-zephyr` |
+| `extended-hours` | `value` counts pre/post-market prints by default | `true` |
 
 ### Remote sync: `remote` and `sync`
 

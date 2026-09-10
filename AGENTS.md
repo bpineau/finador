@@ -184,6 +184,12 @@ cmd/finador → cli ─┬→ store ──→ domain
   (`perf.CloseAnchor`), or "1d" measures FX drift against a stale close.
 - Quote series must stay in the asset's declared currency: refresh drops
   off-currency answers instead of merging them (`market/refresh.go`).
+- **An extended-hours print is shown, never stored** (D36). `value --extended`
+  (or `config set extended-hours true`) routes the spot pass through
+  `market.SpotRefreshExtended`, which reports a pre/post print in `Quotes` and
+  merges it into no series; the valuation gets it as a `portfolio.PriceOverride`,
+  labelled with its session. Keep both properties: never merge it, never print
+  it unlabelled.
 - Unit/identifier bugs in market data are critical: always test the exact
   identifiers the user provides (ISINs, `.PA` tickers…), not lookalikes.
 

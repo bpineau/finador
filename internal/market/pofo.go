@@ -97,23 +97,38 @@ func (p *Pofo) Daily(ctx context.Context, ref Ref, from domain.Date) (DailyData,
 // only exists off-currency converts at its own timestamp - acceptable for
 // a spot point, which the next real close overwrites.
 func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
+	return p.latest(ctx, ref, false)
+}
+
+// latest is Latest with the extended-hours switch. Only a venue that runs
+// pre/post sessions can answer one; everything else (a fund NAV, a daily
+// close, a nowcast) comes back exactly as the regular call returns it.
+func (p *Pofo) latest(ctx context.Context, ref Ref, extended bool) (Quote, error) {
 	ids := ref.ids()
 	if len(ids) == 0 {
 		return Quote{}, ErrNotCovered
 	}
 	q, err := p.Client.LatestAny(ctx, ids, marketdata.QuoteOptions{
-		Currency: string(ref.Currency),
+		Currency:      string(ref.Currency),
+		ExtendedHours: extended,
 	})
 	if err != nil {
 		return Quote{}, err
 	}
+	return quoteOf(q), nil
+}
+
+// quoteOf maps a pofo quote to finador's. A nowcast is an estimate and names
+// no session: pofo leaves Session empty there, and nothing here invents one.
+func quoteOf(q *marketdata.Quote) Quote {
 	return Quote{
 		Price:     q.Price,
 		Time:      q.Time,
 		Currency:  domain.Currency(q.Currency),
 		Live:      q.Live,
 		Estimated: q.Source == "nowcast",
-	}, nil
+		Session:   q.Session,
+	}
 }
 
 // LatestBatch fetches the freshest price of many instruments: one live
@@ -124,6 +139,20 @@ func (p *Pofo) Latest(ctx context.Context, ref Ref) (Quote, error) {
 // can fail as a whole (an expired crumb, a throttled host) and the caller
 // must be able to say so instead of quietly serving stale closes.
 func (p *Pofo) LatestBatch(ctx context.Context, refs []Ref) BatchQuotes {
+	return p.latestBatch(ctx, refs, false)
+}
+
+// LatestBatchExtended is LatestBatch with the extended-hours opt-in: on a
+// venue that runs them, a pre-market or after-hours print newer than the
+// regular session's last price wins, and the Quote names the session it came
+// from. A European line, a fund NAV or a nowcast answers exactly as
+// LatestBatch would. Off-hours prints are thin: they belong on screen, never
+// in the persisted series (see SpotRefreshExtended).
+func (p *Pofo) LatestBatchExtended(ctx context.Context, refs []Ref) BatchQuotes {
+	return p.latestBatch(ctx, refs, true)
+}
+
+func (p *Pofo) latestBatch(ctx context.Context, refs []Ref, extended bool) BatchQuotes {
 	symbols := make([]string, 0, len(refs))
 	seen := map[string]bool{}
 	for _, ref := range refs {
@@ -133,13 +162,16 @@ func (p *Pofo) LatestBatch(ctx context.Context, refs []Ref) BatchQuotes {
 		}
 	}
 	live := p.Client.LatestBatchLive(ctx, symbols)
+	if extended {
+		live = p.Client.LatestBatchLiveExtended(ctx, symbols)
+	}
 	out := BatchQuotes{Quotes: make(map[Ref]Quote, len(refs)), Errs: map[Ref]error{}}
 	for _, ref := range refs {
 		if q, ok := live[ref.Symbol]; ok {
-			out.Quotes[ref] = Quote{Price: q.Price, Time: q.Time, Currency: domain.Currency(q.Currency), Live: q.Live}
+			out.Quotes[ref] = quoteOf(&q)
 			continue
 		}
-		q, err := p.Latest(ctx, ref)
+		q, err := p.latest(ctx, ref, extended)
 		if err != nil {
 			out.Errs[ref] = err
 			continue
