@@ -164,3 +164,74 @@ func AddImported(b *domain.Book, t domain.Transaction) (added bool) {
 	b.Add(t)
 	return true
 }
+
+// ManualMatches returns the live hand-entered transactions - the ones with no
+// importHash - that already record the same outside-world event as t, a line
+// just read from a broker statement.
+//
+// It exists because the dedup rule of FORMAT.md 4.5 compares fingerprints, and
+// a transaction typed by hand carries none: without this guard, a statement
+// covering trades already entered by hand books every one of them twice. The
+// caller decides what to do with a match - leave the line out, or adopt the
+// manual transaction with [Adopt].
+//
+// The rule is deliberately narrow, and a broker's own rounding is the only
+// slack: same account, same kind, same day, same asset (both empty for pure
+// cash), plus an amount within 0.5 % of the larger of the two (a commission
+// folded into a trade, or a fee rounded to the cent, moves the total by far
+// less). A buy or a sell must in addition carry the exact same quantity: it
+// is the one field a statement and a human agree on to the digit.
+//
+// Several matches mean the ledger cannot say which line is which; the caller
+// is expected to report the ambiguity rather than pick one. A transaction that
+// already carries a DIFFERENT importHash is never a match: it is another
+// broker event that happens to look alike, and the statement line is its own.
+func ManualMatches(b *domain.Book, t domain.Transaction) []*domain.Transaction {
+	var hits []*domain.Transaction
+	for _, m := range b.Transactions {
+		if m.ImportHash == "" && sameEvent(*m, t) {
+			hits = append(hits, m)
+		}
+	}
+	return hits
+}
+
+// amountTolerance is the relative slack ManualMatches allows on an amount:
+// 0.5 %, which covers a commission or a rounding, never a different trade.
+var amountTolerance = decimal.New(5, -3)
+
+// sameEvent reports whether a hand-entered transaction m and a statement line
+// t describe the same event. See ManualMatches for the rule and its why.
+func sameEvent(m, t domain.Transaction) bool {
+	if m.Account != t.Account || m.Kind != t.Kind || m.Date != t.Date || m.Asset != t.Asset {
+		return false
+	}
+	if (t.Kind == domain.Buy || t.Kind == domain.Sell) && !m.Quantity.Equal(t.Quantity) {
+		return false
+	}
+	return closeAmounts(m.Amount, t.Amount)
+}
+
+// closeAmounts compares two amounts of the same currency within
+// amountTolerance, relative to the larger of the two. The comparison
+// cross-multiplies rather than dividing: no precision to choose, so the 0.5 %
+// edge is exact and inclusive.
+func closeAmounts(a, b domain.Money) bool {
+	if a.Currency != b.Currency {
+		return false
+	}
+	larger := decimal.Max(a.Amount.Abs(), b.Amount.Abs())
+	return a.Amount.Sub(b.Amount).Abs().LessThanOrEqual(larger.Mul(amountTolerance))
+}
+
+// Adopt gives a hand-entered transaction the external reference of the
+// statement line that describes the same event, and changes NOTHING else -
+// date, quantity, amount and note stay as they were typed.
+//
+// This is the other half of the guard: the typed transaction becomes the
+// imported one, so replaying the same statement skips its line for good (the
+// dedup rule now has a fingerprint to compare), while the numbers the user
+// checked are left alone. FORMAT.md 4.5 already allows it: an edit carries the
+// importHash through, and the field is opaque, writer-chosen and never parsed.
+// Read the other way round, a transaction may acquire one.
+func Adopt(m *domain.Transaction, importHash string) { m.ImportHash = importHash }

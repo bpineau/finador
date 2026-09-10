@@ -790,3 +790,63 @@ prix (l'option explicite est refusée, la clé de configuration ignorée là) ;
 persister l'échange hors séance en le datant du jour suivant (ce serait inventer
 une clôture qui n'a pas eu lieu). Le client Android reste à parité facultative :
 il ne lit que des cours déjà écrits, et rien ne l'est ici.
+
+## D37 - Un relevé qui recouvre des lignes saisies à la main
+
+*2026-09-10.*
+
+Le §4.5 du format dit deux choses qui, ensemble, font le problème : la règle
+anti-doublon compare des empreintes (`importHash`), et « hand-entered
+transactions simply omit the field ». Un relevé IBKR qui couvre des mois déjà
+saisis à la main ne voit donc rien à dédoublonner : chaque achat déjà tapé est
+importé une seconde fois. Trois réponses, complémentaires, plutôt qu'une.
+
+**`--since AAAA-MM-JJ`**, le plus grossier et le plus sûr : les lignes
+antérieures sont ignorées et comptées à part (`before --since`). Le filtre
+s'applique avant toute autre règle, donc une vieille ligne ne fait plus échouer
+un import sur un titre que le livre ne déclare plus, et elle n'est comptée
+qu'une fois, comme hors période.
+
+**Le garde-fou, actif par défaut.** Une ligne du relevé qu'une transaction
+manuelle décrit déjà n'est pas importée, et le compte rendu nomme cette
+transaction (`matches manual entry <id>`). L'appariement est volontairement
+étroit : même compte, même nature, même jour, même titre (aucun des deux côtés
+pour du cash pur), montant à **0.5 %** près de celui des deux qui est le plus
+grand, et quantité **exactement** égale pour un achat ou une vente. Le 0.5 %
+n'est pas un confort : c'est la place d'une commission fondue dans le montant
+(2 euros sur 9007, soit 0.02 %) ou d'un arrondi au centime, jamais celle d'un
+autre ordre. La quantité, elle, est le seul champ sur lequel un humain et un
+courtier tombent d'accord au chiffre près. Une transaction qui porte déjà une
+**autre** empreinte n'est jamais un appariement : c'est un autre évènement qui
+se ressemble, et la ligne s'importe normalement.
+
+**`--reconcile`**, la vraie sortie : au lieu de sauter la ligne, la transaction
+manuelle l'**adopte**, c'est-à-dire prend son empreinte et rien d'autre - date,
+quantité, montant et note restent ce que l'utilisateur a tapé. C'est la lecture
+inverse du piège déjà connu (« un edit n'est pas un ré-import ») : puisqu'un
+`tx-edit` doit transporter l'`importHash`, une transaction peut aussi en
+acquérir un. Le `tx-edit` produit ne diffère que par ce champ, le store diffant
+le JSON du record. Le relevé devient idempotent pour de bon, au lieu d'être
+contourné tous les mois.
+
+**Deux candidats pour une ligne** ne sont pas arbitrés : rien n'est importé,
+rien n'est adopté, les deux identifiants sont nommés (`ambiguous: …`). Seul
+l'utilisateur sait laquelle est laquelle, et une CLI non interactive n'a pas le
+droit de choisir à sa place. D'où aussi `--dry-run`, qui lit tout le fichier,
+dit exactement ce que ferait le vrai passage et n'écrit rien : c'est la question
+que le programme ne posera pas.
+
+Le garde-fou vit dans `portfolio` (`ManualMatches`, `Adopt`), pas dans `ibkr` :
+il ne dépend d'aucun courtier, et Saxo arrive.
+
+**Écarté :** demander confirmation ligne à ligne (la CLI ne pose pas de
+question, et un relevé annuel en poserait cent) ; élargir l'appariement (une
+fenêtre de quelques jours, un montant à 2 %) - le coût d'un faux positif est
+une ligne d'argent qui disparaît en silence, celui d'un faux négatif un doublon
+visible dans `tx list`, l'asymétrie tranche ; réécrire la transaction manuelle
+avec les chiffres du relevé (l'utilisateur a vérifié les siens ; un montant qui
+change tout seul est pire qu'un doublon qui se voit) ; supprimer la ligne
+manuelle et importer celle du relevé à la place (elle perdrait son id, donc ses
+libellés et son ancienneté dans le merge) ; faire du garde-fou une option du
+format (rien n'est ajouté au fichier : le §4.5 autorise déjà tout ceci, une
+empreinte étant opaque et choisie par l'écrivain).

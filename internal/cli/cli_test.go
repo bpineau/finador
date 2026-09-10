@@ -218,6 +218,93 @@ func TestImportIBKRCommand(t *testing.T) {
 	}
 }
 
+// A statement covering a trade already entered by hand: the guard, then
+// --reconcile, then the replay that skips it for good.
+func TestImportIBKRGuardsHandEnteredLines(t *testing.T) {
+	db := newDB(t)
+	run(t, db, "account", "add", "CTO Meridia")
+	run(t, db, "asset", "add", "CW8")
+	// The same trade the statement carries: 20 shares on 2026-01-20 for 9007
+	// EUR (the statement folds its 2 EUR commission into that total).
+	run(t, db, "asset", "buy", "CW8", "20", "@450.35", "2026-01-20")
+
+	path := filepath.Join(t.TempDir(), "ActivityStatement.csv")
+	if err := os.WriteFile(path, []byte(ibkrStatement), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	buyID := txIDOf(t, db, "buy")
+	statement := []string{"import", "--format", "ibkr", "--account", "CTO Meridia"}
+	importing := func(t *testing.T, args ...string) string {
+		t.Helper()
+		return run(t, db, append(append([]string{}, statement...), args...)...)
+	}
+
+	// Contradictory policies, and flags the csv format does not take.
+	if _, err := tryRun(t, db, append(statement, "--no-guard", "--reconcile", path)...); err == nil {
+		t.Error("--no-guard with --reconcile should fail")
+	}
+	if _, err := tryRun(t, db, "import", "--since", "2026-01-01", path); err == nil {
+		t.Error("--since with the csv format should fail")
+	}
+
+	// --since ignores the years already booked: both lines are out of range.
+	if out := importing(t, "--since", "2026-02-01", path); !strings.Contains(out, "0 imported, 0 skipped (duplicates), 2 before --since") {
+		t.Fatalf("--since: %q", out)
+	}
+
+	// --dry-run reports and writes nothing: the deposit would be imported,
+	// the trade is recognised as the manual entry.
+	out := importing(t, "--dry-run", path)
+	for _, want := range []string{
+		"1 imported, 0 skipped (duplicates), 1 matched (manual entries) (dry run: nothing written)",
+		"matches manual entry " + buyID,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("--dry-run: %q missing from:\n%s", want, out)
+		}
+	}
+	if list := run(t, db, "tx", "list"); strings.Contains(list, "deposit") {
+		t.Fatalf("--dry-run wrote to the ledger:\n%s", list)
+	}
+
+	// For real: the deposit lands, the hand-entered trade is left alone.
+	if out := importing(t, path); !strings.Contains(out, "1 imported, 0 skipped (duplicates), 1 matched (manual entries)") {
+		t.Fatalf("guarded import: %q", out)
+	}
+
+	// --reconcile adopts the manual entry instead of skipping its line.
+	out = importing(t, "--reconcile", path)
+	for _, want := range []string{"0 imported, 1 skipped (duplicates), 1 adopted (manual entries)", "adopted manual entry " + buyID} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("--reconcile: %q missing from:\n%s", want, out)
+		}
+	}
+	// Nothing but the fingerprint changed, and there is still ONE buy.
+	list := run(t, db, "tx", "list", "--kind", "buy")
+	if !strings.Contains(list, "9007 EUR") || strings.Count(list, "buy") != 1 {
+		t.Fatalf("the adopted trade changed:\n%s", list)
+	}
+
+	// From now on the statement is idempotent, and an edit does not undo it.
+	if out := importing(t, path); !strings.Contains(out, "0 imported, 2 skipped (duplicates)") {
+		t.Fatalf("replay after --reconcile: %q", out)
+	}
+	run(t, db, "tx", "edit", buyID, "--note", "checked against the statement")
+	if out := importing(t, path); !strings.Contains(out, "0 imported, 2 skipped (duplicates)") {
+		t.Fatalf("replay after an edit: %q", out)
+	}
+	if list := run(t, db, "tx", "list", "--kind", "buy"); !strings.Contains(list, "checked against the statement") {
+		t.Fatalf("the edit was lost:\n%s", list)
+	}
+
+	// --no-guard is the way back: the line is imported, duplicate or not.
+	run(t, db, "tx", "edit", buyID, "--note", "")
+	run(t, db, "tx", "rm", txIDOf(t, db, "deposit"))
+	if out := importing(t, "--no-guard", path); !strings.Contains(out, "1 imported, 1 skipped (duplicates)") {
+		t.Fatalf("--no-guard: %q", out)
+	}
+}
+
 func TestConfigSetGet(t *testing.T) {
 	db := newDB(t)
 	run(t, db, "config", "set", "risk-free", "2.4%")

@@ -1,9 +1,14 @@
 package ibkr
 
 import (
+	"encoding/json"
+	"maps"
 	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/shopspring/decimal"
 
 	"finador/internal/domain"
 )
@@ -337,5 +342,248 @@ func TestNumberAndDate(t *testing.T) {
 	}
 	if _, err := tradeDate("01/15/2026"); err == nil {
 		t.Error("a non-ISO date should fail rather than be guessed")
+	}
+}
+
+// The already-booked guard. The statement's EUR trade line - 20 CW8 on
+// 2026-01-20 for 9007 EUR, commission included - is the one every case is
+// built around: manualBuy is what a user would have typed for it.
+func manualBuy() domain.Transaction {
+	return domain.Transaction{
+		Date: day(2026, time.January, 20), Account: "cto-meridia", Asset: "cw8", Kind: domain.Buy,
+		Quantity: dec("20"), Amount: domain.Money{Amount: dec("9007"), Currency: domain.EUR},
+		Note: "typed by hand",
+	}
+}
+
+func day(y int, m time.Month, d int) domain.Date { return domain.Date{Year: y, Month: m, Day: d} }
+
+func dec(s string) decimal.Decimal { return decimal.RequireFromString(s) }
+
+func money(amount string, ccy domain.Currency) domain.Money {
+	return domain.Money{Amount: dec(amount), Currency: ccy}
+}
+
+// tweak returns t with fn applied - one field of a matching manual entry
+// changed, which is what every miss case is.
+func tweak(t domain.Transaction, fn func(*domain.Transaction)) domain.Transaction {
+	fn(&t)
+	return t
+}
+
+// guarded books the manual transactions, imports the statement and returns
+// the result. The book carries a second envelope so a case can name one.
+func guarded(t *testing.T, manual []domain.Transaction, opts Options) (*domain.Book, Result) {
+	t.Helper()
+	b := book(t)
+	if err := b.AddAccount(&domain.Account{ID: "pea-zephyr", Name: "PEA Zephyr", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range manual {
+		b.Add(m)
+	}
+	opts.Account = "cto-meridia"
+	res, err := Import(b, statement(t), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b, res
+}
+
+func TestGuardOnHandEnteredLines(t *testing.T) {
+	// The statement carries 8 mappable lines; a guarded one is not imported.
+	tests := []struct {
+		name                      string
+		manual                    []domain.Transaction
+		matched, ambiguous, added int
+	}{
+		{name: "the same event, typed by hand", manual: []domain.Transaction{manualBuy()}, matched: 1, added: 7},
+		{name: "a commission-sized difference", added: 7, matched: 1, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Amount.Amount = dec("9052") }),
+		}},
+		{name: "exactly 0.5 % away, inclusive", added: 7, matched: 1, manual: []domain.Transaction{
+			// 9007 - 9007*0.005 = 8961.965
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Amount.Amount = dec("8961.965") }),
+		}},
+		{name: "one cent past the edge, below", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Amount.Amount = dec("8961.96") }),
+		}},
+		{name: "one euro past the edge, above", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Amount.Amount = dec("9053") }),
+		}},
+		{name: "another day", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Date = day(2026, time.January, 21) }),
+		}},
+		{name: "another envelope", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Account = "pea-zephyr" }),
+		}},
+		{name: "another security", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Asset = "vt" }),
+		}},
+		{name: "another direction", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Kind = domain.Sell }),
+		}},
+		{name: "another quantity", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Quantity = dec("21") }),
+		}},
+		{name: "another currency", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.Amount.Currency = domain.USD }),
+		}},
+		{name: "already imported from elsewhere", added: 8, manual: []domain.Transaction{
+			tweak(manualBuy(), func(t *domain.Transaction) { t.ImportHash = "meridia:8451327" }),
+		}},
+		{name: "a dividend, where quantity means nothing", added: 7, matched: 1, manual: []domain.Transaction{{
+			Date: day(2026, time.March, 16), Account: "cto-meridia", Asset: "vt", Kind: domain.Dividend,
+			Quantity: dec("600"), Amount: money("420", domain.USD),
+		}}},
+		{name: "a funding movement, no security", added: 7, matched: 1, manual: []domain.Transaction{{
+			Date: day(2026, time.January, 5), Account: "cto-meridia", Kind: domain.Deposit,
+			Amount: money("25000", domain.EUR),
+		}}},
+		{name: "two candidates, no way to choose", added: 7, ambiguous: 1, manual: []domain.Transaction{
+			manualBuy(), manualBuy(),
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, res := guarded(t, tc.manual, Options{})
+			if res.Added != tc.added || res.Matched != tc.matched || res.Ambiguous != tc.ambiguous {
+				t.Errorf("added=%d matched=%d ambiguous=%d, want %d, %d and %d",
+					res.Added, res.Matched, res.Ambiguous, tc.added, tc.matched, tc.ambiguous)
+			}
+			if len(res.Matches) != tc.matched+tc.ambiguous {
+				t.Errorf("%d reported matches, want %d", len(res.Matches), tc.matched+tc.ambiguous)
+			}
+		})
+	}
+}
+
+// A match is reported with the line it came from, what the line said and the
+// manual entry it belongs to - the user needs all three to act.
+func TestGuardReportsWhatItRecognised(t *testing.T) {
+	b, res := guarded(t, []domain.Transaction{manualBuy()}, Options{})
+	manual := find(t, b, func(tx *domain.Transaction) bool { return tx.Note == "typed by hand" })
+	got := res.Matches[0].String()
+	for _, want := range []string{"2026-01-20 buy CW8 20 9007 EUR", "matches manual entry " + string(manual.ID)} {
+		if !strings.Contains(got, want) {
+			t.Errorf("report = %q, want %q in it", got, want)
+		}
+	}
+	// The line was not imported, and the manual entry was not touched.
+	if manual.ImportHash != "" {
+		t.Errorf("the guard stamped a manual entry: %q", manual.ImportHash)
+	}
+
+	// Ambiguity names every candidate and adopts none.
+	_, res = guarded(t, []domain.Transaction{manualBuy(), manualBuy()}, Options{Guard: GuardReconcile})
+	if got, want := res.Matches[0].String(), "ambiguous: "; !strings.Contains(got, want) {
+		t.Errorf("report = %q, want %q in it", got, want)
+	}
+	if res.Adopted != 0 || len(res.Matches[0].Manual) != 2 {
+		t.Errorf("adopted=%d candidates=%v", res.Adopted, res.Matches[0].Manual)
+	}
+}
+
+// --reconcile adopts the hand-entered transaction: it takes the statement
+// line's fingerprint and nothing else changes, so a replay skips the line.
+func TestReconcileAdoptsTheManualEntry(t *testing.T) {
+	b, res := guarded(t, []domain.Transaction{manualBuy()}, Options{Guard: GuardReconcile})
+	if res.Adopted != 1 || res.Added != 7 || res.Matched != 0 {
+		t.Fatalf("adopted=%d added=%d matched=%d, want 1, 7 and 0", res.Adopted, res.Added, res.Matched)
+	}
+	manual := find(t, b, func(tx *domain.Transaction) bool { return tx.Note == "typed by hand" })
+	if !strings.HasPrefix(manual.ImportHash, "ibkr:") {
+		t.Fatalf("importHash = %q", manual.ImportHash)
+	}
+	// Every other field is byte-stable: the store diffs the record's JSON, so
+	// the tx-edit an adoption produces must differ by importHash alone.
+	before, after := recordFields(t, manualBuy()), recordFields(t, *manual)
+	delete(after, "importHash")
+	delete(after, "id") // assigned by the ledger, not by the adoption
+	delete(before, "id")
+	if !maps.Equal(before, after) {
+		t.Errorf("adoption changed more than the fingerprint:\nbefore %v\nafter  %v", before, after)
+	}
+
+	// Replaying the statement now recognises the line as its own.
+	res, err := Import(b, statement(t), Options{Account: "cto-meridia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Added != 0 || res.Skipped != 8 || res.Matched != 0 {
+		t.Fatalf("replay: added=%d skipped=%d matched=%d, want 0, 8 and 0", res.Added, res.Skipped, res.Matched)
+	}
+}
+
+// recordFields renders a transaction the way the ledger persists it, field by
+// field, so a test can name exactly what an edit changed.
+func recordFields(t *testing.T, tx domain.Transaction) map[string]string {
+	t.Helper()
+	raw, err := json.Marshal(tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{}
+	for k, v := range fields {
+		out[k] = string(v)
+	}
+	return out
+}
+
+// --no-guard is the way back: the line is imported, duplicate or not.
+func TestGuardOffImportsAnyway(t *testing.T) {
+	b, res := guarded(t, []domain.Transaction{manualBuy()}, Options{Guard: GuardOff})
+	if res.Added != 8 || res.Matched != 0 {
+		t.Fatalf("added=%d matched=%d, want 8 and 0", res.Added, res.Matched)
+	}
+	if n := len(b.Transactions); n != 9 { // the manual entry plus the whole statement
+		t.Fatalf("%d transactions, want 9", n)
+	}
+}
+
+// --since ignores the years already booked, counting them apart.
+func TestSinceIgnoresOlderLines(t *testing.T) {
+	b, res := guarded(t, nil, Options{Since: day(2026, time.March, 1)})
+	// Before March: three stock trades, the forex one, the funding deposit
+	// and the dividend reversal - a line out of range is counted as out of
+	// range and nothing else, even when another rule would have dropped it.
+	// After: two dividends, the withholding tax, the disbursement.
+	if res.BeforeSince != 6 || res.Added != 4 {
+		t.Fatalf("before=%d added=%d, want 6 and 4", res.BeforeSince, res.Added)
+	}
+	for _, tx := range b.Transactions {
+		if tx.Date.Before(day(2026, time.March, 1)) {
+			t.Errorf("imported a line dated %s", tx.Date)
+		}
+	}
+
+	// A line out of range is dropped before its security is resolved, so an
+	// old statement cannot fail over a symbol the book no longer declares.
+	bare := domain.NewBook()
+	if err := bare.AddAccount(&domain.Account{ID: "cto-meridia", Name: "CTO Meridia", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(bare, statement(t), Options{Account: "cto-meridia", Since: day(2026, time.April, 1)})
+	if err != nil {
+		t.Fatalf("everything out of range should import cleanly: %v", err)
+	}
+	if res.Added != 0 || res.BeforeSince != 10 {
+		t.Fatalf("added=%d before=%d, want 0 and 10", res.Added, res.BeforeSince)
+	}
+}
+
+func TestResultSummary(t *testing.T) {
+	if got, want := (Result{Added: 12, Skipped: 3}).Summary(), "12 imported, 3 skipped (duplicates)"; got != want {
+		t.Errorf("summary = %q, want %q", got, want)
+	}
+	full := Result{Added: 1, Skipped: 2, Matched: 3, Adopted: 4, Ambiguous: 5, BeforeSince: 6}.Summary()
+	want := "1 imported, 2 skipped (duplicates), 3 matched (manual entries), " +
+		"4 adopted (manual entries), 5 ambiguous, 6 before --since"
+	if full != want {
+		t.Errorf("summary = %q, want %q", full, want)
 	}
 }
