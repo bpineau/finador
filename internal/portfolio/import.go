@@ -47,12 +47,11 @@ func ImportCSV(b *domain.Book, r io.Reader) (added, skipped int, err error) {
 		if err != nil {
 			return added, skipped, fmt.Errorf("line %d: %w", line, err)
 		}
-		if b.HasImportHash(tx.ImportHash) {
+		if AddImported(b, tx) {
+			added++
+		} else {
 			skipped++
-			continue
 		}
-		b.Add(tx)
-		added++
 	}
 	return added, skipped, nil
 }
@@ -152,4 +151,16 @@ func EnsureAsset(b *domain.Book, ref string, ccy domain.Currency, group string) 
 	asset := &domain.Asset{ID: domain.AssetID(domain.Slugify(ref)), Kind: domain.Security,
 		Name: ref, Ticker: ref, Currency: ccy, Group: group}
 	return asset, b.AddAsset(asset)
+}
+
+// AddImported appends t unless the book already carries its importHash, and
+// reports whether it was added. Every importer - the reference CSV one and
+// the broker-statement ones - goes through it: it is the single place the
+// dedup rule of FORMAT.md 4.5 is applied.
+func AddImported(b *domain.Book, t domain.Transaction) (added bool) {
+	if t.ImportHash != "" && b.HasImportHash(t.ImportHash) {
+		return false
+	}
+	b.Add(t)
+	return true
 }

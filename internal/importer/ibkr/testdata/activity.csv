@@ -1,0 +1,52 @@
+﻿Statement,Header,Field Name,Field Value
+Statement,Data,BrokerName,Interactive Brokers LLC
+Statement,Data,Title,Activity Statement
+Statement,Data,Period,"January 1, 2026 - March 31, 2026"
+Account Information,Header,Field Name,Field Value
+Account Information,Data,Account,U1234567
+Account Information,Data,Account Type,Individual
+Account Information,Data,Base Currency,EUR
+Net Asset Value,Header,Asset Class,Prior Total,Current Total,Change
+Net Asset Value,Data,Stock,0,118400,118400
+Net Asset Value,Total,,0,118400,118400
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,USD,VT,"2026-01-15, 10:31:02","1,000",100.5,101,"-100,500",-1.5,"100,501.5",0,500,O
+Trades,SubTotal,,Stocks,USD,VT,,"1,000",,,"-100,500",-1.5,"100,501.5",0,500,
+Trades,Data,Order,Stocks,USD,VT,"2026-02-10, 15:02:44",-400,110,110.5,"44,000",-1.2,"-40,200.6","3,798.2",200,C
+Trades,Data,ClosedLot,Stocks,USD,VT,"2026-01-15, 10:31:02",-400,100.5,,"40,200",,"40,200.6","3,798.2",,
+Trades,Total,,Stocks,USD,,,,,,"-56,500",-2.7,,"3,798.2",700,
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,EUR,CW8,"2026-01-20, 09:12:00",20,450.25,452,"-9,005",-2,"9,007",0,35,O
+Trades,Total,,Stocks,EUR,,,,,,"-9,005",-2,,0,35,
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Forex,USD,EUR.USD,"2026-01-14, 09:00:00","10,000",1.085,1.086,"-10,850",-2,"10,852",0,10,
+Trades,Total,,Forex,USD,,,,,,"-10,850",-2,,0,10,
+Dividends,Header,Currency,Date,Description,Amount
+Dividends,Data,USD,2026-03-16,VT(US9220427424) Cash Dividend USD 0.70 per Share (Ordinary Dividend),420
+Dividends,Data,USD,2026-02-20,VT(US9220427424) Cash Dividend USD 0.05 per Share - Reversal,-30
+Dividends,Total,,,,390
+Dividends,Header,Currency,Date,Description,Amount
+Dividends,Data,EUR,2026-03-20,CW8(LU1681043599) Cash Dividend EUR 1.25 per Share,25
+Dividends,Total,,,,25
+Withholding Tax,Header,Currency,Date,Description,Code,Amount
+Withholding Tax,Data,USD,2026-03-16,VT(US9220427424) Cash Dividend USD 0.70 per Share - US Tax,,-63
+Withholding Tax,Total,,,,,-63
+Deposits & Withdrawals,Header,Currency,Settle Date,Description,Amount
+Deposits & Withdrawals,Data,EUR,2026-01-05,Electronic Fund Transfer,"25,000"
+Deposits & Withdrawals,Data,EUR,2026-03-25,Disbursement Initiated by Account Holder,"-1,500"
+Deposits & Withdrawals,Data,Total,,,"23,500"
+Deposits & Withdrawals,Total,,,,"23,500"
+Fees,Header,Subtitle,Currency,Date,Description,Amount
+Fees,Data,Other Fees,USD,2026-02-28,Market data subscription,-10
+Fees,Total,,,,,-10
+Interest,Header,Currency,Date,Description,Amount
+Interest,Data,EUR,2026-03-31,EUR Credit Interest for Feb-2026,12.34
+Interest,Total,,,,12.34
+Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Mult,Cost Price,Cost Basis,Close Price,Value,Unrealized P/L,Code
+Open Positions,Data,Summary,Stocks,USD,VT,600,1,100.5,"60,300",112,"67,200","6,900",
+Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Security ID,Listing Exch,Multiplier,Type,Code
+Financial Instrument Information,Data,Stocks,VT,VANGUARD TOTAL WORLD STOCK ETF,12345678,US9220427424,ARCA,1,ETF,
+Financial Instrument Information,Data,Stocks,CW8,AMUNDI MSCI WORLD UCITS ETF,87654321,LU1681043599,SBF,1,ETF,
+Codes,Header,Code,Description
+Codes,Data,O,Opening Trade
+Codes,Data,C,Closing Trade

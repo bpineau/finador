@@ -27,9 +27,11 @@ Context that explains most design choices:
   facades owning only finador's conventions (domain types, 0-instead-of-NaN,
   the house chart style). Fix generic math/fetching bugs in pofo,
   finador-flavor bugs in the facade.
-- Next planned feature: importing broker statements (Interactive Brokers,
-  Saxo…) with idempotent replays. The ledger's `importHash` field is the dedup
-  key, already specified (FORMAT.md §4.5) and supported end to end.
+- Broker-statement import lands in `internal/importer/<broker>`, one package
+  per broker over the shared, idempotent write path `portfolio.AddImported`.
+  Interactive Brokers activity statements are in `ibkr`; Saxo is next. The
+  ledger's `importHash` field is the dedup key (FORMAT.md §4.5), namespaced
+  per broker (`ibkr:…`).
 - `./TODO` and `demo.fin` are gitignored personal files (roadmap, scratch
   ledger); `*.fin` files are never committed.
 
@@ -87,6 +89,7 @@ Dependency direction (never import upward):
 ```
 cmd/finador → cli ─┬→ store ──→ domain
              web ──┤   portfolio → domain          (valuation, series, replay)
+                   ├→  importer/* → portfolio      (broker statements)
                    ├→  perf → domain, pofo/metrics (pure math, no I/O)
                    ├→  market → domain, pofo/marketdata
                    ├→  chart → perf, pofo/chart
@@ -193,6 +196,7 @@ cmd/finador → cli ─┬→ store ──→ domain
 | Performance windows/metrics facade | `internal/perf/` (math itself in pofo/metrics) |
 | File format, crypto, merge | `internal/store/` + `docs/FORMAT.md` + cross-impl gate |
 | Market fetch policy (what/when to fetch) | `market/refresh.go` (fetching itself in pofo) |
+| Broker-statement import | `internal/importer/<broker>/` (one package per broker; the book is written only through `portfolio.AddImported`) |
 | New CLI command | `internal/cli/` (one file per command family; writes go through `a.mutate`) |
 | Web page or handler | `internal/web/` (embedded templates; keep CLI parity) |
 | GitHub sync behaviour | `remote/sync.go` (the state machine is documented inline) |

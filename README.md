@@ -739,11 +739,15 @@ local mode for a single invocation, whatever the config says.
   looked at - a wrong `--path` or `--branch` (finador defaults to `master`) is the usual cause;
   check `finador remote show`. For a genuinely new repo, run `init` or `remote adopt`.
 
-## CSV import
+## Import
 
 ```sh
-finador import transactions.csv
+finador import transactions.csv                       # generic CSV (the default)
+finador import --format ibkr --account "CTO Meridia" \
+    ActivityStatement.csv                             # Interactive Brokers
 ```
+
+### Generic CSV
 
 Columns are matched by header, in any order:
 
@@ -764,6 +768,41 @@ date,kind,account,asset,quantity,price,amount,currency,group,note
   nothing. Two genuinely identical same-day rows must differ by their `note`.
   Rows you later edit with `tx edit` keep their fingerprint and stay skipped.
 - An error on any line aborts the whole import; nothing is written.
+
+### Interactive Brokers activity statements
+
+Export from **Reports > Statements > Activity**, format **CSV**, then:
+
+```sh
+finador import --format ibkr --account "CTO Meridia" ActivityStatement.csv
+# 12 imported, 0 skipped (duplicates)
+# not imported: Fees (2), Interest (1), Trades: Forex (3)
+
+finador import --format ibkr --account "CTO Meridia" ActivityStatement.csv
+# 0 imported, 12 skipped (duplicates)      <- replaying a statement is free
+```
+
+- `--account` is **required**: a statement covers one IBKR account and says
+  nothing about which envelope of yours it belongs to.
+- What is read: `Trades` (stocks), `Dividends`, `Withholding Tax`,
+  `Deposits & Withdrawals`. Everything else is left out - and the sections
+  that carry real money (`Fees`, `Interest`, `Corporate Actions`, forex and
+  derivatives trades) are **counted and named** rather than approximated.
+- **Commissions are folded into the trade**: a buy costs proceeds plus
+  commission, a sell brings in proceeds minus commission. That is what keeps
+  a position's cost basis - and so its taxable gain - right.
+- Withholding tax becomes a `fee` on the taxed security, next to the gross
+  dividend.
+- Securities are matched by **ISIN first, then ticker**. Symbols your book
+  does not declare abort the import, listed by name, so you can
+  `finador asset add` them with the right currency and group;
+  `--create-missing` declares them for you instead (name, ticker, ISIN and
+  currency taken from the statement, no group).
+- **Idempotent**: every line carries IBKR's own trade id when the statement
+  has one, else a content fingerprint - re-importing adds nothing, and lines
+  you later correct with `tx edit` stay skipped.
+- Dates must be the **ISO** ones IBKR exports by default (`2026-01-15`); a
+  statement configured for `01/15/2026` is refused rather than guessed.
 
 ## Advanced usage
 

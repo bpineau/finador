@@ -695,3 +695,53 @@ exacte par enveloppe (`Kind == All || ByAccount`) ne saurait pas quoi faire d'un
 (rendrait le drapeau inutile) ; refuser `--account` avec `--label` (l'intersection
 existait déjà, la refuser aurait été une incohérence avec le cas groupe) ; une
 liste `--account a,b` (aucun `ScopeKind` ne la porte).
+
+
+## D35 - Relevés Interactive Brokers : la commission dans le prix, pas à côté
+
+*2026-09-10.*
+
+Un relevé d'activité IBKR donne pour chaque ordre le produit (`Proceeds`) et la
+commission (`Comm/Fee`) sur la même ligne. Deux traductions possibles : une
+ligne `fee` séparée, ou la commission fondue dans le montant de la transaction.
+C'est la seconde qui est retenue - un achat coûte produit **plus** commission,
+une vente rapporte produit **moins** commission.
+
+La raison est le prix de revient. `portfolio.positionBasis` rejoue les `buy` et
+les `sell` d'un couple (compte, asset) et ne regarde aucune ligne `fee` : une
+commission sortie du montant disparaîtrait de la base d'une position, donc la
+plus-value latente - et l'impôt calculé dessus - serait surestimée d'autant.
+Fondue, elle est juste dans les deux chemins qui comptent, `positionBasis` et
+`accountBasis`, et elle reste lisible : la note de la transaction dit combien de
+commission le montant contient. C'est aussi la convention de la colonne `Basis`
+d'IBKR elle-même.
+
+La retenue à la source (`Withholding Tax`) suit la règle inverse et devient bien
+une ligne `fee` sur le titre taxé : elle n'entre dans le prix de revient
+d'aucune position, et le dividende brut plus sa taxe se lisent mieux séparés.
+
+**importHash** : `ibkr:<Trade ID>` quand le relevé porte l'identifiant d'IBKR
+(les exports Flex), sinon `ibkr:` plus les 8 premiers octets du SHA-256 de
+`date|section|symbole|quantité|montant|devise`. Le préfixe est ce qu'exige le
+§4.5 du format : le balayage anti-doublon est global, deux courtiers ne doivent
+jamais pouvoir se croiser. Les valeurs signées du relevé (quantité, montant)
+entrent telles quelles dans l'empreinte, un achat et une vente de même taille le
+même jour se distinguant alors par le signe.
+
+**Limite assumée**, la même que celle de l'import CSV de référence : deux lignes
+réellement distinctes mais identiques sur ces six champs s'empreignent pareil,
+et la seconde est lue comme un doublon. L'empreinte ne porte pas non plus le
+compte : rejouer dans deux enveloppes un relevé aux lignes identiques n'importe
+que la première. Le remède existe déjà côté IBKR (exporter en Flex, qui donne le
+`Trade ID`), et le coût d'une empreinte plus large serait de casser
+l'idempotence dès que le libellé d'une ligne change.
+
+**Écarté :** émettre la commission en `fee` séparé (fausse la base par position,
+cf. supra) ; importer les sections `Fees` et `Interest` en `fee` sans asset (le
+moteur de séries ignore un `fee` sans titre, `walker.pair` renvoyant nil : ce
+serait de l'argent à moitié comptabilisé, pire que pas du tout - elles sont donc
+comptées et nommées dans le compte rendu) ; deviner un format de date non ISO
+(`01/15/2026` lu à l'américaine ou à l'européenne, c'est un mois d'écart en
+silence) ; créer d'office les titres inconnus (une devise ou un groupe faux se
+propagerait partout - l'import échoue en les listant, `--create-missing` reste
+pour qui l'assume).
