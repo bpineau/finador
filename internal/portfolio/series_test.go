@@ -167,6 +167,33 @@ func TestFeeWeighsOnPerformanceWithoutCash(t *testing.T) {
 	approx(t, "TWR", perf.TWR(res.PerfPoints(false), res.PerfFlows()), 10000.0/10020-1)
 }
 
+// An envelope-level fee names no asset (custody, account charge): it weighs
+// on the account exactly like a fee carrying one.
+func TestAssetlessFeeWeighsOnPerformance(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "cto", Name: "CTO", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAsset(&domain.Asset{ID: "cw8", Kind: domain.Security, Name: "CW8", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	b.Add(domain.Transaction{Date: mustDate("2026-01-10"), Account: "cto", Asset: "cw8",
+		Kind: domain.Buy, Quantity: dec("100"), Amount: eur("10000")})
+	b.Add(domain.Transaction{Date: mustDate("2026-01-15"), Account: "cto",
+		Kind: domain.Fee, Amount: eur("20")})
+	b.Market.Price("cw8").Merge([]domain.PricePoint{{Date: mustDate("2026-01-10"), Close: 100}})
+
+	res, err := Series(b, scopeOf(t, b, ""), mustDate("2026-01-01"), mustDate("2026-01-20"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Flows) != 2 {
+		t.Fatalf("flows = %+v, want 2", res.Flows)
+	}
+	approx(t, "fee flow", res.Flows[1].Amount, 20)
+	approx(t, "TWR", perf.TWR(res.PerfPoints(false), res.PerfFlows()), 10000.0/10020-1)
+}
+
 // A dividend never lands on the declared cash; it leaves the pocket as a
 // negative flow, net of withholding tax.
 func TestDividendLeavesPocketNetOfWithholding(t *testing.T) {
