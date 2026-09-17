@@ -301,8 +301,16 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		// A cost is capital that enters the envelope and buys nothing: the
 		// positive flow with no value against it reads as a loss of the fee,
 		// with or without declared cash. It also belongs to the cost basis.
+		// A fee naming no asset (custody, account charge) belongs to the
+		// envelope itself: it is scoped like the envelope's money, so it
+		// weighs on the whole account and vanishes from an asset scope.
 		p := w.pair(t)
 		if p == nil {
+			disp := w.conv(t.Amount, w.ccy, t.Date, acc.acc.Name)
+			acc.flowBasis += disp
+			if inCash {
+				w.addFlow(t.Date, disp, collect)
+			}
 			return
 		}
 		disp := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
