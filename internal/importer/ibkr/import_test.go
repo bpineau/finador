@@ -587,3 +587,54 @@ func TestResultSummary(t *testing.T) {
 		t.Errorf("summary = %q, want %q", full, want)
 	}
 }
+
+// oneDeposit is a minimal statement: one section, one funding line, and no
+// trade id - so it exercises the content fingerprint.
+const oneDeposit = "Deposits & Withdrawals,Header,Currency,Settle Date,Description,Amount\r\n" +
+	"Deposits & Withdrawals,Data,EUR,2026-01-05,Electronic Fund Transfer,\"25,000\"\r\n"
+
+// Two IBKR accounts, one coincident line: the same amount transferred the
+// same day into two envelopes is two events, and the fallback fingerprint
+// must tell them apart. Without the account in the fingerprint the second
+// import reads the first's deposit as a replay of itself and books nothing.
+func TestFingerprintDistinguishesAccounts(t *testing.T) {
+	b := book(t)
+	if err := b.AddAccount(&domain.Account{ID: "cto-zephyr", Name: "CTO Zephyr", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	for _, acc := range []string{"cto-meridia", "cto-zephyr"} {
+		res, err := Import(b, strings.NewReader(oneDeposit), Options{Account: acc})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Added != 1 || res.Skipped != 0 {
+			t.Fatalf("%s: added=%d skipped=%d, want 1 and 0", acc, res.Added, res.Skipped)
+		}
+	}
+	if len(b.Transactions) != 2 {
+		t.Fatalf("%d transactions, want one deposit per envelope", len(b.Transactions))
+	}
+}
+
+// A statement imported before the envelope entered the fingerprint left the
+// account-blind one in the ledger. Replaying it must still skip: the dedup
+// check accepts that legacy fingerprint, so the fix cannot double-book what
+// is already booked.
+func TestLegacyFingerprintStillSkips(t *testing.T) {
+	b := book(t)
+	b.Add(domain.Transaction{
+		Date: day(2026, time.January, 5), Account: "cto-meridia", Kind: domain.Deposit,
+		Quantity: decimal.Zero, Amount: money("25000", domain.EUR),
+		ImportHash: fingerprint("2026-01-05|Deposits & Withdrawals||0|25000|EUR"),
+	})
+	res, err := Import(b, strings.NewReader(oneDeposit), Options{Account: "cto-meridia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Added != 0 || res.Skipped != 1 {
+		t.Fatalf("added=%d skipped=%d, want 0 and 1", res.Added, res.Skipped)
+	}
+	if len(b.Transactions) != 1 {
+		t.Fatalf("%d transactions, want the one already booked", len(b.Transactions))
+	}
+}
