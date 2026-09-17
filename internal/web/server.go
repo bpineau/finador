@@ -14,6 +14,7 @@ import (
 
 	"finador/internal/domain"
 	"finador/internal/market"
+	"finador/internal/portfolio"
 	"finador/internal/store"
 )
 
@@ -222,6 +223,44 @@ func (s *Server) mergeSpot(quotes map[domain.AssetID]market.Quote) {
 	for id, q := range quotes {
 		s.spot[id] = q
 	}
+}
+
+// estimatePrices turns the estimates of the last spot pass into throwaway
+// price overrides, as options ready to hand to portfolio.Value. An estimate
+// (a fund priced once a day and published with a lag, nowcast from a listed
+// proxy) never enters the stored series, so today's valuation would otherwise
+// fall back to the last published price: the override is how the freshest
+// number reaches the page without being written anywhere. The note it carries
+// says so under the figure, and perf, chart and every history read published
+// prices only. Callers hold at least the read lock.
+func (s *Server) estimatePrices() []portfolio.ValueOption {
+	prices := map[domain.AssetID]portfolio.PriceOverride{}
+	for _, asset := range s.file.Book.Assets {
+		q, ok := s.spot[asset.ID]
+		if !ok || !q.Estimated || q.Price <= 0 {
+			continue
+		}
+		// The Source contract guarantees the declared currency; a quote that
+		// escaped it would be a silent unit bug in the total.
+		if q.Currency != "" && q.Currency != asset.Currency {
+			continue
+		}
+		prices[asset.ID] = portfolio.PriceOverride{Price: q.Price, Note: fmt.Sprintf(
+			"%s: estimate at %s, %.2f %s (carried by a proxy, no published price yet)",
+			assetLabel(asset), q.Time.Local().Format("2006-01-02 15:04 MST"), q.Price, asset.Currency)}
+	}
+	if len(prices) == 0 {
+		return nil
+	}
+	return []portfolio.ValueOption{portfolio.WithPriceOverrides(prices)}
+}
+
+// assetLabel names an asset in a note: its ticker when it has one.
+func assetLabel(a *domain.Asset) string {
+	if a.Ticker != "" {
+		return a.Ticker
+	}
+	return a.Name
 }
 
 // quoteNote describes the freshness of an asset's price for the UI: the spot

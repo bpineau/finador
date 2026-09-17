@@ -95,10 +95,13 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 // figure. Only an explicit refresh reports Stale; a market shut for the
 // weekend would otherwise make every command shout.
 type SpotSummary struct {
-	// Quotes is the freshest quote observed per asset. Under the
-	// extended-hours opt-in an entry may be an off-hours print (Quote.Extended):
-	// it is reported for display only and was deliberately not merged into the
-	// price series.
+	// Quotes is the freshest quote observed per asset. An entry may be a
+	// display-only quote (Quote.DisplayOnly): an off-hours print under the
+	// extended-hours opt-in (Quote.Extended), or an estimate of a fund
+	// nobody has priced yet (Quote.Estimated, always). Neither was merged
+	// into the price series: the caller shows it labelled, as a throwaway
+	// valuation override, and the stored history keeps published prices
+	// only.
 	Quotes   map[domain.AssetID]Quote
 	Warnings []string
 	Stale    []string
@@ -125,6 +128,12 @@ func (s *SpotSummary) stale(label string, q Quote) {
 // live between two daily refreshes. It never fails hard: a failed quote
 // degrades to a warning, and an instrument the source does not cover at all
 // is silently skipped (its last daily close already stands).
+//
+// An estimate is the one quote it reports without storing: a fund priced once
+// a day and published with a lag is nowcast from a proxy (Quote.Estimated),
+// and such a number would otherwise sit in the cache for good and be read as
+// the close of a day the fund never published. It is served in Quotes for the
+// valuation to use as a labelled override, exactly like an off-hours print.
 func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	return spotRefresh(ctx, b, src, false)
 }
@@ -175,8 +184,10 @@ func spotRefresh(ctx context.Context, b *domain.Book, src Source, extended bool)
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: undated quote ignored", ticker))
 					return
 				}
-				if q.Extended() {
-					sum.Quotes[id] = q // shown, never merged: see SpotRefreshExtended
+				if q.DisplayOnly() {
+					// Shown, never merged: an off-hours print (see
+					// SpotRefreshExtended) or an estimate (see SpotSummary).
+					sum.Quotes[id] = q
 					return
 				}
 				sum.stale(ticker, q)
@@ -200,8 +211,8 @@ func spotRefresh(ctx context.Context, b *domain.Book, src Source, extended bool)
 					sum.Warnings = append(sum.Warnings, fmt.Sprintf("%s: undated quote ignored", symbol))
 					return
 				}
-				if q.Extended() {
-					return // a display-only print never enters an FX series
+				if q.DisplayOnly() {
+					return // a display-only quote never enters an FX series
 				}
 				sum.stale(symbol, q)
 				series.Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})

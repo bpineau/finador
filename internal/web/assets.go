@@ -69,13 +69,16 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 	bySection := map[string]*assetSection{}
 	var rawWarnings []string
 	rf := perf.RiskFreeFromConfig(b.Config)
+	// Computed once for the whole table: an estimated line is valued at its
+	// nowcast, a price that lives nowhere but in this request.
+	estimates := s.estimatePrices()
 
 	for _, asset := range b.Assets {
 		scope, err := portfolio.ParseScope(b, string(asset.ID))
 		if err != nil {
 			continue
 		}
-		val, err := portfolio.Value(b, scope, today, ccy, fx)
+		val, err := portfolio.Value(b, scope, today, ccy, fx, estimates...)
 		if err != nil || val.Gross == 0 {
 			continue
 		}

@@ -850,3 +850,59 @@ manuelle et importer celle du relevé à la place (elle perdrait son id, donc se
 libellés et son ancienneté dans le merge) ; faire du garde-fou une option du
 format (rien n'est ajouté au fichier : le §4.5 autorise déjà tout ceci, une
 empreinte étant opaque et choisie par l'écrivain).
+
+## D38 - Une estimation se montre, ne se stocke jamais
+
+*2026-09-17.*
+
+pofo sait estimer le cours d'un fonds valorisé une fois par jour et publié en
+retard (un FCPE d'épargne salariale) : sa dernière valeur liquidative publiée,
+portée par les variations d'un proxy coté (`Quote.Source == "nowcast"`, mappé
+sur `market.Quote.Estimated`). finador fusionnait ce nombre dans la série de
+prix et le chiffrait dans le cache, où il survivait à la journée : un jour que
+le fonds ne publie jamais (fonds hebdomadaire, jour férié) gardait pour
+toujours une estimation lue ensuite comme une clôture par `perf`, `chart` et
+`value`, et rendue après redémarrage sous la légende « close of <date> ». La
+règle de pofo était pourtant écrite : une estimation n'est ni mise en cache ni
+expédiée (`WithoutEstimates`).
+
+**Jamais fusionnée, jamais persistée.** C'est le même invariant que D36, tenu
+aux deux seuls endroits qui écrivent : `spotRefresh` refuse la fusion de toute
+cote `Quote.DisplayOnly()` (un échange hors séance, désormais aussi une
+estimation) et la sert dans `Quotes` ; `toDailyData` fait passer chaque série
+du téléchargement quotidien par `WithoutEstimates`, car la queue nowcast arrive
+aussi par là. Rien d'autre n'écrit un cours.
+
+**Elle valorise quand même aujourd'hui.** Une estimation est le nombre le plus
+frais qui existe pour ce fonds : la refuser, ce serait afficher une VL d'il y a
+une semaine. Elle arrive donc comme `portfolio.PriceOverride`, le mécanisme
+jetable de `--what-if` et des séances étendues, dans `value` et dans les trois
+valorisations du serveur web. L'override porte sa propre phrase
+(`PriceOverride.Note`, prioritaire sur `Kind`), parce que celui qui la fabrique
+est le seul à savoir de quoi il s'agit : `≈ ERES_DATADOG: estimate at
+2026-09-17 18:04 CEST, 71.15 EUR (carried by a proxy, no published price yet)`.
+Contrairement à D36, aucune option ne la commande : il n'y a rien à arbitrer,
+et l'en-tête `(extended hours)` reste réservé aux échanges hors séance.
+
+**Conséquence assumée :** une estimation ne vit que le temps du processus. Une
+commande qui ne redemande pas de cote (la dernière passe spot a moins de 30
+minutes, `spotMaxAge`) affiche donc le dernier prix publié et le date, et deux
+`value` successifs peuvent différer du saut proxy-VL. C'est le prix de
+l'honnêteté du cache ; le serveur web, lui, garde ses cotes en mémoire et reste
+continu.
+
+**Écarté :** l'auto-réparation des caches qui contiennent déjà une estimation.
+Un `domain.PricePoint` ne porte aucune marque : après coup, rien ne distingue
+une estimation d'une clôture. La seule règle candidate (à chaque
+rafraîchissement, supprimer les points postérieurs au dernier point publié par
+la source) supprimerait de vraies clôtures dès qu'une source répond tronquée ou
+qu'une VL arrive par la passe spot avant le téléchargement quotidien - détruire
+une donnée réelle est pire que garder une estimation. Le remède est donc manuel
+et documenté dans le README : supprimer le cache de cotes
+(`rm ~/.cache/finador/*.cache`, le grand livre n'a jamais porté de cours) puis
+`finador refresh`. Écarté aussi : persister les cotes de la dernière passe
+hors des séries pour lisser la continuité en CLI (ce serait remettre
+l'estimation dans le fichier chiffré par une autre porte). Le client Android
+reste à parité facultative : il ne lit que des cours déjà écrits, et une
+estimation ne s'écrit plus - à lui de refaire le même choix s'il appelle un
+jour une passe spot (montrer l'estimation étiquetée, ne jamais l'écrire).

@@ -547,6 +547,41 @@ func TestSpotRefreshExtendedDropsFXPrints(t *testing.T) {
 	}
 }
 
+// An estimate (a nowcast: a fund nobody has priced today, carried forward by
+// a listed proxy) is reported for display and never merged - no opt-in
+// involved, no off-hours session claimed. It must not enter the persisted
+// series, where it would outlive the day and be read as a close by perf and
+// chart.
+func TestSpotRefreshEstimateNeverStored(t *testing.T) {
+	b := bookWithTrade(t)
+	at := domain.Today().Time().Add(16 * time.Hour)
+	src := &batchSource{batch: map[Ref]Quote{
+		{Symbol: "CW8.PA", Currency: domain.EUR}: {
+			Price: 71.15, Time: at, Currency: domain.EUR, Live: true, Estimated: true},
+		{Symbol: "EURUSD=X", Currency: domain.USD}: {
+			Price: 1.15, Time: at, Currency: domain.USD, Live: true, Estimated: true},
+	}}
+
+	sum := SpotRefresh(context.Background(), b, src)
+
+	if len(sum.Warnings) != 0 {
+		t.Fatalf("warnings = %v, want none: an estimate is not a failure", sum.Warnings)
+	}
+	q, ok := sum.Quotes["cw8"]
+	if !ok || q.Price != 71.15 || !q.Estimated {
+		t.Fatalf("quote = %+v (ok=%v), want the estimate reported for display", q, ok)
+	}
+	if _, _, ok := b.Market.Price("cw8").At(domain.Today()); ok {
+		t.Error("the estimate reached the price series: it must never be stored")
+	}
+	if _, _, ok := b.Market.FXSeries(domain.EUR).At(domain.Today()); ok {
+		t.Error("an estimated cross entered the FX series")
+	}
+	if len(sum.Stale) != 0 {
+		t.Errorf("stale = %v, want none: an estimate prices today", sum.Stale)
+	}
+}
+
 // TestRefLabel: warnings must name the instrument the user typed, and an
 // instrument declared by ISIN alone still gets named.
 func TestRefLabel(t *testing.T) {
