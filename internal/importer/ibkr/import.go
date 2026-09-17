@@ -228,7 +228,7 @@ func Import(b *domain.Book, r io.Reader, opts Options) (Result, error) {
 
 	res := Result{Ignored: im.ignored, BeforeSince: im.beforeSince}
 	for _, st := range im.txs {
-		if b.HasImportHash(st.tx.ImportHash) {
+		if b.HasImportHash(st.tx.ImportHash) || b.HasImportHash(st.legacy) {
 			res.Skipped++ // already imported: the dedup rule wins over any lookalike
 			continue
 		}
@@ -286,11 +286,14 @@ type importer struct {
 }
 
 // staged is one mapped statement line waiting to be written, kept with what
-// it takes to name its source in the report.
+// it takes to name its source in the report. legacy is the fingerprint the
+// same line carried before the envelope entered it (see [importHash]), and is
+// empty when the statement names its own trade ids.
 type staged struct {
-	tx   domain.Transaction
-	line int
-	what string
+	tx     domain.Transaction
+	line   int
+	what   string
+	legacy string
 }
 
 func (im *importer) ignore(reason string) { im.ignored[reason]++ }
@@ -500,8 +503,9 @@ func (im *importer) income(r row) (ccy domain.Currency, date domain.Date, amount
 // direction (a signed quantity, a signed amount) still discriminates two
 // otherwise identical lines.
 func (im *importer) add(r row, tx domain.Transaction, symbol string, qty, amount decimal.Decimal, ccy domain.Currency) {
-	tx.ImportHash = importHash(r, tx.Date, symbol, qty, amount, ccy)
-	im.txs = append(im.txs, staged{tx: tx, line: r.line, what: event(tx, symbol)})
+	hash, legacy := importHash(r, tx.Account, tx.Date, symbol, qty, amount, ccy)
+	tx.ImportHash = hash
+	im.txs = append(im.txs, staged{tx: tx, line: r.line, what: event(tx, symbol), legacy: legacy})
 }
 
 // event names a mapped line the way the guard reports it: what happened, in
@@ -523,16 +527,31 @@ func event(tx domain.Transaction, symbol string) string {
 // statements carry IBKR's own trade id, which is stable by construction;
 // activity statements do not, and fall back to the content fingerprint.
 //
+// The fingerprint names the ENVELOPE too, because a statement line belongs to
+// one: two IBKR accounts of the same book funded with the same amount the
+// same day are two events, and the account-blind fingerprint read the second
+// one as a replay of the first and booked nothing. legacy is that older
+// fingerprint, which the lines imported before this fix still carry; the
+// dedup check accepts it as well, so replaying such a statement keeps
+// skipping instead of double-booking. It is empty when the statement names
+// its own trade ids, which never depended on the content.
+//
 // Known limit, shared with the reference CSV importer: two genuinely distinct
-// lines identical in date, section, symbol, quantity, amount and currency
-// fingerprint alike, and the second is read as a duplicate.
-func importHash(r row, date domain.Date, symbol string, qty, amount decimal.Decimal, ccy domain.Currency) string {
+// lines identical in date, account, section, symbol, quantity, amount and
+// currency fingerprint alike, and the second is read as a duplicate.
+func importHash(r row, acc domain.AccountID, date domain.Date, symbol string, qty, amount decimal.Decimal, ccy domain.Currency) (hash, legacy string) {
 	if id := r.getAny("Trade ID", "TransactionID", "Transaction ID"); id != "" {
-		return "ibkr:" + id
+		return "ibkr:" + id, ""
 	}
-	sum := sha256.Sum256([]byte(strings.Join([]string{
+	base := strings.Join([]string{
 		date.String(), r.section, symbol, qty.String(), amount.String(), string(ccy),
-	}, "|")))
+	}, "|")
+	return fingerprint(base + "|" + string(acc)), fingerprint(base)
+}
+
+// fingerprint hashes one joined fingerprint into a namespaced importHash.
+func fingerprint(joined string) string {
+	sum := sha256.Sum256([]byte(joined))
 	return "ibkr:" + hex.EncodeToString(sum[:8])
 }
 
