@@ -71,6 +71,12 @@ const (
 // thinner than a close and is displayed, never stored.
 func (q Quote) Extended() bool { return q.Session == SessionPre || q.Session == SessionPost }
 
+// DisplayOnly reports whether the quote must stay on screen and out of every
+// persisted series: an off-hours print (thin, and struck in a session the
+// daily series does not model) or an estimate (nobody has struck it at all).
+// Both are labelled wherever they are shown and gone with the process.
+func (q Quote) DisplayOnly() bool { return q.Extended() || q.Estimated }
+
 // Source provides daily market data. finador fetches serially, politely.
 // The standard implementation is Pofo (see Default).
 type Source interface {

@@ -141,7 +141,7 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 	today := domain.Today()
 	fx := market.Converter{FX: b.Market.FX}
 	ccy := b.DisplayCurrency()
-	val, err := portfolio.Value(b, scope, today, ccy, fx)
+	val, err := portfolio.Value(b, scope, today, ccy, fx, s.estimatePrices()...)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return

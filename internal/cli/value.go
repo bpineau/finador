@@ -97,17 +97,23 @@ func valueCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// An off-hours print prices today and nothing else, so a
-			// historical valuation ignores the opt-in entirely.
-			offHours := map[domain.AssetID]portfolio.PriceOverride{}
+			// A display-only quote prices today and nothing else, so a
+			// historical valuation ignores both kinds entirely. The
+			// estimate of a fund nobody has priced yet needs no opt-in:
+			// it is the freshest thing there is, and it carries its own
+			// note (printed with the valuation's own, below).
+			overrides := map[domain.AssetID]portfolio.PriceOverride{}
 			var notes []string
-			if ext && date == domain.Today() {
-				offHours, notes = offHoursPrices(b, spot)
+			if date == domain.Today() {
+				overrides = estimatedPrices(b, spot)
+				if ext {
+					offHours, offNotes := offHoursPrices(b, spot)
+					maps.Copy(overrides, offHours) // disjoint: an estimate claims no session
+					notes = offNotes
+				}
 			}
-			overrides := offHours
 			if len(whatIfs) > 0 {
 				// A disposable hypothesis outranks an observed price.
-				overrides = maps.Clone(offHours)
 				maps.Copy(overrides, whatIfs)
 			}
 			if len(overrides) > 0 {
@@ -214,6 +220,33 @@ func offHoursPrices(b *domain.Book, spot market.SpotSummary) (map[domain.AssetID
 	}
 	slices.Sort(notes) // map iteration order must not shuffle the output
 	return prices, notes
+}
+
+// estimatedPrices turns the estimates of a spot pass into price overrides -
+// the same throwaway valuation input, never a stored quote. A fund priced once
+// a day and published with a lag (an employee-savings fund) is nowcast from a
+// listed proxy: that number is the freshest there is, so it prices today, but
+// nobody has struck it, so it never enters the series perf and chart read. Its
+// note travels with the override (PriceOverride.Note) and comes out with the
+// valuation's own freshness notes.
+func estimatedPrices(b *domain.Book, spot market.SpotSummary) map[domain.AssetID]portfolio.PriceOverride {
+	prices := map[domain.AssetID]portfolio.PriceOverride{}
+	for _, asset := range b.Assets {
+		q, ok := spot.Quotes[asset.ID]
+		if !ok || !q.Estimated || q.Price <= 0 {
+			continue
+		}
+		// The Source contract guarantees the declared currency; a quote that
+		// somehow escaped it would be a silent unit bug in the total.
+		if q.Currency != "" && q.Currency != asset.Currency {
+			continue
+		}
+		prices[asset.ID] = portfolio.PriceOverride{Price: q.Price, Note: fmt.Sprintf(
+			"%s: estimate at %s, %s (carried by a proxy, no published price yet)",
+			assetLabel(asset), q.Time.Local().Format("2006-01-02 15:04 MST"),
+			money(q.Price, asset.Currency))}
+	}
+	return prices
 }
 
 // assetLabel names an asset in a note: its ticker when it has one.

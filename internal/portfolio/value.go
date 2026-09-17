@@ -50,23 +50,32 @@ type PriceOverride struct {
 	// labelled the price itself - an extended-hours print names its session
 	// and its instant - and the valuation must not say it a second time.
 	Kind string
+	// Note, when set, IS the freshness note, verbatim: the caller owns the
+	// whole sentence because it knows what the price is (an estimate names
+	// the instant it was struck at and the proxy behind it). It takes
+	// precedence over Kind.
+	Note string
 }
 
 // WithPriceOverrides forces the price of given assets, in their quote
-// currency - the throwaway hypotheses of « value --what-if vizr=280 », or a
-// pre/post-market print of « value --extended ». For a property, the override
-// replaces the whole estimate. Nothing is ever persisted (see ValueOption).
+// currency - the throwaway hypotheses of « value --what-if vizr=280 », a
+// pre/post-market print of « value --extended », or the nowcast of a fund
+// nobody has priced today. For a property, the override replaces the whole
+// estimate. Nothing is ever persisted (see ValueOption), which is precisely
+// why a price that must not be stored is passed this way.
 func WithPriceOverrides(p map[domain.AssetID]PriceOverride) ValueOption {
 	return func(v *valuer) { v.overrides = p }
 }
 
 // note records an override's freshness note, unless the caller labels it.
 func (v *valuer) noteOverride(name string, ov PriceOverride, ccy domain.Currency) {
-	if ov.Kind == "" {
-		return
+	switch {
+	case ov.Note != "":
+		v.stale = append(v.stale, ov.Note)
+	case ov.Kind != "":
+		v.stale = append(v.stale, fmt.Sprintf("%s: %s at %s %s",
+			ov.Kind, name, trimFloat(ov.Price), ccy))
 	}
-	v.stale = append(v.stale, fmt.Sprintf("%s: %s at %s %s",
-		ov.Kind, name, trimFloat(ov.Price), ccy))
 }
 
 // Value prices a scope at a date, in the display currency ccy: security

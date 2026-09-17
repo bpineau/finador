@@ -9,6 +9,7 @@ import (
 
 	"finador/internal/domain"
 	"finador/internal/market"
+	"finador/internal/portfolio"
 )
 
 // spotSrc scripts a live quote on top of fakeSource's daily data, and counts
@@ -109,5 +110,44 @@ func TestQuoteNoteSaysEstimated(t *testing.T) {
 	note := srv.quoteNote(asset)
 	if !strings.Contains(note, "71.15 EUR") || !strings.Contains(note, "estimated at") || strings.Contains(note, "live at") {
 		t.Errorf("quote note = %q, want the estimate flagged as such", note)
+	}
+
+	// It never reaches the stored series, so it cannot be served as a close.
+	last, ok := f.Book.Market.Price("cw8").Last()
+	if !ok || last.Close == 71.15 || last.Date == domain.Today() {
+		t.Errorf("last stored point = %+v, want the last published close", last)
+	}
+	// A restart forgets what the session observed: what is left must be the
+	// last published close, dated as one, and nothing may claim a close today.
+	srv.spot = nil
+	restarted := srv.quoteNote(asset)
+	if strings.Contains(restarted, domain.Today().String()) || !strings.Contains(restarted, "close of") {
+		t.Errorf("caption after a restart = %q, want the last published close", restarted)
+	}
+}
+
+// The overview values an estimated line at its estimate - the freshest thing
+// there is - through a throwaway override, and says so in the page's notes.
+func TestOverviewValuesEstimateAsOverride(t *testing.T) {
+	srv, f := testServer(t)
+	srv.offline = false
+	srv.source = &spotSrc{quote: market.Quote{Price: 600, Time: time.Now(),
+		Currency: domain.EUR, Live: true, Estimated: true}}
+	srv.refreshOnce(context.Background())
+
+	scope, err := portfolio.ParseScope(f.Book, "cw8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	val, err := portfolio.Value(f.Book, scope, domain.Today(), domain.EUR,
+		market.Converter{FX: f.Book.Market.FX}, srv.estimatePrices()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if val.Gross != 6000 {
+		t.Errorf("gross = %v, want the estimate (10 x 600) to price today", val.Gross)
+	}
+	if len(val.Stale) == 0 || !strings.Contains(strings.Join(val.Stale, " "), "estimate") {
+		t.Errorf("notes = %v, want the estimate named", val.Stale)
 	}
 }

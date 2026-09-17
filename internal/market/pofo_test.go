@@ -293,6 +293,34 @@ func TestQuoteOfSessions(t *testing.T) {
 	}
 }
 
+// A daily fetch can come back with a nowcast tail (pofo stamps EstimatedFrom
+// for a fund priced once a day and published with a lag). Those points are
+// estimates nobody has struck: the persisted history takes the published ones
+// only, or the encrypted cache would keep an estimate forever and perf would
+// read it as a close.
+func TestToDailyDataDropsEstimatedTail(t *testing.T) {
+	day := func(d int) time.Time { return time.Date(2026, 9, d, 0, 0, 0, 0, time.UTC) }
+	s := &marketdata.Series{
+		Currency: "EUR",
+		Points: []marketdata.Point{
+			{Date: day(14), Close: 70.0}, // last published NAV
+			{Date: day(15), Close: 70.5}, // nowcast, carried by the proxy
+			{Date: day(16), Close: 71.15},
+		},
+		EstimatedFrom: day(15),
+		EstimateProxy: "URTH",
+	}
+
+	out := toDailyData(s)
+
+	if len(out.Closes) != 1 || out.Closes[0].Close != 70.0 {
+		t.Fatalf("closes = %+v, want the published NAV alone", out.Closes)
+	}
+	if out.Currency != domain.EUR {
+		t.Errorf("currency = %q, want EUR", out.Currency)
+	}
+}
+
 // The standard source is cache-less on purpose: plaintext quote files on disk
 // would reveal the holdings the encrypted book protects.
 func TestDefaultSourceIsCacheless(t *testing.T) {

@@ -201,8 +201,12 @@ func (p *Pofo) Intraday(ctx context.Context, ref Ref) (IntradayData, error) {
 	return out, nil
 }
 
-// toDailyData maps a pofo series to finador's domain types.
+// toDailyData maps a pofo series to finador's domain types. The nowcast tail
+// goes first: pofo stamps EstimatedFrom on a fund priced once a day and
+// published with a lag, and those points are estimates nobody has struck. The
+// persisted history takes published prices only (see SpotRefresh).
 func toDailyData(s *marketdata.Series) DailyData {
+	s = s.WithoutEstimates()
 	out := DailyData{Currency: domain.Currency(s.Currency)}
 	for _, pt := range s.Points {
 		out.Closes = append(out.Closes, domain.PricePoint{Date: domain.DateOf(pt.Date), Close: pt.Close})

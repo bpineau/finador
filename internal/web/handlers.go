@@ -108,7 +108,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 
 	from, rangeName := chartRange(r, today)
 
-	val, err := portfolio.Value(b, scope, today, ccy, fx)
+	val, err := portfolio.Value(b, scope, today, ccy, fx, s.estimatePrices()...)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -531,8 +531,24 @@ finador value --extended   # count tonight's after-hours prints
   to the last real close. Only today can be valued that way (`--at` ignores the
   flag), a European line usually has nothing to offer off-hours, and
   `config set extended-hours true` makes it the default. Off by default.
+- A fund priced once a day and published with a lag (an employee-savings fund)
+  is **estimated** between two publications: its last published price carried
+  forward by a listed proxy. That estimate prices today's `value`, because it
+  is the freshest number there is, and it names itself under the table
+  (`≈ ERES_DATADOG: estimate at 2026-09-17 18:04 CEST, 71.15 EUR (carried by a
+  proxy, no published price yet)`). Nobody struck it, though, so like an
+  off-hours print it is **shown, never stored**: `perf`, `chart` and every
+  history walk published prices only, and a command that does not re-ask (the
+  last spot pass being less than 30 minutes old) shows the last published price
+  and dates it. No opt-in: an estimate needs none.
+- A quote cache written by an older version can still hold estimates recorded
+  as closes, and nothing tells them apart after the fact. The remedy is manual
+  and cheap: `rm ~/.cache/finador/*.cache`, then `finador refresh`, which
+  refetches published history only. The ledger is untouched - it has never
+  carried a quote.
 - Lines marked `≈` are approximations: stale quotes (older than 5 days), assets
-  valued from statements, off-hours prints, or failed currency conversions.
+  valued from statements, estimates, off-hours prints, or failed currency
+  conversions.
 
 ### Performance: `perf`
 
