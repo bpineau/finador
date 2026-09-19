@@ -969,3 +969,37 @@ identiques. C'est pourquoi le seuil est bas.
 compte et nomme la section `Corporate Actions` sans la mapper (D35) ; un split
 reste donc à saisir à la main dans le grand livre. L'avertissement de D40 est le
 signal qui dit quand.
+
+## D41 - La série rejoue les quantités comme `Holdings`, pas comme une base de coût
+
+**Contexte :** `replay.go` accumule la quantité SIGNÉE et ne l'écrête qu'à la
+lecture (« oversell = erreur de saisie : jamais de position négative »).
+`valuer.positionBasis` fait autre chose, et c'est correct : un coût moyen ne
+descend pas sous zéro, donc une vente au-delà de ce que la base connaît la
+laisse intacte - la base a son propre compteur de quantité. Le `walker` de
+`Series()` n'avait qu'un seul compteur pour les deux rôles, écrêté à chaque
+vente comme une base de coût.
+
+**Le bug, mesuré :** un aller-retour intrajournalier saisi vente d'abord (la
+vente porte l'`id` le plus bas parce qu'elle a été tapée en premier) faisait
+disparaître la vente, et l'achat était valorisé seul - 9 titres là où
+`Holdings`, donc `Value()`, en lit 1. Le graphique montrait alors une position
+multipliée par le volume de l'aller-retour.
+
+**Choix :** `pairState` porte deux compteurs, `qty` (signé, sémantique
+`Holdings`, écrêté à la lecture) et `basisQty` (celui que `basis` adosse,
+sémantique `positionBasis`). Chacun rejoue comme son homologue dans `Value()`.
+
+**Au passage :** une transaction `Buy`/`Sell` sans titre - une ligne CSV dont la
+colonne `asset` est vide, ou un titre supprimé depuis - était ignorée par le
+`walker` alors que `accountBasis` la compte. L'impôt latent de l'enveloppe se
+séparait donc entre les deux moteurs. Elle alimente désormais `flowBasis` et est
+scopée comme l'argent de l'enveloppe, exactement comme un frais sans titre.
+
+**Comment on le tient :** `TestFuzzValueSeriesEndpoint` balaie 20 000 grands
+livres tirés au hasard - plusieurs enregistrements le même jour, devises,
+enveloppes, règles fiscales, propriétés, titres sans cours - et exige l'égalité
+point final `Value()` / `Series()` sur les portées « tout », « groupe » et
+« enveloppe ». Les tests nommés fixent les conventions ; celui-ci fixe l'ACCORD,
+et c'est lui qui pourrit en silence. Une seconde d'exécution : il reste dans le
+gate.

@@ -116,8 +116,17 @@ type pairKey struct {
 type pairState struct {
 	acc   *domain.Account
 	asset *domain.Asset
-	qty   float64
-	basis float64 // average cost in display currency, flows converted at their date
+	// qty is the SIGNED running quantity, exactly [Holdings]'s reading: every
+	// sell subtracts, and only the value read out is clamped at zero. A sell
+	// recorded before the buy that covers it (an intraday round trip typed in
+	// that order) must net out, not be dropped - dropping it valued the
+	// position at the buy alone.
+	qty float64
+	// basis is the average cost in display currency, flows converted at their
+	// date, and basisQty is the quantity it backs - a separate counter,
+	// because an average cost cannot go negative (a sell beyond what the
+	// basis knows leaves it alone). Same split as [valuer.positionBasis].
+	basis, basisQty float64
 
 	// last statement (property: the whole estimate; security: a NAV observation
 	// of stmtQty shares, scaled per share when the quantity later changes)
@@ -253,27 +262,42 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 	switch t.Kind {
 	case domain.Buy, domain.Sell:
-		p := w.pair(t)
-		if p == nil {
-			return
-		}
-		label := p.asset.Name
-		disp := w.conv(t.Amount, w.ccy, t.Date, label)
 		sign := 1.0
 		if t.Kind == domain.Sell {
 			sign = -1
 		}
-		qtyBefore := p.qty
+		p := w.pair(t)
+		if p == nil {
+			// No asset to price: a trade whose asset cell is empty (a CSV
+			// import can write one) or whose asset was deleted. It still
+			// moved capital across the envelope, and Value's accountBasis
+			// counts it, so the basis must see it here too or the envelope
+			// tax splits between the two engines. Scoped like the envelope's
+			// own money, exactly like a fee that names no asset.
+			disp := w.conv(t.Amount, w.ccy, t.Date, acc.acc.Name)
+			acc.flowBasis += sign * disp
+			if inCash {
+				w.addFlow(t.Date, sign*disp, collect)
+			}
+			return
+		}
+		label := p.asset.Name
+		disp := w.conv(t.Amount, w.ccy, t.Date, label)
+		qtyBefore := max(0, p.qty) // a sell moves no more market value than was held
 
 		// Update position state (not for property - property stays statement-valued)
 		if p.asset.Kind != domain.Property {
 			if t.Kind == domain.Buy {
 				p.basis += disp
+				p.basisQty += toF(t.Quantity)
 				p.qty += toF(t.Quantity)
-			} else if p.qty > 0 {
-				sold := min(toF(t.Quantity), p.qty)
-				p.basis -= p.basis * sold / p.qty
-				p.qty -= sold
+			} else {
+				p.qty -= toF(t.Quantity)
+				if p.basisQty > 0 {
+					sold := min(toF(t.Quantity), p.basisQty)
+					p.basis -= p.basis * sold / p.basisQty
+					p.basisQty -= sold
+				}
 			}
 		}
 
