@@ -566,19 +566,19 @@ func TestAssetAddResolvesFromYahoo(t *testing.T) {
 // instead of re-resolving and colliding on the share code.
 func TestAssetAddKeepsCatalogTicker(t *testing.T) {
 	db := newDB(t)
-	run(t, db, "account", "add", "PEE Amundi")
+	run(t, db, "account", "add", "PEE Halcyon")
 	runNet(t, db, "asset", "add", "ERES_DATADOG", "--ccy", "EUR", "--group", "equities/us/tech", "--alias", "eres-ddog")
 	list := run(t, db, "asset", "list")
 	if !strings.Contains(list, "ERES_DATADOG") || strings.Contains(list, "990000124099") {
 		t.Errorf("ticker should stay ERES_DATADOG, not the share code:\n%s", list)
 	}
 	// The buy by the typed ticker must find the existing asset, not collide.
-	out := runNet(t, db, "asset", "buy", "ERES_DATADOG", "2950", "4203", "2021-08-02", "--account", "PEE Amundi", "--ccy", "EUR")
+	out := runNet(t, db, "asset", "buy", "ERES_DATADOG", "125", "1750", "2024-01-15", "--account", "PEE Halcyon", "--ccy", "EUR")
 	if strings.Contains(out, "already exists") || strings.Contains(out, "already used") {
 		t.Errorf("buy by ticker collided:\n%s", out)
 	}
-	txs := run(t, db, "tx", "list", "--account", "PEE Amundi")
-	if !strings.Contains(txs, "2950") {
+	txs := run(t, db, "tx", "list", "--account", "PEE Halcyon")
+	if !strings.Contains(txs, "125") {
 		t.Errorf("buy not recorded:\n%s", txs)
 	}
 }

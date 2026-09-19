@@ -66,13 +66,13 @@ Those are off course fictional accounts and assets, should be replaced by your o
 ```sh
 # Flat tax / PFU = 31.4 % on gains; PEA & PEE social levies = 18.6 %; assurance-vie stayed at 17.2 %.
 finador account add "CTO Meridia"              --tax gains:31.4%  --alias meridia
-finador account add "PEA Fortuneo"          --tax gains:18.6%  --alias pea --alias fortuneo
-finador account add "PEA-PME Bourse Direct" --tax gains:18.6%  --alias pea-pme --alias pme
-finador account add "Assurance Vie Linxea"  --tax gains:24.7%  --alias av --alias linxea  # mature contract: 7.5 % + 17.2 %
+finador account add "PEA Zephyr"            --tax gains:18.6%  --alias pea --alias zephyr
+finador account add "PEA-PME Aurora"        --tax gains:18.6%  --alias pea-pme --alias pme
+finador account add "AV Borealis"           --tax gains:24.7%  --alias av --alias borealis  # mature contract: 7.5 % + 17.2 %
 finador account add "PEE"                   --tax gains:18.6%  --alias pee
 
 # example with free shares (taxes applies to the whole "value" not just "gains").
-finador account add "RSU (Morgan Stanley)"  --tax value:31.4%    --alias rsu
+finador account add "RSU (Lyra Wealth)"     --tax value:31.4%    --alias rsu
 ```
 
 `--alias` gives an account short, case-insensitive names you can use anywhere; add as many
@@ -84,7 +84,7 @@ as you like.
 finador account add "Livret A"   --alias livreta
 finador account add "LDDS"       --alias ldds
 finador account add "Checking"   --alias checking
-finador account add "Wise USD" --ccy USD --alias wiseusd # this one holds dollars
+finador account add "USD Wallet" --ccy USD --alias usdwallet # this one holds dollars
 ```
 
 ### 3. A real-estate envelope (to hold the property)
@@ -115,7 +115,7 @@ or to set the alias/group up front.
 ### 5. Your holdings - quantity @ average buy price
 
 ```sh
-# PEA Fortuneo - its taxable basis becomes 40×380 + 5×900 = 19 700 € (≈ your contributions)
+# PEA Zephyr - its taxable basis becomes 40×380 + 5×900 = 19 700 € (≈ your contributions)
 # means: "I bought 40 'world' at 380 € (currency for the account) each in my account 'pea'"
 finador asset buy world 40 @380   --account pea 
 finador asset buy smallcap 5 @900 --account pea
@@ -140,7 +140,7 @@ its own envelope's rule.
 finador cash set livreta 8000
 finador cash set ldds 5000
 finador cash set checking 3200
-finador cash set wiseusd 12000        # USD account → 12 000 $
+finador cash set usdwallet 12000      # USD account → 12 000 $
 ```
 
 ### 7. Value what has no public quote, and the property

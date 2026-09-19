@@ -84,7 +84,7 @@ it as the flag's default value:
 
 ```
 --db string   encrypted data file, and forces local mode
-              (default "/Users/ben/.cache/finador/checkout/ab12cd.fin")
+              (default "~/.cache/finador/checkout/ab12cd.fin")
 ```
 
 `a.dbPath` keeps its current role: `dataSource()` still keys local-vs-remote off
@@ -107,8 +107,8 @@ in `internal/cli/config.go`:
 `finador config get` with no argument prints, in this order:
 
 ```
-# ledger: /Users/ben/.cache/finador/checkout/ab12cd.fin
-# config: /Users/ben/.config/finador/config.json   (source = github)
+# ledger: ~/.cache/finador/checkout/ab12cd.fin
+# config: ~/.config/finador/config.json   (source = github)
 currency        = EUR              # default
 default-account = CTO Meridia
 keychain-ttl    = 12h              # default

@@ -269,7 +269,7 @@ func TestResolveUniquePrefix(t *testing.T) {
 	b := NewBook()
 	for _, a := range []*Account{
 		{ID: "pea-zephyr", Name: "PEA Zephyr", Currency: EUR},
-		{ID: "per-linxea", Name: "PER Linxea", Currency: EUR},
+		{ID: "per-borealis", Name: "PER Borealis", Currency: EUR},
 	} {
 		if err := b.AddAccount(a); err != nil {
 			t.Fatal(err)
@@ -299,7 +299,7 @@ func TestResolveUniquePrefix(t *testing.T) {
 	// ambiguous prefix → error listing the candidates
 	_, err := b.Account("pe")
 	if !errors.Is(err, ErrAmbiguous) || !strings.Contains(err.Error(), "pea-zephyr") ||
-		!strings.Contains(err.Error(), "per-linxea") {
+		!strings.Contains(err.Error(), "per-borealis") {
 		t.Errorf("Account(pe) = %v, attendu ambiguïté listant les candidats", err)
 	}
 	// the exact match always wins over the prefix: an asset with exact ID "dd"

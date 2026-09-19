@@ -180,7 +180,7 @@ func (m *Morningstar) do(ctx context.Context, rawURL string, extraHeaders map[st
 - [ ] **Step 2: Verify it compiles**
 
 ```bash
-cd /Users/ben/projects/finador && go build ./internal/market/...
+cd ~/projects/finador && go build ./internal/market/...
 ```
 
 Expected: no output (success).
@@ -305,7 +305,7 @@ func TestMorningstarName(t *testing.T) {
 - [ ] **Step 2: Run the tests**
 
 ```bash
-cd /Users/ben/projects/finador && go test ./internal/market/... -run TestMorningstar -v -count=1
+cd ~/projects/finador && go test ./internal/market/... -run TestMorningstar -v -count=1
 ```
 
 Expected: all 5 tests PASS.
@@ -333,7 +333,7 @@ Also update the comment above `Default()` to mention Morningstar.
 - [ ] **Step 2: Run full test suite**
 
 ```bash
-cd /Users/ben/projects/finador && go test ./... -count=1
+cd ~/projects/finador && go test ./... -count=1
 ```
 
 Expected: all tests pass, no failures.
@@ -368,10 +368,10 @@ finador asset add "Convex AM Europe Small" --isin LU1111111111
 finador refresh    # priced via FT or Morningstar automatically
 ```
 
-**Honest limitation - French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an Selia Sélection fund) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain (Yahoo, FT, Morningstar, or portfodor's equivalent) covers them. Value them manually:
+**Honest limitation - French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an FCPE share class) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain (Yahoo, FT, Morningstar, or portfodor's equivalent) covers them. Value them manually:
 
 ```sh
-finador asset set "Selia Sélection Équilibre" 4250.00 --account "PEE Entreprise"
+finador asset set "FCPE Halcyon Équilibre" 4250.00 --account "PEE Halcyon"
 ```
 
 All three providers are implemented with no extra dependency - stdlib HTTP and `regexp` only.
@@ -380,7 +380,7 @@ All three providers are implemented with no extra dependency - stdlib HTTP and `
 - [ ] **Step 2: Verify**
 
 ```bash
-cd /Users/ben/projects/finador && grep -n "Atypical assets" README.md
+cd ~/projects/finador && grep -n "Atypical assets" README.md
 ```
 
 Expected: finds the new heading.
@@ -392,7 +392,7 @@ Expected: finds the new heading.
 - [ ] **Step 1: Run go vet**
 
 ```bash
-cd /Users/ben/projects/finador && go vet ./...
+cd ~/projects/finador && go vet ./...
 ```
 
 Expected: no output.
@@ -400,7 +400,7 @@ Expected: no output.
 - [ ] **Step 2: Run full test suite**
 
 ```bash
-cd /Users/ben/projects/finador && go test ./... -count=1
+cd ~/projects/finador && go test ./... -count=1
 ```
 
 Expected: all tests pass.
@@ -408,7 +408,7 @@ Expected: all tests pass.
 - [ ] **Step 3: Run go build**
 
 ```bash
-cd /Users/ben/projects/finador && go build ./...
+cd ~/projects/finador && go build ./...
 ```
 
 Expected: no output.
@@ -416,7 +416,7 @@ Expected: no output.
 - [ ] **Step 4: Run golangci-lint**
 
 ```bash
-cd /Users/ben/projects/finador && golangci-lint run ./...
+cd ~/projects/finador && golangci-lint run ./...
 ```
 
 Expected: no issues.
@@ -424,7 +424,7 @@ Expected: no issues.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/ben/projects/finador && git add internal/market/morningstar.go internal/market/morningstar_test.go internal/market/multi.go README.md && git commit -m "$(cat <<'EOF'
+cd ~/projects/finador && git add internal/market/morningstar.go internal/market/morningstar_test.go internal/market/multi.go README.md && git commit -m "$(cat <<'EOF'
 feat(market): Morningstar/Boursorama fallback provider + docs for funds-by-ISIN
 
 Adds a third provider to the Multi chain (Yahoo → FT → Morningstar).

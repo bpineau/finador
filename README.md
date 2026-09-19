@@ -667,10 +667,10 @@ finador asset add "Convex AM Europe Small" --isin LU1111111111
 finador refresh    # priced via FT or Morningstar automatically
 ```
 
-**Honest limitation - French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (e.g. an Selia Sélection fund) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain covers them. Value them manually:
+**Honest limitation - French employee-savings funds (FCPE/PEE).** Funds distributed through employer plans (an FCPE share class) are identified by an internal AMF code that is _not_ a real ISIN and is not listed on any public quote source. No provider in the chain covers them. Value them manually:
 
 ```sh
-finador asset set "Selia Sélection Équilibre" 4250.00 --account "PEE Entreprise"
+finador asset set "FCPE Halcyon Équilibre" 4250.00 --account "PEE Halcyon"
 ```
 
 All three providers are implemented with no extra dependency - stdlib HTTP and `regexp` only.

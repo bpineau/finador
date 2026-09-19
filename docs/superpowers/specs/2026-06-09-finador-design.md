@@ -242,7 +242,7 @@ de référence calculées indépendamment.
 ```
 finador init                                   # crée le .fin (mdp demandé 2×)
 finador account add "PEA Zephyr" --tax gains:17.2%
-finador account add "PER Linxea"   --tax value:20%
+finador account add "PER Borealis"   --tax value:20%
 finador asset  add CW8.PA --group actions/monde
 finador asset  set maison-renover 450000 --at 2026-06-01
 finador add    cw8 10 @550 2026-06-01 --account "PEA Zephyr"   # qty<0 = vente

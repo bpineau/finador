@@ -31,7 +31,7 @@ Expected: `go1.26` ou plus. Sinon, STOP : demander à l'utilisateur d'installer 
 - [ ] **Step 2: Initialiser le module et le squelette**
 
 ```bash
-cd /Users/ben/projects/finador
+cd ~/projects/finador
 go mod init finador
 ```
 

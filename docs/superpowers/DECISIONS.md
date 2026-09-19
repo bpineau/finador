@@ -237,7 +237,7 @@ porté best-effort. (4) **Yahoo reste primaire** pour les tickers ; `Resolve` (a
 (5) **Zéro dépendance** : portfodor est 100 % stdlib (regex pour le HTML) - finador aussi. (6) Cache
 sidecar **inchangé** (les séries y vivent déjà) ; pas de cache de résolution (re-search à chaque
 refresh, acceptable). `Refresh` « never fails hard » préservé (fallback périmé naturel).
-**Hors scope (documenté) :** l'**Selia `990000000000`** (code AMF FCPE/PEE) n'est coté par aucun
+**Hors scope (documenté) :** le **FCPE Halcyon `990000000000`** (code AMF FCPE/PEE) n'est coté par aucun
 provider (portfodor non plus) → `asset set` manuel ; Stooq (ticker-only) ; pin de catalogue xid.
 
 ## D20 - Fraîcheur CLI : des cours < 1h, pas d'affichage de fraîcheur
@@ -336,9 +336,9 @@ métier. `Ref` gagne un champ `Currency` pour exprimer ce contrat.
 **Date** : 2026-07-04
 
 **Contexte :** l'ancien rendu (a) repliait toute enveloppe à une seule ligne sur le
-nom du compte, masquant l'actif (un CTO ne portant que Datadog n'affichait que
-« CTO Etrade »), et pour un fonds collait son ISIN au nom du compte
-(« PEA PME Boursobank (LU1832174962) ») ; (b) portait le total gross/net sur la
+nom du compte, masquant l'actif (un CTO ne portant que GTWR n'affichait que
+« CTO Meridia »), et pour un fonds collait son ISIN au nom du compte
+(« PEA-PME Zephyr (LU1832174962) ») ; (b) portait le total gross/net sur la
 ligne du compte **et** sur ses positions indentées, donc les colonnes redoublaient
 la même somme pour tout compte mono-ligne. Un saut de ligne parasite suivait aussi
 l'en-tête « Holdings in … ».

@@ -459,7 +459,7 @@ func TestLedgerDiffs(t *testing.T) {
 
 	oldAcc := domain.Account{ID: "pea", Name: "PEA Zephyr", Currency: domain.EUR}
 	newAcc := oldAcc
-	newAcc.Name = "PEA Boursa"
+	newAcc.Name = "PEA Aurora"
 	newAcc.Currency = domain.USD
 	newAcc.Aliases = []string{"boursa"}
 	newAcc.Tax, _ = domain.ParseTaxRule("gains:18.6%")
@@ -490,7 +490,7 @@ func TestLedgerDiffs(t *testing.T) {
 		"tx": {"date: 2026-06-01 -> 2026-06-02", "kind: buy -> sell",
 			"account: PEA Zephyr -> CTO Meridia", "asset: Amundi MSCI World ->",
 			"qty: 10 -> 11", "amount:", `note: "" -> "corrected"`},
-		"account": {"name: PEA Zephyr -> PEA Boursa", "tax: none -> gains:18.6%",
+		"account": {"name: PEA Zephyr -> PEA Aurora", "tax: none -> gains:18.6%",
 			"ccy: EUR -> USD", "aliases: [] -> [boursa]"},
 		"asset": {"kind: security -> property", "name: Amundi MSCI World -> World Tracker",
 			"ticker: CW8.PA -> MWRD.PA", "isin:  -> LU1681043599",

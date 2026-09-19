@@ -123,7 +123,7 @@ func TestLabelScopeHasCashFalse(t *testing.T) {
 - [ ] **Step 2: Run tests to confirm they fail**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/portfolio/ -run 'TestLabelScope' -count=1
+cd ~/projects/finador && go test ./internal/portfolio/ -run 'TestLabelScope' -count=1
 ```
 
 Expected: compile error (ByLabel, LabelScope, Pairs not defined).
@@ -201,7 +201,7 @@ Add `ByLabel` to `lineLabel` (after `ByAccountGroup`):
 - [ ] **Step 4: Run tests to confirm they pass**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/portfolio/ -run 'TestLabelScope' -count=1
+cd ~/projects/finador && go test ./internal/portfolio/ -run 'TestLabelScope' -count=1
 ```
 
 Expected: all PASS.
@@ -209,7 +209,7 @@ Expected: all PASS.
 - [ ] **Step 5: Run full package tests**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/portfolio/... -count=1
+cd ~/projects/finador && go test ./internal/portfolio/... -count=1
 ```
 
 Expected: all PASS.
@@ -273,7 +273,7 @@ Also add `"fmt"` import if not already present in the test file (the existing fi
 - [ ] **Step 2: Run test to confirm it fails**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/portfolio/ -run 'TestSeriesExternalFlowsLabelScope' -count=1
+cd ~/projects/finador && go test ./internal/portfolio/ -run 'TestSeriesExternalFlowsLabelScope' -count=1
 ```
 
 Expected: FAIL - ByLabel buy flows are not collected (falls into the `default` case).
@@ -321,7 +321,7 @@ In `valueAt`, the tax rule switch (around line 481):
 - [ ] **Step 4: Run test to confirm it passes**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/portfolio/ -run 'TestSeriesExternalFlowsLabelScope' -count=1
+cd ~/projects/finador && go test ./internal/portfolio/ -run 'TestSeriesExternalFlowsLabelScope' -count=1
 ```
 
 Expected: PASS.
@@ -329,7 +329,7 @@ Expected: PASS.
 - [ ] **Step 5: Run full package tests**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/portfolio/... -count=1
+cd ~/projects/finador && go test ./internal/portfolio/... -count=1
 ```
 
 Expected: all PASS.
@@ -430,7 +430,7 @@ func TestLabelWithExclude(t *testing.T) {
 - [ ] **Step 2: Run tests to confirm they fail**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/cli/ -run 'TestPerfByLabel|TestValueByLabel|TestLabelAndScope|TestLabelUnknown|TestLabelWithExclude' -count=1
+cd ~/projects/finador && go test ./internal/cli/ -run 'TestPerfByLabel|TestValueByLabel|TestLabelAndScope|TestLabelUnknown|TestLabelWithExclude' -count=1
 ```
 
 Expected: FAIL (flag `--label` unknown).
@@ -543,7 +543,7 @@ Add flag registration before the return:
 - [ ] **Step 5: Run the new tests**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/cli/ -run 'TestPerfByLabel|TestValueByLabel|TestLabelAndScope|TestLabelUnknown|TestLabelWithExclude' -count=1
+cd ~/projects/finador && go test ./internal/cli/ -run 'TestPerfByLabel|TestValueByLabel|TestLabelAndScope|TestLabelUnknown|TestLabelWithExclude' -count=1
 ```
 
 Expected: all PASS.
@@ -551,7 +551,7 @@ Expected: all PASS.
 - [ ] **Step 6: Run full CLI tests**
 
 ```
-cd /Users/ben/projects/finador && go test ./internal/cli/... -count=1
+cd ~/projects/finador && go test ./internal/cli/... -count=1
 ```
 
 Expected: all PASS.
@@ -559,8 +559,8 @@ Expected: all PASS.
 - [ ] **Step 7: Verify help output**
 
 ```
-cd /Users/ben/projects/finador && go run ./cmd/finador perf --help
-cd /Users/ben/projects/finador && go run ./cmd/finador value --help
+cd ~/projects/finador && go run ./cmd/finador perf --help
+cd ~/projects/finador && go run ./cmd/finador value --help
 ```
 
 Expected: both show `--label` flag and the new Example lines.
@@ -648,7 +648,7 @@ positions carrying that label (cannot be combined with a positional scope argume
 - [ ] **Step 3: Verify build still clean**
 
 ```
-cd /Users/ben/projects/finador && go build ./...
+cd ~/projects/finador && go build ./...
 ```
 
 - [ ] **Step 4: Commit**
@@ -665,7 +665,7 @@ git commit -m "docs: document --label scope and full perf/value subset recipes i
 - [ ] **Step 1: Run the full test suite**
 
 ```
-cd /Users/ben/projects/finador && go vet ./... && go test ./... -count=1
+cd ~/projects/finador && go vet ./... && go test ./... -count=1
 ```
 
 Expected: all PASS.
@@ -673,7 +673,7 @@ Expected: all PASS.
 - [ ] **Step 2: Build check**
 
 ```
-cd /Users/ben/projects/finador && go build ./...
+cd ~/projects/finador && go build ./...
 ```
 
 Expected: no errors.
@@ -681,7 +681,7 @@ Expected: no errors.
 - [ ] **Step 3: Lint**
 
 ```
-cd /Users/ben/projects/finador && golangci-lint run ./...
+cd ~/projects/finador && golangci-lint run ./...
 ```
 
 Expected: no issues.
