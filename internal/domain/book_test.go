@@ -352,8 +352,19 @@ func TestLabels(t *testing.T) {
 	if l, err := b.ResolveLabel(string(l1.ID)); err != nil || l.ID != l1.ID {
 		t.Errorf("ResolveLabel(exact) = %v, %v", l, err)
 	}
-	if l, err := b.ResolveLabel(string(l1.ID)[:len(l1.ID)-1]); err != nil || l.ID != l1.ID {
+	// A prefix resolves when it is unique - which the ids above are NOT:
+	// NewID is monotonic, so entities created back to back inside one
+	// millisecond differ in their last character alone (see id.go). Short
+	// references stay a convenience for ids that are not neighbours.
+	far := &Label{ID: "00000000000000000000001", Account: "cto", Asset: asset, Name: "revenus"}
+	if err := b.AddLabel(far); err != nil {
+		t.Fatal(err)
+	}
+	if l, err := b.ResolveLabel(string(far.ID)[:8]); err != nil || l.ID != far.ID {
 		t.Errorf("ResolveLabel(prefix) = %v, %v", l, err)
+	}
+	if _, err := b.ResolveLabel(string(l1.ID)[:len(l1.ID)-1]); !errors.Is(err, ErrAmbiguous) {
+		t.Errorf("ResolveLabel(neighbour prefix) = %v, want ErrAmbiguous", err)
 	}
 	if _, err := b.ResolveLabel("zzzzzzzzzzzz"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("ResolveLabel(absent) = %v, want ErrNotFound", err)

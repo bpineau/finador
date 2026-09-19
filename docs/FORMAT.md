@@ -286,7 +286,9 @@ id      = crockfordBase32_lowercase_nopad(raw)
 - `unixMillis` is the current Unix time in **milliseconds**; only its **low 6 bytes**
   are kept (a 48-bit big-endian prefix). Concretely: take the 8-byte big-endian
   encoding of the uint64 millis, drop the top 2 bytes, keep the next 6.
-- `rand[8]` is 8 cryptographically random bytes.
+- `rand[8]` is 8 bytes that a reader must treat as unpredictable. They are
+  cryptographically random for the first id a process mints in a given
+  millisecond; see the monotonic rule below for the ones that follow.
 - The 14-byte buffer is encoded with **Crockford base32**, **lowercase**, **no
   padding**, using the alphabet:
 
@@ -302,6 +304,43 @@ id      = crockfordBase32_lowercase_nopad(raw)
 
 Example real id: `06fc2cjx2bvtjjxmtmcj2wg`.
 
+**Monotonic within one process (ULID-style).** The millisecond clock is far too
+coarse for a burst: a broker-statement import, an `export --script` replay or a
+bulk entry mints hundreds of records inside one tick. With a fresh random tail
+each time, their relative order would be drawn at random - and then frozen in
+the ledger, because transactions are replayed in `(date, id)` order (§5). A
+statement holding a same-day buy and a same-day sell would then be replayed
+either way round, which moves the average-cost basis and everything computed
+from it.
+
+So a writer that mints several ids in sequence **should** make them increase in
+minting order:
+
+1. Read the clock. If its millisecond is **strictly greater** than the last id
+   minted by this process, emit `uint48(millis) ‖ rand[8]` as above.
+2. Otherwise (same millisecond, or a clock that stepped backwards), **reuse the
+   last id's 14-byte buffer and increment its 8-byte tail by one**, as a
+   big-endian unsigned integer. An all-ones tail carries into the timestamp
+   prefix: the next millisecond, with a fresh random tail (it takes 2^64 ids
+   inside one tick to reach).
+
+The generator is thread-safe: the read-modify-write of that last value is
+serialized.
+
+What this does and does not promise:
+
+- Ids keep **exactly** the same length, alphabet, timestamp prefix and wire
+  form. Nothing about the format changes, and ledgers written before this rule
+  stay valid.
+- The guarantee is **local to one writing process**, and nothing records it.
+  Two devices, two runs of the same binary or a merge of both interleave as
+  they always did.
+- A reader **must not** assume monotonicity, must not assume the tail is
+  uniformly random, and must not derive a sequence number, a count or an
+  ordering promise from an id. Ids stay **opaque**: the only ordering a reader
+  may rely on is the one §5 states, `(date, id)` compared byte-for-byte, and
+  the only identity test is byte equality.
+
 A writer may exceptionally use another scheme when determinism is the point: the
 reference CSV importer gives an auto-created asset the lowercase slug of its
 imported reference (e.g. ticker `CW8.PA` → id `cw8-pa`), so the same import run
@@ -309,7 +348,11 @@ on two machines converges on **one** asset instead of two random ids that merge
 would keep as duplicates. Random `NewID` remains the default everywhere else.
 
 References (a transaction's `account` / `asset`) store the **id**. Display resolves
-id → human name; input accepts a name, alias, ticker, ISIN or **id prefix**.
+id → human name; input accepts a name, alias, ticker, ISIN or **id prefix**. That
+short-reference convenience is a UI affordance, not a format rule, and the
+monotonic rule above narrows it: records minted back to back differ in their last
+character alone, so a prefix short enough to type only discriminates records that
+are not neighbours. An ambiguous prefix must be reported, never resolved.
 
 ### 4.3 Payload (`d`) schemas
 
@@ -497,6 +540,13 @@ There is **no derived numbering**: ids are self-assigned at creation, so nothing
 else is reconstructed during the fold. All higher-level state (positions, cost
 bases, tax bases, value series) is recomputed afterward from the folded
 transactions - it is never stored.
+
+That recomputation walks the folded transactions in **`(date, id)` order**, the
+`id` compared byte-for-byte as the opaque string it is (§4.2). Two records of
+the same day are therefore separated by their ids alone, and the order decides
+average-cost bases and everything drawn from them - which is why a writer
+minting a burst of ids keeps them increasing (§4.2, "Monotonic within one
+process").
 
 Because every correction is just another record that supersedes or tombstones an
 earlier one, history is never rewritten in place; editing or deleting an old entry

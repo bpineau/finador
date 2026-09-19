@@ -1,0 +1,13 @@
+Statement,Header,Field Name,Field Value
+Statement,Data,BrokerName,Interactive Brokers LLC
+Statement,Data,Title,Activity Statement
+Statement,Data,Period,"March 1, 2026 - March 31, 2026"
+Account Information,Header,Field Name,Field Value
+Account Information,Data,Account,U1234567
+Account Information,Data,Base Currency,EUR
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,EUR,CW8,"2026-03-02, 09:31:02",20,100,100,-2000,0,2000,0,0,O
+Trades,Data,Order,Stocks,EUR,CW8,"2026-03-02, 16:12:44",-10,150,150,1500,0,-1000,500,0,C
+Trades,Total,,Stocks,EUR,,,,,,-500,0,,500,0,
+Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Security ID,Listing Exch,Multiplier,Type,Code
+Financial Instrument Information,Data,Stocks,CW8,AMUNDI MSCI WORLD UCITS ETF,87654321,LU1681043599,SBF,1,ETF,

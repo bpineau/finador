@@ -8,10 +8,11 @@ import (
 	"strings"
 
 	"finador/internal/domain"
+	"finador/internal/portfolio"
 )
 
 // writeScript dumps the book as a replayable sequence of finador commands:
-// config, accounts, assets, then every ledger record in date order, labels
+// config, accounts, assets, then every ledger record in replay order, labels
 // last. Running the script against a freshly `finador init`-ed file rebuilds
 // an equivalent portfolio (entry IDs and import hashes are regenerated, so
 // the copy does not merge/sync as the same lineage - it is a rebuild recipe,
@@ -72,10 +73,12 @@ func writeScript(w io.Writer, b *domain.Book) error {
 		}
 	}
 
-	txs := make([]*domain.Transaction, len(b.Transactions))
-	copy(txs, b.Transactions)
-	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Date.Before(txs[j].Date) })
-	for _, t := range txs {
+	// Replay order, not merely date order: each emitted command mints a fresh
+	// id, and those ids come out in emission order (domain.NewID is monotonic
+	// within a process). Emitting the ledger the way the engine reads it -
+	// (date, id) - is what makes the rebuilt copy replay identically,
+	// same-day round trips included.
+	for _, t := range portfolio.Sorted(b) {
 		if err := writeTx(&s, b, t); err != nil {
 			return err
 		}

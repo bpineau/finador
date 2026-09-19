@@ -154,7 +154,9 @@ cmd/finador → cli ─┬→ store ──→ domain
   is sensitive metadata).
 - **Saves are append-mostly and byte-stable**: unchanged record lines are
   re-emitted byte-for-byte. Entity IDs are random and time-sortable
-  (`domain.NewID`) - what makes merge and the GitHub sync lossless.
+  (`domain.NewID`) - what makes merge and the GitHub sync lossless - and
+  MONOTONIC within a process (decision D42), so a burst minted inside one
+  millisecond replays in minting order instead of a random one.
 - Web mutations: save atomically, then 303 redirect. No cookies, no sessions,
   no auth - the server binds 127.0.0.1 and warns loudly otherwise.
 

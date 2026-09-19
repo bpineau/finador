@@ -1003,3 +1003,53 @@ point final `Value()` / `Series()` sur les portées « tout », « groupe » et
 « enveloppe ». Les tests nommés fixent les conventions ; celui-ci fixe l'ACCORD,
 et c'est lui qui pourrit en silence. Une seconde d'exécution : il reste dans le
 gate.
+
+## D42 - L'identifiant est monotone dans un processus, et l'ordre du relevé fait loi
+
+**Contexte :** `domain.NewID` compose 6 octets de millisecondes Unix et 8 octets
+aléatoires (FORMAT.md 4.2), et le rejeu lit le grand livre dans l'ordre
+`(date, id)`. Une milliseconde est une éternité pour une machine : un import de
+relevé frappe des centaines d'enregistrements dans le même tic, donc leur ordre
+relatif était TIRÉ AU SORT - puis gelé dans le fichier, où plus rien ne le
+corrige.
+
+**Le bug, mesuré :** un relevé portant un aller-retour du même jour (achat de 20
+à 100, vente de 10 à 150) donnait un impôt latent de 0 EUR sur 91 imports et de
+157 EUR sur 109, sur 200 imports identiques du même fichier. Lu dans l'ordre du
+relevé, la base de coût moyenne de ce qui reste vaut 1000 et le gain 500 ;
+vente d'abord, la vente ne rencontre aucune position, ne déplace rien, et la
+base reste à 2000 - la ligne se lit alors en moins-value et l'impôt tombe à
+zéro. Les deux lectures sont cohérentes ; une seule est fidèle.
+
+**Choix :** le générateur devient monotone dans le processus, à la manière d'un
+ULID. Tant que l'horloge n'a pas dépassé la milliseconde du dernier id (ou
+qu'elle recule, ce que fait une correction NTP), on réutilise cette milliseconde
+et on INCRÉMENTE de un la partie aléatoire ; un débordement passe à la
+milliseconde suivante avec une queue neuve. Verrou autour de la lecture-écriture
+du dernier id : la génération est sûre en concurrence.
+
+**Ce qui ne change pas :** la longueur, l'alphabet, le préfixe temporel, le
+format sur disque. Les grands livres existants restent valides, la règle de tri
+est inchangée, et seul le TEXTE de la spec bouge. La garantie est LOCALE à un
+processus : aucun lecteur n'a le droit de s'y fier, l'id reste opaque, comparé
+octet à octet. Deux appareils s'entrelacent comme avant.
+
+**Ordre du relevé = ordre du fichier :** l'unique générateur suffit à condition
+que tout passe par lui dans l'ordre de lecture. C'est déjà le cas des imports
+(`portfolio.AddImported` → `Book.Add`), des formulaires web et des commandes.
+`export --script` faisait exception : il triait par DATE seule, donc rejouait
+les records d'un même jour dans l'ordre du fichier plutôt que dans l'ordre du
+moteur. Il émet désormais `portfolio.Sorted`, l'ordre `(date, id)` lui-même.
+
+**Prix payé, assumé :** deux enregistrements créés coup sur coup ne diffèrent
+plus que par leur DERNIER caractère. Le préfixe court à la git (`finador tx
+06gbpq...`) ne distingue donc plus deux lignes d'un même import ; il reste une
+commodité pour des ids éloignés, et une ambiguïté est signalée, jamais tranchée.
+L'ordre du grand livre valait ce prix : un impôt faux ne se voit pas, un préfixe
+ambigu se voit tout de suite.
+
+**Comment on le tient :** `TestNewIDMonotonic` (10 000 ids d'affilée, strictement
+croissants et uniques), `TestNewIDConcurrent`, `TestNewIDBackwardsClock`,
+`TestImportOrderIsTheStatementOrder` (200 imports du même relevé, 157.00 EUR à
+chaque fois) et `TestWriteScriptEmitsReplayOrder`. Le client Android porte le
+même algorithme et les mêmes tests ; `make crossimpl` garde la frontière.
