@@ -689,3 +689,51 @@ func TestStatementOrderingIsPerDayOnly(t *testing.T) {
 	}
 	approx(t, "balance", res.Points[len(res.Points)-1].Gross, 12500)
 }
+
+// An intraday round trip typed sell-first (the sell has the lower id, because
+// it was entered first) must net out. Series() clamped the position at every
+// sell, so the sell vanished and the buy alone was valued: 9 shares where
+// Holdings - and therefore Value() - reads 1.
+func TestSellBeforeItsCoveringBuyNetsOut(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "cto", Name: "CTO", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAsset(&domain.Asset{ID: "x", Kind: domain.Security, Name: "X",
+		Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	addTx(b, "a", domain.Transaction{Date: mustDate("2026-02-03"), Account: "cto", Asset: "x",
+		Kind: domain.Sell, Quantity: dec("8"), Amount: eur("192")})
+	addTx(b, "b", domain.Transaction{Date: mustDate("2026-02-03"), Account: "cto", Asset: "x",
+		Kind: domain.Buy, Quantity: dec("9"), Amount: eur("216")})
+	b.Market.Price("x").Merge([]domain.PricePoint{{Date: mustDate("2026-02-02"), Close: 24}})
+
+	from, at := mustDate("2026-02-01"), mustDate("2026-02-10")
+	endpointEquality(t, b, from, at)
+	res, err := Series(b, Scope{Kind: All}, from, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "one share left", res.Points[len(res.Points)-1].Gross, 24)
+}
+
+// A trade whose asset cell is empty (a CSV import can write one) or whose
+// asset was deleted still moved capital across the envelope: Value's
+// accountBasis counts it, so the walker's flowBasis must too, or the two
+// engines split the envelope's estimated tax.
+func TestTradeWithNoAssetStillFeedsTheEnvelopeBasis(t *testing.T) {
+	b := domain.NewBook()
+	rule, err := domain.ParseTaxRule("gains:31.4%")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAccount(&domain.Account{ID: "cto", Name: "CTO", Currency: domain.EUR, Tax: rule}); err != nil {
+		t.Fatal(err)
+	}
+	addTx(b, "a", domain.Transaction{Date: mustDate("2026-02-01"), Account: "cto",
+		Kind: domain.Deposit, Amount: eur("700")})
+	addTx(b, "b", domain.Transaction{Date: mustDate("2026-02-03"), Account: "cto",
+		Kind: domain.Sell, Quantity: dec("8"), Amount: eur("500")})
+	endpointEquality(t, b, mustDate("2026-02-01"), mustDate("2026-02-10"))
+}
