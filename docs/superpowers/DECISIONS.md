@@ -237,7 +237,7 @@ porté best-effort. (4) **Yahoo reste primaire** pour les tickers ; `Resolve` (a
 (5) **Zéro dépendance** : portfodor est 100 % stdlib (regex pour le HTML) - finador aussi. (6) Cache
 sidecar **inchangé** (les séries y vivent déjà) ; pas de cache de résolution (re-search à chaque
 refresh, acceptable). `Refresh` « never fails hard » préservé (fallback périmé naturel).
-**Hors scope (documenté) :** l'**Selia `990000000000`** (code AMF FCPE/PEE) n'est coté par aucun
+**Hors scope (documenté) :** le **FCPE Halcyon `990000000000`** (code AMF FCPE/PEE) n'est coté par aucun
 provider (portfodor non plus) → `asset set` manuel ; Stooq (ticker-only) ; pin de catalogue xid.
 
 ## D20 - Fraîcheur CLI : des cours < 1h, pas d'affichage de fraîcheur

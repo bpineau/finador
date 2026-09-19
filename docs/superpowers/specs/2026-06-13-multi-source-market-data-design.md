@@ -27,7 +27,7 @@ ne les a pas, **aussi bien que `../portfodor/`** - en particulier `LU0131510165`
     `X-Requested-With: XMLHttpRequest`) → scrape regex `/bourse/(?:opcvm|trackers)/cours/(0P[0-9A-Za-z]+)/` → id Morningstar `0P…`.
   - Morningstar : `GET https://tools.morningstar.fr/api/rest.svc/timeseries_price/ok91jeenoo?id={0P…}&idtype=Morningstar&frequency=daily&startDate={YYYY-MM-DD}&outputType=COMPACTJSON` →
     `[[epoch_ms, value], …]`.
-- **Selia `990000000000`** : code interne AMF (FCPE/PEE), pas un ISIN coté - **couvert par aucun provider** (FT/Boursorama renvoient vide), portfodor non plus. → reste en `asset set` manuel (documenté). Une source France-spécifique (AMF GECO) serait un chantier séparé, hors scope.
+- **FCPE Halcyon `990000000000`** : code interne AMF (FCPE/PEE), pas un ISIN coté - **couvert par aucun provider** (FT/Boursorama renvoient vide), portfodor non plus. → reste en `asset set` manuel (documenté). Une source France-spécifique (AMF GECO) serait un chantier séparé, hors scope.
 - **Stooq** : ticker-only + challenge JS d'ici → non pertinent pour les fonds. (Porté éventuellement plus tard ; pas prioritaire.)
 
 ## 2. Design
@@ -72,7 +72,7 @@ FT POST en JSON ; Boursorama header `X-Requested-With`. Erreurs réseau → remo
 
 - **Implémenté** : `Ref`, `Provider`, **FT** (vérifié sur les 2 fonds cibles), **Multi** chaîne
   Yahoo→FT→Morningstar, **Morningstar/Boursorama** (défensif, best-effort).
-- **Hors scope (documenté)** : FCPE/PEE par code AMF (Selia) → `asset set` manuel ; Stooq (ticker-only,
+- **Hors scope (documenté)** : FCPE/PEE par code AMF → `asset set` manuel ; Stooq (ticker-only,
   non prioritaire) ; pin de catalogue xid (optimisation).
 - **Zéro dépendance** ajoutée.
 
@@ -82,12 +82,12 @@ FT POST en JSON ; Boursorama header `X-Requested-With`. Erreurs réseau → remo
 2. **Provider FT** : `internal/market/ft.go` (search+chart, parsing), tests httptest avec fixtures FT réelles. Non câblé.
 3. **`Multi` + câblage** : chaîne Yahoo→FT, `market.Default()`, `cli` wire `Default()` au lieu de `NewYahoo()`. Active le fallback FT. **Vérif live LU0131510165/LU1111111111.**
 4. **Morningstar/Boursorama** : provider défensif + tests.
-5. **Doc** : README (« atypical assets / funds by ISIN »), note sur l'Selia FCPE manuel, DECISIONS.
+5. **Doc** : README (« atypical assets / funds by ISIN »), note sur le FCPE manuel, DECISIONS.
 
 ## 5. Critères de réussite
 
 1. `finador refresh` cote **LU1111111111** et **LU0131510165** via FT (séries NAV EUR) - **vérifié live**.
 2. Un actif avec ticker Yahoo continue d'être coté par Yahoo (chaîne : Yahoo d'abord).
 3. Un actif sans ticker ni ISIN connu d'aucun provider → pas de plantage (warning, valorisé par statement).
-4. Selia FCPE : documenté comme `asset set` manuel.
+4. FCPE Halcyon : documenté comme `asset set` manuel.
 5. Zéro dépendance ajoutée ; `Refresh` « never fails hard » préservé ; suite verte, vet + lint propres.
