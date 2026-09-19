@@ -811,3 +811,84 @@ func TestRefreshFXOffCurrencyRefused(t *testing.T) {
 		t.Error("an off-currency spot reached the FX series")
 	}
 }
+
+// A share split (or any redenomination) makes the source restate its whole
+// history. An incremental fetch starts at the last cached point, so merging
+// the answer left the old scale in front of the new one: a permanent cliff
+// that every valuation and every TWR read as a session that never happened.
+// The overlap day is the canary: when it comes back at another price, the
+// series is rebuilt from the deep floor.
+func TestRefreshRebuildsRestatedHistory(t *testing.T) {
+	b := bookWithTrade(t)
+	s := b.Market.Price("cw8")
+	s.Merge([]domain.PricePoint{
+		{Date: mustDate("2026-05-15"), Close: 400},
+		{Date: mustDate("2026-05-18"), Close: 404},
+		{Date: mustDate("2026-05-19"), Close: 408},
+	})
+	s.HistFrom = mustDate("2016-05-15")
+	s.FetchedAt = mustDate("2026-05-19")
+
+	// 4:1 split on 05-20: every close the source serves is now split-adjusted,
+	// the overlap day 05-19 included (408 becomes 102).
+	deep := []domain.PricePoint{
+		{Date: mustDate("2026-05-15"), Close: 100},
+		{Date: mustDate("2026-05-18"), Close: 101},
+		{Date: mustDate("2026-05-19"), Close: 102},
+		{Date: mustDate("2026-05-20"), Close: 103},
+	}
+	src := &fakeSource{daily: map[string]DailyData{
+		"CW8.PA":   {Currency: domain.EUR, Closes: deep},
+		"EURUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-20"), Close: 1.1}}},
+	}}
+	sum := Refresh(context.Background(), b, src, true)
+
+	if len(s.Points) != len(deep) {
+		t.Fatalf("series = %+v, expected the rebuilt %d points", s.Points, len(deep))
+	}
+	for i, p := range s.Points {
+		if p != deep[i] {
+			t.Fatalf("point %d = %+v, expected %+v", i, p, deep[i])
+		}
+	}
+	before, _, _ := s.At(mustDate("2026-05-18"))
+	after, _, _ := s.At(mustDate("2026-05-20"))
+	if after/before < 0.9 {
+		t.Errorf("cliff left in the series: %v then %v", before, after)
+	}
+	if !strings.Contains(strings.Join(sum.Warnings, "\n"), "restated") {
+		t.Errorf("warnings = %v, expected the restatement to be named", sum.Warnings)
+	}
+}
+
+// The canary must not fire on an ordinary incremental refresh: the overlap
+// day comes back at the same close, and the cached history is kept.
+func TestRefreshKeepsHistoryWhenOverlapAgrees(t *testing.T) {
+	b := bookWithTrade(t)
+	s := b.Market.Price("cw8")
+	s.Merge([]domain.PricePoint{
+		{Date: mustDate("2026-05-18"), Close: 404},
+		{Date: mustDate("2026-05-19"), Close: 408},
+	})
+	s.HistFrom = mustDate("2016-05-15")
+	s.FetchedAt = mustDate("2026-05-19")
+
+	src := &fakeSource{daily: map[string]DailyData{
+		"CW8.PA": {Currency: domain.EUR, Closes: []domain.PricePoint{
+			{Date: mustDate("2026-05-19"), Close: 408.02}, // a cent of drift, not a split
+			{Date: mustDate("2026-05-20"), Close: 411},
+		}},
+		"EURUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-20"), Close: 1.1}}},
+	}}
+	sum := Refresh(context.Background(), b, src, true)
+	if len(s.Points) != 3 {
+		t.Fatalf("series = %+v, expected the history kept and one point appended", s.Points)
+	}
+	if strings.Contains(strings.Join(sum.Warnings, "\n"), "restated") {
+		t.Errorf("warnings = %v, expected no restatement", sum.Warnings)
+	}
+	// Exactly one daily call per instrument: no deep re-fetch.
+	if n := strings.Count(strings.Join(src.calls, "\n"), "DAILY CW8.PA"); n != 1 {
+		t.Errorf("calls = %v, expected a single CW8.PA fetch", src.calls)
+	}
+}

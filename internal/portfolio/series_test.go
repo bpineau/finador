@@ -585,3 +585,107 @@ func TestSeriesTWRSaneWhenFundedByTinyThenLargeFlow(t *testing.T) {
 		t.Errorf("inception TWR = %+.1f%%, insane for a ~+1%% asset", m.InceptionTWR*100)
 	}
 }
+
+// addTx appends a transaction with an explicit id, so a fixture can pin the
+// ledger order of two records sharing a day (domain.NewID would order two
+// same-millisecond ids randomly).
+func addTx(b *domain.Book, id string, tx domain.Transaction) {
+	tx.ID = domain.TxID(id)
+	b.Transactions = append(b.Transactions, &tx)
+}
+
+// endpointEquality is the invariant Value() and Series() share: the last point
+// of a series is what Value() reports at that date, gross and net.
+func endpointEquality(t *testing.T, b *domain.Book, from, at domain.Date) {
+	t.Helper()
+	want, err := Value(b, Scope{Kind: All}, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Series(b, Scope{Kind: All}, from, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := res.Points[len(res.Points)-1]
+	approx(t, "gross", last.Gross, want.Gross)
+	approx(t, "net", last.Net, want.Net)
+}
+
+// A deposit typed AFTER a same-day cash statement is already inside the
+// declared balance: the statement declares the account's whole cash at that
+// date. Replaying in plain (date, id) order counted it twice - 12500 in the
+// series against Value()'s 12000 (see D39).
+func TestSameDayCashStatementSupersedesDeposit(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "livret", Name: "Livret", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	addTx(b, "a", domain.Transaction{Date: mustDate("2026-01-05"), Account: "livret",
+		Kind: domain.Statement, Amount: eur("12000")})
+	addTx(b, "b", domain.Transaction{Date: mustDate("2026-01-05"), Account: "livret",
+		Kind: domain.Deposit, Amount: eur("500")})
+
+	from, at := mustDate("2026-01-01"), mustDate("2026-01-10")
+	endpointEquality(t, b, from, at)
+	res, err := Series(b, Scope{Kind: All}, from, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := res.Points[len(res.Points)-1]
+	approx(t, "declared balance", last.Gross, 12000)
+	// The flows must add up to the declared balance, or the difference reads
+	// as performance: the deposit's 500 plus an 11500 adoption.
+	var total float64
+	for _, f := range res.Flows {
+		total += f.Amount
+	}
+	approx(t, "flows", total, 12000)
+}
+
+// A security statement declares the pair's TOTAL value at its date, so a buy
+// typed the same day is inside it. Scaling the statement per share against the
+// pre-buy quantity doubled the position - 2200 against Value()'s 1100.
+func TestSameDayBuyIsInsideTheStatement(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "pee", Name: "PEE", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAsset(&domain.Asset{ID: "fcpe", Kind: domain.Security, Name: "FCPE",
+		Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	addTx(b, "a", domain.Transaction{Date: mustDate("2026-01-10"), Account: "pee", Asset: "fcpe",
+		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("1000")})
+	addTx(b, "b", domain.Transaction{Date: mustDate("2026-02-01"), Account: "pee", Asset: "fcpe",
+		Kind: domain.Statement, Amount: eur("1100")})
+	addTx(b, "c", domain.Transaction{Date: mustDate("2026-02-01"), Account: "pee", Asset: "fcpe",
+		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("1100")})
+
+	from, at := mustDate("2026-01-01"), mustDate("2026-03-01")
+	endpointEquality(t, b, from, at)
+	res, err := Series(b, Scope{Kind: All}, from, at, domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "position", res.Points[len(res.Points)-1].Gross, 1100)
+}
+
+// A statement dated BEFORE a later flow keeps anchoring it: the ordering rule
+// is per day, never across days.
+func TestStatementOrderingIsPerDayOnly(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "livret", Name: "Livret", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	addTx(b, "a", domain.Transaction{Date: mustDate("2026-01-05"), Account: "livret",
+		Kind: domain.Statement, Amount: eur("12000")})
+	addTx(b, "b", domain.Transaction{Date: mustDate("2026-01-10"), Account: "livret",
+		Kind: domain.Deposit, Amount: eur("500")})
+	// A window opening after both records must still replay them in order.
+	endpointEquality(t, b, mustDate("2026-02-01"), mustDate("2026-02-10"))
+	res, err := Series(b, Scope{Kind: All}, mustDate("2026-02-01"), mustDate("2026-02-10"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approx(t, "balance", res.Points[len(res.Points)-1].Gross, 12500)
+}
