@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"time"
 
@@ -50,6 +51,29 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 				asset.Ticker, data.Currency, asset.Currency))
 			continue
 		}
+		// A source that RESTATES its history - a share split, a currency
+		// redenomination, a class merge - answers the overlap day with a
+		// different close. An incremental fetch starts at the last cached
+		// point, so merging such an answer leaves the old scale in front of
+		// the new one: a permanent cliff, which the value series reads as a
+		// session that never happened (a 4:1 split shows as -75% in the chart
+		// and in the TWR). Rebuild the whole series from the source instead.
+		if restated(series, data.Closes) {
+			deep := priceHistoryFloor(b, asset.ID)
+			full, ferr := src.Daily(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN, Currency: asset.Currency}, deep)
+			if ferr != nil || len(full.Closes) == 0 ||
+				(full.Currency != "" && full.Currency != asset.Currency) {
+				sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+					"%s: the source restated its history (split or redenomination) and the deep re-fetch failed: quotes ignored",
+					asset.Ticker))
+				continue
+			}
+			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+				"%s: history restated by the source (split or redenomination) - series rebuilt from %s; check the ledger quantities",
+				asset.Ticker, deep))
+			series.Points = nil
+			data, from = full, deep
+		}
 		series.Merge(data.Closes)
 		series.FetchedAt = today
 		if series.HistFrom.IsZero() || from.Before(series.HistFrom) {
@@ -83,6 +107,35 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		sum.Fetched = append(sum.Fetched, "fx "+string(ccy))
 	}
 	return sum
+}
+
+// restatedTolerance is how far a re-served close may sit from the cached one
+// before the history counts as restated: 2%, far above a provider correcting
+// a close to the cent and far below the smallest share split (3:2, -33%).
+const restatedTolerance = 0.02
+
+// restated reports whether incoming closes contradict the cached series on a
+// date both cover - the signature of a source that re-scaled its history. It
+// compares the FIRST shared date: an incremental fetch starts at the last
+// cached point, so that date is the junction the merge would glue.
+func restated(s *domain.PriceSeries, incoming []domain.PricePoint) bool {
+	if s == nil || len(s.Points) == 0 {
+		return false
+	}
+	for _, p := range incoming {
+		i, found := slices.BinarySearchFunc(s.Points, p.Date, func(q domain.PricePoint, d domain.Date) int {
+			return q.Date.Time().Compare(d.Time())
+		})
+		if !found {
+			continue
+		}
+		cached := s.Points[i].Close
+		if cached <= 0 || p.Close <= 0 {
+			return false
+		}
+		return math.Abs(p.Close-cached) > restatedTolerance*cached
+	}
+	return false
 }
 
 // SpotSummary reports what a spot pass observed: the freshest quote per

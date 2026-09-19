@@ -906,3 +906,66 @@ l'estimation dans le fichier chiffré par une autre porte). Le client Android
 reste à parité facultative : il ne lit que des cours déjà écrits, et une
 estimation ne s'écrit plus - à lui de refaire le même choix s'il appelle un
 jour une passe spot (montrer l'estimation étiquetée, ne jamais l'écrire).
+
+## D39 - Dans une journée, le relevé passe en dernier
+
+**Contexte :** un relevé (`Statement`) déclare un TOTAL à une date - la valeur
+entière d'un couple (compte, titre), le cash entier d'une enveloppe. `Value()`
+le lit ainsi, à la granularité du JOUR : la mise à l'échelle par part divise par
+`Quantity(..., tx.Date)` (la quantité en fin de journée du relevé) et l'ancre de
+cash (`cashValue`) prime sur tout flux daté au plus tard le jour de l'ancre.
+`Series()`, lui, rejouait le grand livre dans l'ordre brut `(date, id)`. Les
+deux lectures ne divergent que lorsque deux enregistrements partagent un jour -
+et l'ordre des `id` est l'ordre de SAISIE, pas celui des événements.
+
+**Le bug, mesuré :** un dépôt de 500 saisi APRÈS un relevé de cash de 12 000 du
+même jour comptait deux fois (`Series` 12 500 contre `Value` 12 000) ; un achat
+saisi après un relevé de titre du même jour mettait ce relevé à l'échelle sur la
+position entière (1 100 déclarés devenaient 2 200). L'invariant « `Value()` et
+`Series()` coïncident point à point » tombait, et la valeur affichée par le
+graphique n'était pas celle de `value`.
+
+**Choix :** `walker.applyDay` applique d'abord tout ce qui bouge une position ou
+un solde, puis les relevés du jour. Le relevé lit donc les mouvements de sa
+journée au lieu d'être écrasé par eux, exactement comme `Value()` le lit déjà.
+La règle est PAR JOUR : un relevé du 5 n'écrase jamais un dépôt du 10.
+
+**Pourquoi corriger `Series` et non `Value` :** `Value()` est la lecture
+documentée (« un relevé déclare le TOTAL à cette date ») et c'est celle que le
+client Android reproduit trait pour trait (`Valuator.kt`, `cashValue` /
+`positionValue`). Aligner la série évite toute divergence inter-implémentations.
+
+**Bénéfice de bord :** les flux redeviennent cohérents avec la valeur. Le flux
+d'adoption du premier relevé de cash (D8) vaut `déclaré − solde courant` : le
+dépôt du même jour étant désormais appliqué avant, l'adoption vaut 11 500 et la
+somme des flux (500 + 11 500) égale le solde déclaré. Sans cet ordre, 500 de
+contribution se seraient lus comme de la performance.
+
+## D40 - Une source qui réécrit son historique fait reconstruire la série
+
+**Contexte :** le rafraîchissement quotidien est incrémental - il repart du
+dernier point en cache (`priceFetchFrom`) et fusionne la queue. Or une source
+RÉÉCRIT rétroactivement tout son historique lors d'un split d'action, d'une
+redénomination de devise ou d'une fusion de classe : après un split 4:1, chaque
+clôture servie vaut le quart de celle qui est en cache. La fusion collait alors
+l'ancienne échelle devant la nouvelle, et la série gardait une falaise
+permanente que la valorisation, le graphique et le TWR lisaient comme une séance
+de -75 % qui n'a jamais eu lieu. Rien ne la réparait : `refresh --force` ne
+change que la déduplication journalière, pas la profondeur du téléchargement.
+
+**Choix :** le jour de recouvrement sert de canari. Un fetch incrémental part du
+dernier point en cache, donc ce jour-là revient toujours ; si la clôture servie
+s'écarte de plus de 2 % de celle en cache (`restatedTolerance` : bien au-dessus
+d'une correction au centime, bien en dessous du plus petit split, 3:2 = -33 %),
+l'historique a été réécrit. La série est alors vidée et reconstruite depuis le
+plancher profond (`priceHistoryFloor`), et un avertissement nomme l'événement en
+invitant à vérifier les quantités du grand livre - un split déplace aussi la
+position, ce que seul un enregistrement du grand livre peut corriger.
+
+**Coût d'un faux positif :** un téléchargement profond de plus et des données
+identiques. C'est pourquoi le seuil est bas.
+
+**Non traité, et assumé :** les actions sur titres elles-mêmes. L'import IBKR
+compte et nomme la section `Corporate Actions` sans la mapper (D35) ; un split
+reste donc à saisir à la main dans le grand livre. L'avertissement de D40 est le
+signal qui dit quand.

@@ -74,12 +74,15 @@ func Series(b *domain.Book, scope Scope, from, to domain.Date, ccy domain.Curren
 	var out SeriesResult
 	ti := 0
 	for d := from; !to.Before(d); d = d.AddDays(1) {
-		// Apply all transactions up to and including day d.
+		// Apply all transactions up to and including day d, one calendar day
+		// at a time (applyDay owns the order inside a day).
 		// Transactions strictly after from are collected as flows.
 		for ti < len(txs) && !d.Before(txs[ti].Date) {
-			collect := from.Before(txs[ti].Date) // strictly after from → collect as flow
-			w.applyTx(txs[ti], collect)
-			ti++
+			start, day := ti, txs[ti].Date
+			for ti < len(txs) && txs[ti].Date == day {
+				ti++
+			}
+			w.applyDay(txs[start:ti], from.Before(day)) // strictly after from → flows
 		}
 		w.applyDividends(d, from.Before(d))
 		gross, net := w.valueAt(d)
@@ -213,6 +216,31 @@ func (w *walker) warnings() []string {
 func (w *walker) addFlow(d domain.Date, amount float64, collect bool) {
 	if collect && amount != 0 {
 		w.flows = append(w.flows, ExternalFlow{Date: d, Amount: amount})
+	}
+}
+
+// applyDay applies the records of ONE calendar day: first everything that
+// moves a position or a balance, then that day's statements.
+//
+// A statement declares a TOTAL at its date - the pair's whole value, the
+// account's whole cash - so it must read the day's trades and flows rather
+// than be overwritten by them. Value() reads it exactly that way (the
+// per-share scaling divides by Quantity at the statement's DATE, and the cash
+// anchor supersedes every flow dated on or before it), and the two must agree
+// pointwise. Ordering the day this way is what makes them agree: replaying in
+// plain (date, id) order made a deposit typed after a same-day cash statement
+// count twice, and a buy typed after a same-day security statement scale that
+// statement by the whole position (see D39).
+func (w *walker) applyDay(day []*domain.Transaction, collect bool) {
+	for _, t := range day {
+		if t.Kind != domain.Statement {
+			w.applyTx(t, collect)
+		}
+	}
+	for _, t := range day {
+		if t.Kind == domain.Statement {
+			w.applyTx(t, collect)
+		}
 	}
 }
 
