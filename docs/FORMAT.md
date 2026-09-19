@@ -320,7 +320,7 @@ decimals serialize as **strings**).
 #### `acct` - create/update an account (folds an upsert by `id`)
 
 ```json
-{"id":"<id>","name":"PEA Zephyr","ccy":"EUR","tax":"gains:17.2%","aliases":["pea"]}
+{"id":"<id>","name":"PEA Zephyr","ccy":"EUR","tax":"gains:18.6%","aliases":["pea"]}
 ```
 
 | Key | Type | Notes |
@@ -332,10 +332,10 @@ decimals serialize as **strings**).
 | `aliases` | string[] | optional; omitted when empty |
 
 **`tax`** is a **string**, one of: `"none"`, `"gains:N%"`, `"value:N%"` (e.g.
-`"gains:17.2%"`, `"value:20%"`). `gains` taxes `max(0, value − contribution basis)`;
+`"gains:18.6%"`, `"value:20%"`). `gains` taxes `max(0, value − contribution basis)`;
 `value` taxes the whole value; `none` taxes nothing. The percentage is the rate
 times 100 (the stored rate is a fraction, rendered back as a percentage; e.g. a
-17.2% rule round-trips as `"gains:17.2%"`).
+18.6% rule round-trips as `"gains:18.6%"`).
 
 #### `acct-del` - delete an account
 

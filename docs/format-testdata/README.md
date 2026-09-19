@@ -29,6 +29,9 @@ spec); your reader reads them, it does not regenerate them.
 
 Each line below is the decrypted plaintext (the envelope `{"k","ts","d"}`; the `ts`
 values are the real save-time stamps and will differ in any file you regenerate).
+The payloads are frozen bytes, so they carry the rate in force when the file was
+sealed (`gains:17.2%`); the current French rate for that envelope is 18.6 % (see
+the tax section of the main `README.md`). A reader validates the parse, not the rate.
 
 | seq | `k` | `d` (payload) |
 |---|---|---|
