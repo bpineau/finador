@@ -165,6 +165,30 @@ func AddImported(b *domain.Book, t domain.Transaction) (added bool) {
 	return true
 }
 
+// HasLegacyImport reports whether the book already carries t under a
+// SUPERSEDED fingerprint h - the form an importer minted before it fixed the
+// way it builds its references.
+//
+// A superseded form is by definition less discriminating than the one that
+// replaced it, so it cannot be trusted on its own: a bare IBKR trade id, for
+// instance, is shared by a trade and a cash transaction of the same statement,
+// which is exactly why the section entered the reference. The event itself
+// settles it, with the same rule [ManualMatches] uses: a legacy fingerprint
+// only skips a line when the transaction carrying it really is that line.
+// Anything else is a different event whose old reference merely looks alike,
+// and it is imported.
+func HasLegacyImport(b *domain.Book, h string, t domain.Transaction) bool {
+	if h == "" {
+		return false
+	}
+	for _, m := range b.Transactions {
+		if m.ImportHash == h && sameEvent(*m, t) {
+			return true
+		}
+	}
+	return false
+}
+
 // ManualMatches returns the live hand-entered transactions - the ones with no
 // importHash - that already record the same outside-world event as t, a line
 // just read from a broker statement.

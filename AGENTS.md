@@ -31,7 +31,8 @@ Context that explains most design choices:
   per broker over the shared, idempotent write path `portfolio.AddImported`.
   Interactive Brokers activity statements are in `ibkr`; Saxo is next. The
   ledger's `importHash` field is the dedup key (FORMAT.md §4.5), namespaced
-  per broker (`ibkr:…`). A hand-entered transaction has none, so the
+  per broker AND per statement section (`ibkr:trades:…`), since a broker
+  numbers its sections from separate sequences. A hand-entered transaction has none, so the
   broker-agnostic **already-booked guard** (`portfolio.ManualMatches` /
   `portfolio.Adopt`, decision D37) matches a statement line against the lines
   the user typed: `import` then skips it (default), adopts the manual entry

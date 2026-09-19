@@ -228,7 +228,7 @@ func Import(b *domain.Book, r io.Reader, opts Options) (Result, error) {
 
 	res := Result{Ignored: im.ignored, BeforeSince: im.beforeSince}
 	for _, st := range im.txs {
-		if b.HasImportHash(st.tx.ImportHash) || b.HasImportHash(st.legacy) {
+		if b.HasImportHash(st.tx.ImportHash) || portfolio.HasLegacyImport(b, st.legacy, st.tx) {
 			res.Skipped++ // already imported: the dedup rule wins over any lookalike
 			continue
 		}
@@ -286,9 +286,9 @@ type importer struct {
 }
 
 // staged is one mapped statement line waiting to be written, kept with what
-// it takes to name its source in the report. legacy is the fingerprint the
-// same line carried before the envelope entered it (see [importHash]), and is
-// empty when the statement names its own trade ids.
+// it takes to name its source in the report. legacy is the reference the same
+// line carried before the envelope entered the fingerprint and the section
+// entered the trade id (see [importHash]).
 type staged struct {
 	tx     domain.Transaction
 	line   int
@@ -527,21 +527,30 @@ func event(tx domain.Transaction, symbol string) string {
 // statements carry IBKR's own trade id, which is stable by construction;
 // activity statements do not, and fall back to the content fingerprint.
 //
+// A trade id is only unique INSIDE its section: IBKR numbers trades and cash
+// transactions from sequences of their own, so a Trades row and a Deposits row
+// can perfectly well both be 8451327. Un-namespaced, the second one read as a
+// replay of the first and was dropped in silence - a deposit that never
+// reached the ledger. The section therefore enters the reference, slugified so
+// the id stays a plain token: "ibkr:trades:8451327",
+// "ibkr:deposits-withdrawals:8451327".
+//
 // The fingerprint names the ENVELOPE too, because a statement line belongs to
 // one: two IBKR accounts of the same book funded with the same amount the
 // same day are two events, and the account-blind fingerprint read the second
-// one as a replay of the first and booked nothing. legacy is that older
-// fingerprint, which the lines imported before this fix still carry; the
-// dedup check accepts it as well, so replaying such a statement keeps
-// skipping instead of double-booking. It is empty when the statement names
-// its own trade ids, which never depended on the content.
+// one as a replay of the first and booked nothing.
+//
+// legacy is the form the same line carried before those two fixes - the
+// account-blind fingerprint, or the section-blind trade id. The dedup check
+// accepts it as well, so replaying an old statement into a ledger filled
+// before the fix keeps skipping instead of double-booking.
 //
 // Known limit, shared with the reference CSV importer: two genuinely distinct
 // lines identical in date, account, section, symbol, quantity, amount and
 // currency fingerprint alike, and the second is read as a duplicate.
 func importHash(r row, acc domain.AccountID, date domain.Date, symbol string, qty, amount decimal.Decimal, ccy domain.Currency) (hash, legacy string) {
 	if id := r.getAny("Trade ID", "TransactionID", "Transaction ID"); id != "" {
-		return "ibkr:" + id, ""
+		return "ibkr:" + domain.Slugify(r.section) + ":" + id, "ibkr:" + id
 	}
 	base := strings.Join([]string{
 		date.String(), r.section, symbol, qty.String(), amount.String(), string(ccy),

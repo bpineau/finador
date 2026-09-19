@@ -504,7 +504,11 @@ imported from, so replaying the same source never duplicates it.
   `date|kind|account|asset|qty|amount|ccy|note`, hex). A broker-statement
   importer should prefer the broker's own transaction id, namespaced to avoid
   cross-broker collisions - e.g. `meridia:8451327`. Namespacing matters because
-  the dedup scan is global across all transactions.
+  the dedup scan is global across all transactions. A broker's own id is often
+  unique only inside one section of its statement (trades and cash transactions
+  are numbered from separate sequences), so the section belongs in the
+  namespace too - e.g. `meridia:trades:8451327` next to
+  `meridia:deposits-withdrawals:8451327`.
 - **Edits preserve it**: correcting an imported transaction (a `tx-edit`) must
   carry the `importHash` through unchanged - an edit is not a re-import, and
   dropping the fingerprint would resurrect the transaction on the next replay of

@@ -638,3 +638,66 @@ func TestLegacyFingerprintStillSkips(t *testing.T) {
 		t.Fatalf("%d transactions, want the one already booked", len(b.Transactions))
 	}
 }
+
+// A broker id is unique inside its own section, not across the statement:
+// IBKR numbers trades and cash transactions from separate sequences, so the
+// same integer can name a trade AND a deposit. The reference must therefore
+// carry the section - otherwise the second line reads as a replay of the
+// first and never reaches the ledger.
+const sharedIDSections = "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,Proceeds,Comm/Fee,Trade ID,Code\r\n" +
+	"Trades,Data,Order,Stocks,EUR,CW8,\"2026-01-05, 10:31:02\",10,100,-1000,0,8451327,O\r\n" +
+	"Deposits & Withdrawals,Header,Currency,Settle Date,Description,Amount,TransactionID\r\n" +
+	"Deposits & Withdrawals,Data,EUR,2026-01-05,Electronic Fund Transfer,\"25,000\",8451327\r\n"
+
+func TestBrokerIDIsNamespacedBySection(t *testing.T) {
+	b := book(t)
+	res, err := Import(b, strings.NewReader(sharedIDSections), Options{Account: "cto-meridia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Added != 2 || res.Skipped != 0 {
+		t.Fatalf("added=%d skipped=%d, want 2 and 0 (%s)", res.Added, res.Skipped, res.Summary())
+	}
+	want := map[domain.TxKind]string{
+		domain.Buy:     "ibkr:trades:8451327",
+		domain.Deposit: "ibkr:deposits-withdrawals:8451327",
+	}
+	for _, tx := range b.Transactions {
+		if got := tx.ImportHash; got != want[tx.Kind] {
+			t.Errorf("%s importHash = %q, want %q", tx.Kind, got, want[tx.Kind])
+		}
+	}
+
+	// And the statement stays idempotent, section namespace included.
+	res, err = Import(b, strings.NewReader(sharedIDSections), Options{Account: "cto-meridia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Added != 0 || res.Skipped != 2 {
+		t.Fatalf("replay: added=%d skipped=%d, want 0 and 2", res.Added, res.Skipped)
+	}
+}
+
+// A statement imported before the section entered the reference left the bare
+// "ibkr:<id>" form in the ledger. Replaying it must still skip, through the
+// same legacy mechanism the account-blind fingerprint uses.
+func TestLegacyBrokerIDStillSkips(t *testing.T) {
+	b := book(t)
+	b.Add(domain.Transaction{
+		Date: day(2026, time.January, 5), Account: "cto-meridia", Asset: "cw8", Kind: domain.Buy,
+		Quantity: decimal.RequireFromString("10"), Amount: money("1000", domain.EUR),
+		ImportHash: "ibkr:8451327",
+	})
+	res, err := Import(b, strings.NewReader(sharedIDSections), Options{Account: "cto-meridia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The trade is recognised; the deposit, which shares the integer but not
+	// the section, is a different event and is imported.
+	if res.Added != 1 || res.Skipped != 1 {
+		t.Fatalf("added=%d skipped=%d, want 1 and 1 (%s)", res.Added, res.Skipped, res.Summary())
+	}
+	if len(b.Transactions) != 2 {
+		t.Fatalf("%d transactions, want the booked trade plus the deposit", len(b.Transactions))
+	}
+}

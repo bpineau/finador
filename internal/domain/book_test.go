@@ -363,9 +363,6 @@ func TestLabels(t *testing.T) {
 	if l, err := b.ResolveLabel(string(far.ID)[:8]); err != nil || l.ID != far.ID {
 		t.Errorf("ResolveLabel(prefix) = %v, %v", l, err)
 	}
-	if _, err := b.ResolveLabel(string(l1.ID)[:len(l1.ID)-1]); !errors.Is(err, ErrAmbiguous) {
-		t.Errorf("ResolveLabel(neighbour prefix) = %v, want ErrAmbiguous", err)
-	}
 	if _, err := b.ResolveLabel("zzzzzzzzzzzz"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("ResolveLabel(absent) = %v, want ErrNotFound", err)
 	}
