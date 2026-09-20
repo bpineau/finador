@@ -6,55 +6,78 @@ true), `docs/FORMAT.md` (the normative file-format spec) and
 `docs/superpowers/DECISIONS.md` (journal of non-obvious trade-offs, in French -
 add an entry when you make one).
 
-## What finador is, and why it is shaped this way
+## What finador is, and what it is for
 
-A personal, encrypted wealth tracker in one pure-Go binary. One encrypted
-`.fin` file holds accounts (tax envelopes), assets and an append-only
-transaction ledger; positions, valuations, performance and tax are always
-recomputed by replaying it. Served through a CLI and a zero-JavaScript web UI
-(`finador serve`, binds 127.0.0.1).
+A personal, encrypted wealth tracker in one pure-Go binary. It answers, for one
+household: what is everything worth today, gross / after latent tax / net; what
+did it gain over each period and which line produced it; what will be owed if it
+is sold. One encrypted `.fin` file holds accounts (tax envelopes), assets and an
+append-only transaction ledger; positions, valuations, performance and tax are
+never stored, always recomputed by replaying that ledger.
 
-Context that explains most design choices:
+Consumers, and how changes propagate:
 
-- The author uses it daily: this CLI on a laptop, plus **`../finador-android`**
-  (an independent Kotlin client) on a phone, both reading/writing the **same
-  ledger in a private GitHub repo** (Contents API, one commit per save). Hence
-  byte-stable saves (small git diffs), a lossless merge, and a public
-  implementation-grade format spec with a committed sample file.
-- **`github.com/bpineau/pofo`** (sibling checkout `../pofo`) owns everything
-  generic: market data fetching (Yahoo → FT → Morningstar), performance math,
-  chart rendering. finador's `market`, `perf` and `chart` packages are thin
-  facades owning only finador's conventions (domain types, 0-instead-of-NaN,
-  the house chart style). Fix generic math/fetching bugs in pofo,
-  finador-flavor bugs in the facade.
-- Broker-statement import lands in `internal/importer/<broker>`, one package
-  per broker over the shared, idempotent write path `portfolio.AddImported`.
-  Interactive Brokers activity statements are in `ibkr`; Saxo is next. The
-  ledger's `importHash` field is the dedup key (FORMAT.md §4.5), namespaced
-  per broker AND per statement section (`ibkr:trades:…`), since a broker
-  numbers its sections from separate sequences. A hand-entered transaction has none, so the
-  broker-agnostic **already-booked guard** (`portfolio.ManualMatches` /
-  `portfolio.Adopt`, decision D37) matches a statement line against the lines
-  the user typed: `import` then skips it (default), adopts the manual entry
-  (`--reconcile`) or imports anyway (`--no-guard`), with `--since` and
-  `--dry-run` alongside.
-- `./TODO` and `demo.fin` are gitignored personal files (roadmap, scratch
-  ledger); `*.fin` files are never committed.
+| Program | What it is | Direction |
+|---|---|---|
+| `cmd/finador` | the CLI, the primary interface | this repo |
+| `finador serve` | a zero-JavaScript web UI, binds 127.0.0.1, same engine | this repo |
+| `../finador-android` | an independent Kotlin phone client | mirrors THIS repo: format and numbers are specified here, ported there, `../finador-android/scripts/crossimpl.sh` proves the two read each other's files |
+| `github.com/bpineau/pofo` (checkout `../pofo`) | the generic library: market data fetching (Yahoo -> FT -> Morningstar), performance math, chart rendering | finador DEPENDS on it, by TAG. A generic math or fetching bug is fixed in pofo, tagged there, and go.mod repointed here; a finador-flavour bug is fixed in the thin facade (`market`, `perf`, `chart`) |
 
-## Working rules
+The CLI and the phone client read and write the **same ledger in a private
+GitHub repo** (Contents API, one commit per save). That is what forces the
+unusual properties: byte-stable saves so git diffs stay small, a lossless
+last-writer-wins merge, and an implementation-grade public format spec with a
+committed sample file anyone can decode.
 
-- Solo repo: commit to **master**, and **commit + push at the end of every
-  session of changes**. Fix critical bugs before starting new work.
-- `make check` before every commit; the pre-commit hook (`.githooks/pre-commit`,
-  installed by `make hooks`) runs the same gate.
-- Everything user-visible and in code/docs is **English**. Errors exit 1 with a
-  single `finador: …` line. Plain hyphens only - **never an em-dash** - in
-  code, docs and commits. Doc style is CLI examples with inline comments, not
-  prose.
-- Never assume market sources (Yahoo, etc.) are unreachable; verify live before
-  deferring or building fallbacks - watch for anti-bot gates.
-- Public examples and fixtures use fictitious brokers/tickers/amounts
-  (PEA Zephyr, CTO Meridia, CW8.PA…), never real personal data.
+**Broker-statement import** lands in `internal/importer/<broker>`, one package
+per broker, over the shared idempotent write path `portfolio.AddImported`.
+Interactive Brokers activity statements are in `ibkr`, the only importer today.
+The ledger's `importHash` field is the dedup key (FORMAT.md §4.5), namespaced
+per broker AND per statement section (`ibkr:trades:…`), since a broker numbers
+its sections from separate sequences. A hand-entered transaction has none, so
+the broker-agnostic **already-booked guard** (`portfolio.ManualMatches` /
+`portfolio.Adopt`, decision D37) matches a statement line against what the user
+typed: `import` then skips it (default), adopts the manual entry
+(`--reconcile`) or imports anyway (`--no-guard`), with `--since` and
+`--dry-run` alongside.
+
+**Deliberately NOT in scope**: multi-user or server-hosted operation (no
+accounts, no auth, no backend); live brokerage connectivity or order placement;
+tax filing or legal advice; any JavaScript toolchain; telemetry of any kind.
+`./TODO` and `demo.fin` are gitignored local files; `*.fin` is never committed.
+
+## Priorities and non-negotiables
+
+Read these first when a trade-off is unclear; they decide it.
+
+1. **A wrong number is worse than a missing feature.** Money figures are the
+   product. A change that makes a valuation, a gain or a tax base subtly wrong
+   is a critical bug: fix those before starting anything new.
+2. **The ledger is the only source of truth.** Never persist derived state;
+   never mutate state except by appending or editing a ledger record. Everything
+   else is recomputed, so anything else can be thrown away and rebuilt.
+3. **The format is a public contract.** Another implementation reads these
+   files. Code and `docs/FORMAT.md` must agree, and the committed sample must
+   stay decodable forever.
+4. **No plaintext financial data on disk, ever.** Not the ledger, not the quote
+   cache (the ticker list alone is sensitive metadata), not a log line.
+5. **The dependency budget is deliberate**: cobra, shopspring/decimal,
+   samber/lo, x/crypto, x/term, `github.com/bpineau/pofo`. Nothing the standard
+   library already does. Pure Go, no CGo, no JavaScript toolchain.
+6. **This repo is public: no personal data, anywhere.** Examples, fixtures,
+   tests and docs use fictitious brokers, accounts and amounts (PEA Zephyr,
+   CTO Meridia, CW8.PA), never a real holding, a real amount, a real name or a
+   home path. This applies to commit messages too.
+7. **CLI and web stay behaviourally identical.** They are two facades over one
+   engine; a feature added to one is a bug in the other.
+8. **English everywhere** in code, docs and commits, except
+   `docs/superpowers/` which is French and stays French. Errors exit 1 with a
+   single `finador: …` line. **Never a typographic dash** (no em-dash, no
+   en-dash): a plain hyphen, a comma or parentheses. Doc style is CLI examples
+   with inline comments, not prose.
+9. **Never assume a market source is unreachable.** Verify live before
+   deferring or building a fallback, and watch for anti-bot gates.
 
 ## Build, test, verify
 
@@ -62,14 +85,21 @@ Context that explains most design choices:
 make build       # go build -trimpath -o bin/finador ./cmd/finador
 make test        # go test ./... -count=1
 make race        # -race on web + store (the concurrency-sensitive packages)
-make check       # full gate: fmt-check + vet + lint + test + race
+make check       # THE GATE: fmt-check + vet + lint + test + race
 
 go test ./internal/portfolio -run TestSeries -count=1     # one test
 go test ./internal/store -run 'TestMerge/.+' -v           # one subtest
 ```
 
+`make check` is the single completion gate. Green looks like `ok` (or
+`no test files`) on every package and nothing else printed: any `FAIL`, any vet
+or lint line, any gofmt diff is a failure. It takes a bit over a minute (the
+`-race` pass is most of it). Run it before every commit; the pre-commit hook
+(`.githooks/pre-commit`, installed by `make hooks`) runs the same gate.
 `golangci-lint` is optional locally (the Makefile warns and skips) but do not
 introduce warnings; `.golangci.yml` documents the few deliberate exclusions.
+There is **no CI** on this repository: the local gate is all there is, so do not
+push red.
 
 Drive the real binary without touching real data - do this to verify any
 behaviour change end to end, not just its tests:
@@ -163,13 +193,12 @@ cmd/finador → cli ─┬→ store ──→ domain
 
 ## Hard constraints
 
-- **Pure Go, no CGo, no JavaScript toolchain.** The web UI is server-rendered
-  `html/template` + embedded static CSS; no external resources, no CDN.
-- **Dependency budget is deliberate**: cobra, shopspring/decimal, samber/lo,
-  x/crypto, x/term, `github.com/bpineau/pofo`. Nothing the stdlib already does.
+- **The web UI is server-rendered** `html/template` + embedded static CSS. No
+  external resource, no CDN, no JavaScript build step.
 - **pofo is a tagged dependency.** For joint development add a temporary
-  `replace github.com/bpineau/pofo => ../pofo` but NEVER commit it: a session
-  that changes pofo ends by tagging a pofo release and repointing go.mod.
+  `replace github.com/bpineau/pofo => ../pofo` but NEVER commit it: a change
+  that touches pofo ends by tagging a pofo release (a `v*` tag on pofo is a
+  publication) and repointing `go.mod` here.
 
 ## Traps - each has actually bitten
 
@@ -218,6 +247,16 @@ cmd/finador → cli ─┬→ store ──→ domain
   merges it into no series; the valuation gets it as a `portfolio.PriceOverride`,
   labelled with its session. Keep both properties: never merge it, never print
   it unlabelled.
+- **A restated history is a wrong POSITION, not just a wrong price** (D47).
+  When a source rewrites its whole series (a split, a redenomination), the
+  canary rebuilds the series, and `market.splitRatioFor` confronts the measured
+  factor with the usual ratios (2:1, 3:1, 4:1, 3:2, their inverses) to 1 %. On a
+  match, `Summary.Actions` prints the exact `finador tx edit … --qty` lines to
+  paste: restate the QUANTITIES, leave the AMOUNTS alone, which keeps the cost
+  basis and divides the implied unit price. On no match it names nothing, so a
+  currency redenomination never becomes an imaginary split. The ledger has NO
+  record kind that restates a quantity, and adding one would make an older
+  reader reject the file, so that remains a version-bump decision.
 - Unit/identifier bugs in market data are critical: always test the exact
   identifiers the user provides (ISINs, `.PA` tickers…), not lookalikes.
 
@@ -260,6 +299,30 @@ cmd/finador → cli ─┬→ store ──→ domain
 | Merge lost or misordered an edit | `ts` instant comparison in `store/merge.go` |
 | Push conflicts / offline sync surprises | `remote/sync.go` (Dirty persists to disk before any network push); the state JSON sits next to the working copy |
 | A test hits the network | missing `cli.WithSource` fake or `FINADOR_CACHE_DIR` |
+
+## Definition of done
+
+- [ ] `make check` green (fmt, vet, lint, tests, race). Nothing else counts.
+- [ ] The real binary exercised end to end for any behaviour change, not just
+      its unit tests (the `--offline --no-keychain --db /tmp/…` recipe above).
+- [ ] Format touched? `docs/FORMAT.md` updated in the same change,
+      `docs/format-testdata/sample.ledger` still decodable, and
+      `../finador-android/scripts/crossimpl.sh` green.
+- [ ] A non-obvious trade-off made? A numbered entry appended to
+      `docs/superpowers/DECISIONS.md` (French), and referenced from the trap or
+      invariant it creates here.
+- [ ] Docs updated in the same commit: `README.md` if a command, a flag or an
+      output changed (its recipes must stay true), this file if an invariant,
+      a trap or the architecture moved.
+- [ ] pofo changed too? pofo tagged, `go.mod` repointed at the tag, and no
+      `replace` directive left in the diff.
+- [ ] No personal data, no real broker, no real amount, no home path, no secret
+      added anywhere, including the commit message.
+- [ ] No typographic dash in the diff.
+- [ ] Committed to `master` and **pushed**. There is no CI to catch what the
+      local gate missed.
+- [ ] Anything a human must run by hand (a re-import, a `finador refresh`, a
+      migration of their own ledger) said explicitly in the final report.
 
 ## Where things are decided
 
