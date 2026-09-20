@@ -513,6 +513,12 @@ finador value --extended   # count tonight's after-hours prints
   asset), and the filter narrows a `[scope]` rather than replacing it:
   `finador value "PEA Zephyr" --asset cw8` is one position inside one envelope.
   It works the same on `perf`, `chart` and `export`.
+- **A narrowed scope reports the tax per position, and says so.** An envelope's
+  latent tax is tax on `max(0, value - what you put in)`, a property of the
+  WHOLE envelope; `--asset` and `--exclude` remove positions from the value and
+  nothing from what you put in, so the envelope rule cannot apply. Such a view
+  falls back on the per-position estimate - the same one a group or an asset
+  scope has always shown - under the note `estimated tax is per position: …`.
 - `--account "PEA Zephyr"` scopes to one envelope explicitly, cash included; with
   a group `[scope]` it is their intersection (`--account pea equities` values that
   group inside that envelope, cash left out). Same flag on `perf`, `chart` and `export`.
@@ -813,7 +819,9 @@ Export from **Reports > Statements > Activity**, format **CSV**, then:
 ```sh
 finador import --format ibkr --account "CTO Meridia" ActivityStatement.csv
 # 12 imported, 0 skipped (duplicates)
-# not imported: Fees (2), Interest (1), Trades: Forex (3)
+# not imported: Corporate Actions (1), Fees (2), Interest (1), Trades: Forex (3)
+# corporate actions (not mapped - check the quantities of these securities):
+#   line 58: 2026-03-02 VT qty 1,800 VT(US9220427424) Split 4 for 1 (VT, …)
 
 finador import --format ibkr --account "CTO Meridia" ActivityStatement.csv
 # 0 imported, 12 skipped (duplicates)      <- replaying a statement is free
@@ -825,6 +833,11 @@ finador import --format ibkr --account "CTO Meridia" ActivityStatement.csv
   `Deposits & Withdrawals`. Everything else is left out - and the sections
   that carry real money (`Fees`, `Interest`, `Corporate Actions`, forex and
   derivatives trades) are **counted and named** rather than approximated.
+- **Corporate actions are listed one by one**, with their date, their security
+  and the broker's own words. They are not mapped: a split, a merger or a
+  spin-off moves the *quantity* of a position, and the ledger has no record
+  for that - so restating it is a hand correction, and you need to know which
+  line to correct. See *Splits and other corporate actions* below.
 - **Commissions are folded into the trade**: a buy costs proceeds plus
   commission, a sell brings in proceeds minus commission. That is what keeps
   a position's cost basis - and so its taxable gain - right.
@@ -881,6 +894,40 @@ finador import --format ibkr --account "CTO Meridia" --since 2026-01-01 \
   back when a match is wrong.
 - **`--dry-run`** works on both formats: it reads the whole file, reports
   exactly what the real run would do, and writes nothing.
+
+### Splits and other corporate actions
+
+A share split changes two things at once: the price and the number of shares
+you hold. Quote sources restate their **whole history** the day it happens - a
+4:1 split makes every past close a quarter of what it was - while your ledger
+still holds the old quantity, so the position reads at a quarter of reality
+until you say otherwise.
+
+`finador refresh` notices the restatement, rebuilds the series from its deep
+floor, and when the measured factor matches a plain split ratio it names it and
+hands you the commands:
+
+```sh
+finador refresh
+# warning: ZBF: history restated by the source on 2026-05-18 (split or
+#          redenomination) - series rebuilt from 2016-09-20; check the ledger quantities
+# warning: ZBF: the factor is 4, a 4:1 split - the ledger still holds the
+#          pre-split quantities of Zephyr Bond Fund; restate them with:
+# to record it in the ledger:
+#     finador tx edit 06gbtw... --qty 40   # buy 40 of Zephyr Bond Fund on 2026-05-15, was 10
+#     finador tx edit 06gbtw... --qty 20   # buy 20 of Zephyr Bond Fund on 2026-05-16, was 5
+```
+
+- Editing the **quantities** and leaving the **amounts** alone is the faithful
+  correction: the cost basis does not move, and the implied unit price is
+  divided by the same number as the series. Do not record a split as a sell
+  followed by a buy - both would be external flows at market value, and the TWR
+  would read a contribution that never happened.
+- An edit keeps its import fingerprint, so a statement you replay afterwards
+  still adds nothing.
+- A restatement that matches **no** simple ratio (a currency redenomination, a
+  class merge, a provider rewriting a stretch of closes) is reported as such
+  and claims no split: nothing is known to be wrong with your quantities.
 
 ## Advanced usage
 

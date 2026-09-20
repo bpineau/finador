@@ -18,7 +18,9 @@ import (
 // silently rots. Seeds deliberately pile several records on the same four
 // days, mix currencies, envelopes, tax rules, properties and securities, and
 // leave trades unpriced: every divergence found so far lived in exactly that
-// corner (see D39, D41). It runs in about a second, so it stays in the gate.
+// corner (see D39, D41). Narrowed scopes (--exclude, --asset) are swept too,
+// since they take a different tax path (D44). It runs in a few seconds, so it
+// stays in the gate.
 func TestFuzzValueSeriesEndpoint(t *testing.T) {
 	kinds := []domain.TxKind{domain.Buy, domain.Sell, domain.Dividend, domain.Fee,
 		domain.Deposit, domain.Withdraw, domain.Statement}
@@ -83,6 +85,25 @@ func TestFuzzValueSeriesEndpoint(t *testing.T) {
 			}
 			scopes = append(scopes, AccountScope(acc))
 		}
+		// Narrowed scopes too (--exclude, --asset): they take positions out
+		// of the value and nothing out of the envelope basis, so the two
+		// engines must agree on the per-position fallback they both use
+		// there (D44) exactly as they agree on the envelope rule.
+		first := assetIDs[0]
+		narrowed := []Scope{
+			{Kind: All, Excluded: map[domain.AssetID]bool{first: true}},
+			{Kind: All, Only: map[domain.AssetID]bool{first: true}},
+		}
+		for _, id := range accIDs {
+			acc, err := b.Account(string(id))
+			if err != nil {
+				t.Fatal(err)
+			}
+			sc := AccountScope(acc)
+			sc.Excluded = map[domain.AssetID]bool{first: true}
+			narrowed = append(narrowed, sc)
+		}
+		scopes = append(scopes, narrowed...)
 		at := mustDate("2026-02-10")
 		for _, sc := range scopes {
 			want, err := Value(b, sc, at, domain.EUR, fx)

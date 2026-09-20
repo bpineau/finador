@@ -224,9 +224,15 @@ func TestScopeViews(t *testing.T) {
 			}
 		}
 	}
-	// unknown scope → clean 404
-	if code, body := get(t, srv, "/asset/inexistant"); code != http.StatusNotFound || !strings.Contains(body, "unknown scope") {
-		t.Errorf("unknown scope = %d\n%s", code, excerpt(body))
+	// an unknown reference → a clean 404 naming the kind the route carries
+	for path, want := range map[string]string{
+		"/asset/inexistant":   "unknown asset",
+		"/account/inexistant": "unknown account",
+		"/group/inexistant":   "unknown group",
+	} {
+		if code, body := get(t, srv, path); code != http.StatusNotFound || !strings.Contains(body, want) {
+			t.Errorf("GET %s = %d, expected a 404 saying %q\n%s", path, code, want, excerpt(body))
+		}
 	}
 }
 

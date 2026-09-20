@@ -195,6 +195,23 @@ cmd/finador → cli ─┬→ store ──→ domain
   (`perf.CloseAnchor`), or "1d" measures FX drift against a stale close.
 - Quote series must stay in the asset's declared currency: refresh drops
   off-currency answers instead of merging them (`market/refresh.go`).
+- **A currency reaches the book three ways**: an account, an asset, and a
+  RECORD (a fee in JPY, a deposit in CHF). `market.neededCurrencies` must
+  collect all three, and the FX series is back-filled to a week before the
+  oldest record (`fxHistoryFloor` + the `HistFrom` guard), because a rate is
+  needed at the record's own DATE. A missing rate refuses the total in
+  `Value()` and counts as 0 in `Series()`, both naming the record (D43).
+- **`--exclude` / `--asset` narrow an envelope, so its latent tax stops being
+  defined**: `Scope.wholeEnvelopes` gates the exact rule, and a narrowed scope
+  falls back on the per-position estimate with a note (D44). Change `Value()`
+  and `Series().valueAt` together, as always.
+- **A caller that knows an entity never goes through `ParseScope`**: that
+  parser answers a FREE reference and tries the group tier first, so an id
+  that is also a group path resolves to the group. Use `AssetScope`,
+  `AccountScope`, `GroupScope` (D45).
+- **Never sum float64 while iterating a map**: the addition is not
+  associative and Go randomizes the order, so the last digits of a total move
+  between runs. Iterate `slices.Sorted(maps.Keys(...))` (D46).
 - **An extended-hours print is shown, never stored** (D36). `value --extended`
   (or `config set extended-hours true`) routes the spot pass through
   `market.SpotRefreshExtended`, which reports a pre/post print in `Quotes` and

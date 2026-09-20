@@ -42,6 +42,10 @@ Fees,Total,,,,,-10
 Interest,Header,Currency,Date,Description,Amount
 Interest,Data,EUR,2026-03-31,EUR Credit Interest for Feb-2026,12.34
 Interest,Total,,,,12.34
+Corporate Actions,Header,Asset Category,Currency,Report Date,Date/Time,Description,Quantity,Proceeds,Value,Realized P/L,Code
+Corporate Actions,Data,Stocks,USD,2026-03-02,"2026-03-01, 20:25:00","VT(US9220427424) Split 4 for 1 (VT, VANGUARD TOTAL WORLD STOCK ETF, US9220427424)","1,800",0,0,0,
+Corporate Actions,Data,Stocks,EUR,2026-03-18,"2026-03-17, 20:25:00","CW8(LU1681043599) Merged(Acquisition) FOR LU9999999999 (CW8, AMUNDI MSCI WORLD UCITS ETF, LU1681043599)",-20,0,0,0,
+Corporate Actions,Total,,,,,,,0,0,0,
 Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Mult,Cost Price,Cost Basis,Close Price,Value,Unrealized P/L,Code
 Open Positions,Data,Summary,Stocks,USD,VT,600,1,100.5,"60,300",112,"67,200","6,900",
 Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Security ID,Listing Exch,Multiplier,Type,Code

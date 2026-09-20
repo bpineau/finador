@@ -1053,3 +1053,207 @@ croissants et uniques), `TestNewIDConcurrent`, `TestNewIDBackwardsClock`,
 `TestImportOrderIsTheStatementOrder` (200 imports du même relevé, 157.00 EUR à
 chaque fois) et `TestWriteScriptEmitsReplayOrder`. Le client Android porte le
 même algorithme et les mêmes tests ; `make crossimpl` garde la frontière.
+
+## D43 - Toute devise d'un enregistrement a besoin d'un taux, et un taux manquant se nomme
+
+**Contexte :** `market.neededCurrencies` ne collectait que les devises des
+comptes et des titres. Or une devise entre dans le grand livre par une
+troisième porte : l'ENREGISTREMENT lui-même. Un frais facturé en JPY, un dépôt
+fait en CHF, un dividende payé en USD sur une ligne en euros, un relevé de
+solde dans une quatrième devise : aucun de ces montants n'avait de paire de
+change téléchargée, donc aucun taux pour le traverser.
+
+**Le bug, mesuré :** sur un grand livre portant un achat de 1000 EUR et un
+frais de 10 000 JPY, `finador value` tombait en erreur sur « missing JPY
+exchange rate », et le conseil qu'il donnait était faux : `finador refresh` ne
+téléchargeait jamais cette paire. `Series()`, de son côté, comptait le montant
+à 0 derrière un avertissement générique (« cannot convert JPY - counted as
+0 ») : la base de coût de l'enveloppe perdait le frais, donc la plus-value
+latente et l'impôt estimé étaient surévalués, sans que rien ne dise quelle
+ligne manquait.
+
+**Choix, trois volets :**
+
+1. `neededCurrencies` lit aussi `t.Amount.Currency` de chaque transaction. Les
+   relevés et les soldes de cash sont des transactions, donc couverts.
+2. Le taux est nécessaire À LA DATE que l'enregistrement porte, pas
+   aujourd'hui. `fxFetchFrom` suit désormais la même règle en deux temps que
+   `priceFetchFrom` : on descend une fois jusqu'au plancher (`fxHistoryFloor`,
+   une semaine avant le plus ancien enregistrement du livre), puis on
+   rafraîchit à l'incrémental depuis la dernière clôture. La garde `HistFrom`
+   est posée sur la série FX comme sur les séries de prix : un enregistrement
+   saisi aujourd'hui mais daté de 2019 rouvre le téléchargement profond, ce que
+   l'ancien code ne faisait jamais.
+3. L'échec devient nommé. `Value()` REFUSE le total, comme avant, mais en
+   nommant l'enregistrement : « fee 10000 JPY on 2026-02-01 (CW8.PA, CTO
+   Meridia, tx 06gb...) : missing JPY exchange rate on 2026-02-01 ». C'est la
+   maison qui parle : un total ne perd jamais une ligne en silence, exactement
+   comme un titre sans cours n'est jamais compté à 0 sans le dire. `Series()`
+   garde sa sémantique (une courbe doit rester traçable, donc 0), mais
+   l'avertissement nomme lui aussi l'enregistrement, sa devise et sa date, une
+   fois par (enregistrement, paire) et jamais une fois par jour de la boucle.
+
+**Ce qu'on n'a pas fait :** faire échouer `Series()`. Une courbe qui refuse de
+s'afficher parce qu'un frais de 2019 n'a pas de taux serait une régression
+pire que le trou qu'elle signale ; l'avertissement, lui, est désormais
+actionnable.
+
+## D44 - Une portée rétrécie n'est plus une enveloppe entière
+
+**Contexte :** `--exclude` et `--asset` sont des filtres jetables posés sur une
+portée existante (`Scope.Excluded` / `Scope.Only`). Ils étaient appliqués par
+`hasAsset`, donc à la VALEUR, mais `accountBasis` (dans `Value`) et
+`flowBasis` (dans `Series`) voyaient toujours toutes les transactions de
+l'enveloppe. Or l'impôt latent d'une enveloppe vaut
+`max(0, valeur − base de versements)` : c'est une propriété de l'ENVELOPPE
+ENTIÈRE, pas d'une position.
+
+**Le bug, mesuré :** un CTO à 31,4 %, deux titres achetés 1000 EUR chacun et
+valant 2000 chacun. Portefeuille entier : brut 4000, impôt 628 (2000 de
+plus-value). `value --exclude gtwr` : brut 2000, mais base toujours 2000, donc
+`max(0, 2000 − 2000) = 0` et l'impôt total affiché tombait à 0,00 EUR là où la
+position gardée en porte 314. Le sens est toujours le même : retirer une
+position enlève de la valeur et rien de la base, donc l'impôt est SOUS-évalué,
+et le net surévalué d'autant.
+
+**Choix :** la règle exacte d'enveloppe ne s'applique qu'aux portées qui
+contiennent des enveloppes entières (`Scope.wholeEnvelopes` : `All` ou
+`ByAccount`, et aucun filtre jetable posé). Une portée rétrécie retombe sur la
+règle PAR POSITION, celle qu'une portée de groupe ou de titre utilise déjà, et
+le dit : « estimated tax is per position: --asset/--exclude narrows the
+envelope, whose latent tax is a property of the whole envelope ».
+
+**Pourquoi pas « on n'affiche rien » :** une portée de titre est déjà une
+enveloppe partielle et affiche depuis toujours l'approximation par position.
+Masquer le chiffre sur `--asset cw8` et l'afficher sur la portée `cw8` aurait
+été deux réponses différentes à la même question. La cohérence a gagné, la note
+porte l'honnêteté.
+
+**Où c'est appliqué :** `Value()` et `Series().valueAt` ensemble, donc le CLI et
+le web par construction ; `scope.html` affiche désormais `TaxNote` comme le
+tableau de bord le faisait déjà. `TestFuzzValueSeriesEndpoint` balaie en plus
+les portées rétrécies, puisqu'elles empruntent un autre chemin fiscal.
+
+## D45 - Une route qui connaît le genre de sa référence ne passe pas par le parseur libre
+
+**Contexte :** `portfolio.ParseScope` répond à une référence LIBRE (l'argument
+positionnel de `value`/`perf`/`chart`) et essaie les tiers dans l'ordre
+groupe, compte, titre. C'est le bon ordre pour un humain qui tape un mot.
+Mais quatre appelants lui passaient un identifiant dont ils connaissaient déjà
+le genre : la page `/assets` (`ParseScope(b, string(asset.ID))`, une ligne par
+titre) et les routes `/asset/{ref}`, `/account/{ref}`, `/group/{ref...}`.
+
+**Le bug :** l'import CSV forge l'identifiant en slugifiant la référence
+(`portfolio.ImportCSV`), donc un titre peut porter l'id `bonds` à côté d'un
+groupe `bonds`. Le tier groupe répondant en premier, la ligne de ce titre
+affichait la valeur de TOUT le groupe (2000 EUR sur une ligne qui en vaut
+1000), et `/asset/bonds` rendait le groupe.
+
+**Choix :** deux constructeurs typés, `portfolio.AssetScope(asset)` et
+`portfolio.GroupScope(path)`, à côté de `AccountScope` qui existait déjà ;
+chaque route résout dans son propre espace de noms (`Book.Asset`,
+`Book.Account`, l'existence du groupe) et un 404 nomme le genre attendu.
+`ParseScope` reste ce qu'il est, pour ce qu'il est : l'argument libre du CLI.
+
+**La règle qui en sort :** un appelant qui TIENT l'entité, ou qui sait de quel
+genre est la référence qu'il a reçue, ne repasse jamais par un parseur qui
+devine. `Book.Asset`/`Book.Account` sont sûrs pour un id (le tier id est exact
+et premier, et `CheckAssetRefs` interdit la collision) ; `ParseScope` ne l'est
+pas.
+
+## D46 - Un total flottant se somme dans un ordre trié, jamais dans l'ordre d'une map
+
+**Contexte :** l'addition flottante n'est pas associative. Trois boucles
+sommaient des `float64` en parcourant une map, donc dans l'ordre aléatoire que
+Go tire à chaque exécution : l'impôt exact par enveloppe dans `Value`
+(`perAccount`), et dans `Series.valueAt` les soldes de cash (`w.accounts`) puis
+l'impôt par enveloppe (`perAccount`).
+
+**Le bug, mesuré :** sur un livre à une grosse enveloppe (10 000 000 000,13 EUR)
+et quatre-vingts minuscules (0,0000005 EUR chacune), deux exécutions de
+`Value()` rendaient 2 000 000 000,0260012 et 2 000 000 000,0260067 d'impôt. Les
+petites valeurs sont sous l'ULP de la grande : sommées après elle, elles
+disparaissent ; sommées avant, elles comptent.
+
+**Choix :** les trois boucles itèrent `slices.Sorted(maps.Keys(...))`. Le coût
+est un tri de quelques dizaines de clés par point de série ; le bénéfice est
+une sortie stable octet à octet, sans laquelle un golden, un diff de deux
+exécutions et la comparaison inter-implémentations avec le client Android ne
+veulent rien dire.
+
+**Comment on le tient :** `TestValueTotalsAreRunStable` et
+`TestSeriesPointsAreRunStable` rejouent la même valorisation 500 et 200 fois et
+exigent l'égalité BIT À BIT. Vérifié en retirant le tri : les deux tombent.
+
+## D47 - Le canari de restatement nomme le split, et le grand livre n'a pas d'enregistrement pour le dire
+
+**Contexte :** D40 a posé le canari : quand une source réécrit son historique,
+la série est reconstruite et un avertissement le dit. D35 a laissé la section
+`Corporate Actions` de l'import IBKR comptée, jamais mappée. Entre les deux, il
+restait le trou : après un split 4:1 non saisi, le prix servi est le bon et la
+QUANTITÉ du grand livre ne l'est pas, donc la position se lit au quart de la
+réalité, et l'avertissement disait seulement « check the ledger quantities ».
+
+**Choix 1, le canari devient actionnable.** `restated` renvoie maintenant le
+FACTEUR mesuré (clôture en cache divisée par clôture re-servie) et la date du
+recouvrement. `splitRatioFor` confronte ce facteur aux ratios usuels (2:1, 3:1,
+4:1, 5:1, ..., 3:2, 5:4, et leurs inverses) à 1 % près, et ne nomme rien quand
+rien ne correspond : une redénomination monétaire (le franc à 6,55957) ou une
+correction de cours large ne devient pas un split imaginaire. Quand un ratio
+sort, `Summary.Actions` porte les commandes exactes, prêtes à coller :
+
+```
+warning: ZBF: history restated by the source on 2026-05-18 ...
+warning: ZBF: the factor is 4, a 4:1 split - the ledger still holds the pre-split quantities of ZBF; restate them with:
+to record it in the ledger:
+    finador tx edit 06gb... --qty 40   # buy 40 of ZBF on 2026-05-15, was 10
+```
+
+**Pourquoi `tx edit` et pas un aller-retour vente/achat.** La source a réécrit
+TOUT son historique : chaque clôture de chaque jour est désormais à la nouvelle
+échelle. La correction fidèle est donc de réécrire toutes les quantités de la
+même façon, ce que `tx edit --qty` fait en laissant les MONTANTS intacts (la
+base de coût moyenne ne bouge pas, le prix unitaire implicite est divisé par N,
+comme la série). Un aller-retour vente-puis-achat au même jour, lui, émettrait
+deux flux externes valorisés au prix de marché des titres échangés
+(`series.go`, le flux d'un trade vaut la valeur de marché), donc un apport
+fantôme de (N-1) x quantité x cours dans le TWR. Et l'édition porte
+l'`importHash` inchangé (piège documenté dans AGENTS.md), donc un rejeu du
+relevé ne duplique rien.
+
+**Choix 2, l'import IBKR nomme chaque action sur titre.** `Result` porte
+`CorporateActions []CorporateAction` (ligne, date de rapport, symbole,
+quantité, description du courtier), remplies en plus du compteur `Ignored`, et
+`finador import` les imprime une par ligne. Une action sur titre n'est pas un
+montant non mappé de plus : elle DÉPLACE UNE POSITION, et seule une correction
+à la main peut suivre. `--since` les écarte comme toute autre ligne.
+
+**Proposition, non implémentée : un enregistrement `split`.** Le grand livre
+n'a AUCUN moyen natif de restater une quantité. Les sept genres de transaction
+(buy, sell, dividend, fee, deposit, withdraw, statement) déclarent des
+montants ; `statement` déclare une VALEUR totale, jamais un nombre de titres.
+La correction par `tx edit` ci-dessus est saine tant que la source de prix
+réécrit son historique, ce qu'elle fait presque toujours ; elle ne l'est PAS
+pour une source qui ne l'ajuste pas, où les jours d'avant le split doivent
+garder l'ancienne quantité. La forme minimale serait :
+
+- `k: "tx"`, `kind: "split"`, `date` = date de détachement, `account`, `asset`,
+  `qty` = le ratio nouvelles/anciennes actions (décimal positif : 4 pour un
+  4:1, 0.1 pour un regroupement 1:10), `amount` absent.
+- Rejeu : à cette date, `qty *= ratio` ; la base de coût est INCHANGÉE ; aucun
+  flux externe n'est émis (rien n'entre ni ne sort de la poche) ; `stmtQty`
+  (la quantité qu'un relevé par titre met à l'échelle) suit le même facteur.
+
+**Pourquoi ça s'arrête ici :** FORMAT.md section 8 règle 3 dit qu'un nouveau
+`k` impose un bump de version et qu'un `k` inconnu est une erreur dure. Le cas
+présent est plus subtil et la spec ne le tranche pas : ce n'est pas un nouveau
+`k` mais une nouvelle VALEUR du champ `kind` d'un `k: "tx"` existant. Or
+`TxKind.UnmarshalText` refuse un nom inconnu, donc un lecteur plus ancien
+REJETTE le fichier entier, ce qui est exactement ce que la règle 3 protège.
+Conclusion : un nouveau genre de transaction relève de la règle 3, pas de la
+règle 2, et demande un bump de version (ou l'exception explicite « v3
+pré-figée »), plus une implémentation simultanée dans le client Android sous
+peine de rendre le grand livre illisible sur le téléphone. Cela ne se décide
+pas dans une passe de correction de bugs : la proposition est ici, rien n'est
+embarqué, et le texte de FORMAT.md section 8 gagnera à dire explicitement que
+`kind` suit la règle 3 le jour où la question sera tranchée.

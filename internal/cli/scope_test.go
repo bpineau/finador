@@ -161,3 +161,44 @@ func TestScopeAccountErrors(t *testing.T) {
 		t.Error("export --script --account should have failed")
 	}
 }
+
+// TestNarrowedScopeSaysTheEnvelopeTaxIsNotDefined: an envelope's latent tax
+// is a property of the WHOLE envelope, so --exclude and --asset cannot report
+// it - they take positions out of the value and nothing out of the
+// contribution basis, which read as 0 EUR of tax on a position sitting on a
+// gain. The narrowed scope shows the per-position tax instead, and says so.
+func TestNarrowedScopeSaysTheEnvelopeTaxIsNotDefined(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "CTO Meridia", "--tax", "gains:31.4%")
+	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8", "--group", "equities/world")
+	run(t, db, "asset", "add", "GTWR", "--alias", "gtwr", "--group", "bonds")
+	run(t, db, "asset", "buy", "cw8", "10", "@100", "2026-01-05", "--account", "CTO Meridia")
+	run(t, db, "asset", "buy", "gtwr", "10", "@100", "2026-01-05", "--account", "CTO Meridia")
+
+	whole := run(t, db, "value", "--at", "2026-06-02", "--what-if", "cw8=200", "--what-if", "gtwr=200")
+	for _, want := range []string{"4000.00 EUR", "628.00 EUR"} { // 2000 of gain at 31.4%
+		if !strings.Contains(whole, want) {
+			t.Errorf("%q missing from the whole-portfolio value:\n%s", want, whole)
+		}
+	}
+	if strings.Contains(whole, "per position") {
+		t.Errorf("a whole scope must not carry the narrowing note:\n%s", whole)
+	}
+
+	for _, args := range [][]string{
+		{"value", "--at", "2026-06-02", "--what-if", "cw8=200", "--exclude", "gtwr"},
+		{"value", "--at", "2026-06-02", "--what-if", "cw8=200", "--asset", "cw8"},
+	} {
+		out := run(t, db, args...)
+		if !strings.Contains(out, "2000.00 EUR") {
+			t.Errorf("%v: the narrowed gross is wrong:\n%s", args, out)
+		}
+		if !strings.Contains(out, "314.00 EUR") {
+			t.Errorf("%v: expected the per-position tax of 314.00 EUR:\n%s", args, out)
+		}
+		if !strings.Contains(out, "per position") {
+			t.Errorf("%v: the narrowing is not explained:\n%s", args, out)
+		}
+	}
+}

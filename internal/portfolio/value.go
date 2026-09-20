@@ -2,7 +2,10 @@ package portfolio
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/shopspring/decimal"
 
@@ -172,15 +175,21 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 		out.Gross += l.Gross
 		out.Tax += l.Tax
 	}
-	// All/Account: the exact total tax is the one from the envelope rule
-	if scope.Kind == All || scope.Kind == ByAccount {
+	// Whole envelopes: the exact total tax is the one from the envelope rule.
+	// A narrowed scope is not one - it takes positions out of the value and
+	// nothing out of the basis - so it keeps the per-position sum and says so.
+	switch {
+	case scope.wholeEnvelopes():
 		exact := 0.0
-		for accID, gross := range perAccount {
+		// Sorted, never map order: a float sum is not associative, so
+		// iterating the map made the last digits of the total depend on the
+		// run (see D46).
+		for _, accID := range slices.Sorted(maps.Keys(perAccount)) {
 			acc, err := b.Account(string(accID))
 			if err != nil {
 				continue
 			}
-			t, err := v.accountTax(acc, gross)
+			t, err := v.accountTax(acc, perAccount[accID])
 			if err != nil {
 				return out, err
 			}
@@ -190,6 +199,8 @@ func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx 
 			out.TaxNote = "total tax follows the per-account rule; the per-line breakdown is approximate"
 		}
 		out.Tax = exact
+	case scope.Kind == All || scope.Kind == ByAccount:
+		out.TaxNote = narrowedNote
 	}
 	out.Net = out.Gross - out.Tax
 	out.Stale = dedupe(v.stale)
@@ -232,8 +243,43 @@ func trimFloat(f float64) string {
 func rate(t domain.TaxRule) float64 { f, _ := t.Rate.Float64(); return f }
 func toF(d decimal.Decimal) float64 { f, _ := d.Float64(); return f }
 
-func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (float64, error) {
-	return v.fx.Convert(toF(m.Amount), m.Currency, to, at)
+// describeTx names one ledger record in an error or a warning: what it is,
+// when, on which asset, in which envelope, and its id so `finador tx` reaches
+// it. A missing rate is reported against the record that needs it, never
+// against a bare currency pair.
+func describeTx(b *domain.Book, t *domain.Transaction) string {
+	parts := []string{}
+	if t.Asset != "" {
+		if a, err := b.Asset(string(t.Asset)); err == nil {
+			parts = append(parts, a.Name)
+		}
+	}
+	if acc, err := b.Account(string(t.Account)); err == nil {
+		parts = append(parts, acc.Name)
+	}
+	parts = append(parts, "tx "+string(t.ID))
+	return fmt.Sprintf("%s %s on %s (%s)", t.Kind, t.Amount, t.Date, strings.Join(parts, ", "))
+}
+
+// convTx converts a record's amount at the record's own date, naming the
+// record when no rate covers it: a total that quietly drops a line - the
+// basis understated, the latent tax overstated - is worse than no total.
+func (v *valuer) convTx(t *domain.Transaction, to domain.Currency) (float64, error) {
+	f, err := v.fx.Convert(toF(t.Amount.Amount), t.Amount.Currency, to, t.Date)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", describeTx(v.b, t), err)
+	}
+	return f, nil
+}
+
+// convNamed converts an amount that belongs to a holding or an envelope
+// rather than to one record, naming it the same way.
+func (v *valuer) convNamed(amount float64, from, to domain.Currency, at domain.Date, name string) (float64, error) {
+	f, err := v.fx.Convert(amount, from, to, at)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", name, err)
+	}
+	return f, nil
 }
 
 // positionValue: market close if a series exists, else the last statement of
@@ -244,17 +290,17 @@ func (v *valuer) convertAt(m domain.Money, to domain.Currency, at domain.Date) (
 func (v *valuer) positionValue(h Holding) (float64, error) {
 	if ov, ok := v.overrides[h.Asset.ID]; ok {
 		v.noteOverride(h.Asset.Name, ov, h.Asset.Currency)
-		return v.fx.Convert(toF(h.Qty)*ov.Price, h.Asset.Currency, v.ccy, v.at)
+		return v.convNamed(toF(h.Qty)*ov.Price, h.Asset.Currency, v.ccy, v.at, h.Asset.Name)
 	}
 	if close, cdate, ok := v.b.Market.Prices[h.Asset.ID].At(v.at); ok {
 		if cdate.AddDays(staleAfterDays).Before(v.at) {
 			v.stale = append(v.stale, fmt.Sprintf("%s: last quote on %s", h.Asset.Name, cdate))
 		}
-		return v.fx.Convert(toF(h.Qty)*close, h.Asset.Currency, v.ccy, v.at)
+		return v.convNamed(toF(h.Qty)*close, h.Asset.Currency, v.ccy, v.at, h.Asset.Name)
 	}
 	if tx, ok := v.lastStatement(h.Account.ID, h.Asset.ID); ok {
 		v.stale = append(v.stale, fmt.Sprintf("%s: valued from its %s statement", h.Asset.Name, tx.Date))
-		total, err := v.convertAt(tx.Amount, v.ccy, v.at)
+		total, err := v.convNamed(toF(tx.Amount.Amount), tx.Amount.Currency, v.ccy, v.at, describeTx(v.b, tx))
 		if err != nil {
 			return 0, err
 		}
@@ -278,13 +324,13 @@ func (v *valuer) positionValue(h Holding) (float64, error) {
 func (v *valuer) statementValue(acc domain.AccountID, asset *domain.Asset) (float64, error) {
 	if ov, ok := v.overrides[asset.ID]; ok {
 		v.noteOverride(asset.Name, ov, asset.Currency)
-		return v.fx.Convert(ov.Price, asset.Currency, v.ccy, v.at)
+		return v.convNamed(ov.Price, asset.Currency, v.ccy, v.at, asset.Name)
 	}
 	tx, ok := v.lastStatement(acc, asset.ID)
 	if !ok {
 		return 0, nil
 	}
-	return v.convertAt(tx.Amount, v.ccy, v.at)
+	return v.convNamed(toF(tx.Amount.Amount), tx.Amount.Currency, v.ccy, v.at, describeTx(v.b, tx))
 }
 
 func (v *valuer) lastStatement(acc domain.AccountID, asset domain.AssetID) (*domain.Transaction, bool) {
@@ -335,7 +381,7 @@ func (v *valuer) positionBasis(acc domain.AccountID, asset domain.AssetID) (floa
 		}
 		switch t.Kind {
 		case domain.Buy:
-			amt, err := v.convertAt(t.Amount, v.ccy, t.Date)
+			amt, err := v.convTx(t, v.ccy)
 			if err != nil {
 				return 0, err
 			}
@@ -363,7 +409,7 @@ func (v *valuer) propertyTax(acc *domain.Account, asset *domain.Asset, gross flo
 		if !ok {
 			return 0, nil
 		}
-		basis, err := v.convertAt(first.Amount, v.ccy, first.Date)
+		basis, err := v.convTx(first, v.ccy)
 		if err != nil {
 			return 0, err
 		}
@@ -403,7 +449,7 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		default:
 			continue
 		}
-		amt, err := v.convertAt(t.Amount, v.ccy, t.Date)
+		amt, err := v.convTx(t, v.ccy)
 		if err != nil {
 			return 0, err
 		}
@@ -429,7 +475,7 @@ func (v *valuer) accountBasis(acc *domain.Account) (float64, error) {
 		if !ok {
 			continue
 		}
-		amt, err := v.convertAt(first.Amount, v.ccy, first.Date)
+		amt, err := v.convTx(first, v.ccy)
 		if err != nil {
 			return 0, err
 		}
@@ -450,7 +496,7 @@ func (v *valuer) cashValue(acc *domain.Account) (float64, error) {
 		if v.at.Before(t.Date) || t.Account != acc.ID || t.Asset != "" || t.Kind != domain.Statement {
 			continue
 		}
-		amt, err := v.convertAt(t.Amount, acc.Currency, t.Date)
+		amt, err := v.convTx(t, acc.Currency)
 		if err != nil {
 			return 0, err
 		}
@@ -472,13 +518,13 @@ func (v *valuer) cashValue(acc *domain.Account) (float64, error) {
 		default:
 			continue
 		}
-		amt, err := v.convertAt(t.Amount, acc.Currency, t.Date)
+		amt, err := v.convTx(t, acc.Currency)
 		if err != nil {
 			return 0, err
 		}
 		balance += sign * amt
 	}
-	return v.fx.Convert(balance, acc.Currency, v.ccy, v.at)
+	return v.convNamed(balance, acc.Currency, v.ccy, v.at, acc.Name+" cash")
 }
 
 func manualDividendAssets(b *domain.Book) map[domain.AssetID]bool {

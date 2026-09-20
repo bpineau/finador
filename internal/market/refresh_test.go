@@ -3,6 +3,7 @@ package market
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -604,10 +605,10 @@ func TestRefLabel(t *testing.T) {
 // a week before the book's first transaction when it is empty, and falls back
 // to a short window on a book with no history at all.
 func TestFXFetchFrom(t *testing.T) {
-	filled := &domain.PriceSeries{}
+	traded := bookWithTrade(t) // first transaction 2026-05-15
+	filled := &domain.PriceSeries{HistFrom: mustDate("2026-05-08")}
 	filled.Merge([]domain.PricePoint{{Date: mustDate("2026-06-01"), Close: 1.1}})
 
-	traded := bookWithTrade(t) // first transaction 2026-05-15
 	cases := []struct {
 		name   string
 		book   *domain.Book
@@ -890,5 +891,178 @@ func TestRefreshKeepsHistoryWhenOverlapAgrees(t *testing.T) {
 	// Exactly one daily call per instrument: no deep re-fetch.
 	if n := strings.Count(strings.Join(src.calls, "\n"), "DAILY CW8.PA"); n != 1 {
 		t.Errorf("calls = %v, expected a single CW8.PA fetch", src.calls)
+	}
+}
+
+// A currency no account and no asset declares still needs a rate: a fee, a
+// deposit or a dividend booked in it is money the valuation must cross. When
+// the refresh does not fetch that pair, the amount finds no rate and the
+// valuation either refuses the total or counts the line as zero.
+func TestNeededCurrenciesIncludeTransactionCurrencies(t *testing.T) {
+	b := bookWithTrade(t) // EUR account, EUR asset
+	b.Add(domain.Transaction{Date: mustDate("2026-05-20"), Account: "pea", Asset: "cw8",
+		Kind: domain.Fee, Amount: domain.Money{Amount: decimal.NewFromInt(10000), Currency: "JPY"}})
+	b.Add(domain.Transaction{Date: mustDate("2026-05-21"), Account: "pea",
+		Kind: domain.Deposit, Amount: domain.Money{Amount: decimal.NewFromInt(500), Currency: "CHF"}})
+	b.Add(domain.Transaction{Date: mustDate("2026-05-22"), Account: "pea",
+		Kind: domain.Statement, Amount: domain.Money{Amount: decimal.NewFromInt(900), Currency: "SEK"}})
+
+	got := neededCurrencies(b)
+	for _, want := range []domain.Currency{"CHF", "JPY", "SEK"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("neededCurrencies = %v, missing %s", got, want)
+		}
+	}
+	if slices.Contains(got, domain.USD) || slices.Contains(got, domain.Currency("")) {
+		t.Errorf("neededCurrencies = %v, the USD pivot and the empty currency must not be listed", got)
+	}
+	if !slices.IsSorted(got) {
+		t.Errorf("neededCurrencies = %v, expected sorted output", got)
+	}
+}
+
+// The rate is needed AT THE DATE the record carries, so a currency seen only
+// on an old transaction must be fetched from before that transaction - and a
+// series already fetched shallow must be deepened when an older record
+// appears, exactly as a price series is (HistFrom).
+func TestFXFetchFromBackfillsOlderRecords(t *testing.T) {
+	b := bookWithTrade(t) // first transaction 2026-05-15
+	old := mustDate("2019-03-04")
+	b.Add(domain.Transaction{Date: old, Account: "pea", Asset: "cw8",
+		Kind: domain.Fee, Amount: domain.Money{Amount: decimal.NewFromInt(10000), Currency: "JPY"}})
+
+	s := &domain.PriceSeries{}
+	s.Merge([]domain.PricePoint{{Date: mustDate("2026-06-01"), Close: 0.006}})
+	s.HistFrom = mustDate("2026-05-08") // fetched before the old record was typed
+
+	if got, want := fxFetchFrom(b, s), old.AddDays(-7); got != want {
+		t.Errorf("fxFetchFrom = %s, want %s (a week before the oldest record)", got, want)
+	}
+	// Once deep enough, refreshes stay incremental.
+	s.HistFrom = old.AddDays(-7)
+	if got, want := fxFetchFrom(b, s), mustDate("2026-06-01"); got != want {
+		t.Errorf("fxFetchFrom = %s, want the last close %s", got, want)
+	}
+}
+
+// End to end: the pair of a transaction-only currency is fetched, deep enough
+// to price that transaction, and the series remembers how deep it went.
+func TestRefreshFetchesTransactionOnlyCurrency(t *testing.T) {
+	b := bookWithTrade(t)
+	b.Add(domain.Transaction{Date: mustDate("2026-05-20"), Account: "pea", Asset: "cw8",
+		Kind: domain.Fee, Amount: domain.Money{Amount: decimal.NewFromInt(10000), Currency: "JPY"}})
+	src := &fakeSource{daily: map[string]DailyData{
+		"CW8.PA":   {Currency: domain.EUR, Closes: []domain.PricePoint{{Date: mustDate("2026-05-15"), Close: 550}}},
+		"EURUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-15"), Close: 1.1}}},
+		"JPYUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-15"), Close: 0.0064}}},
+	}}
+	sum := Refresh(context.Background(), b, src, false)
+	if !slices.Contains(sum.Fetched, "fx JPY") {
+		t.Fatalf("fetched = %v, expected the JPY pair", sum.Fetched)
+	}
+	if !strings.Contains(strings.Join(src.calls, "\n"), "DAILY JPYUSD=X 2026-05-08") {
+		t.Errorf("calls = %v, expected JPY fetched from a week before the first record", src.calls)
+	}
+	if got := b.Market.FXSeries("JPY").HistFrom; got != mustDate("2026-05-08") {
+		t.Errorf("JPY HistFrom = %s, want 2026-05-08", got)
+	}
+}
+
+// TestSplitRatioFor: a restatement factor (cached close / re-served close) is
+// matched against the usual share splits, and only against those - a currency
+// redenomination or a class merge lands on no ratio and must claim none.
+func TestSplitRatioFor(t *testing.T) {
+	cases := []struct {
+		factor float64
+		label  string
+		ok     bool
+	}{
+		{4, "4:1", true},
+		{3.98, "4:1", true}, // a close rounded to the cent
+		{2, "2:1", true},
+		{10, "10:1", true},
+		{1.5, "3:2", true},
+		{0.1, "1:10", true},  // reverse split
+		{0.5, "1:2", true},   // reverse split
+		{6.55957, "", false}, // the franc/euro redenomination: no ratio
+		{1.09, "", false},    // an unexplained restatement
+		{0, "", false},
+	}
+	for _, tc := range cases {
+		label, _, ok := splitRatioFor(tc.factor)
+		if ok != tc.ok || label != tc.label {
+			t.Errorf("splitRatioFor(%v) = %q,%v - want %q,%v", tc.factor, label, ok, tc.label, tc.ok)
+		}
+	}
+}
+
+// The canary of D40 says a history was restated; it must also say WHAT it
+// looks like and what to do about it. A split moves the ledger quantity, and
+// only a ledger record can move it back.
+func TestRestatementNamesTheSplitAndTheCommands(t *testing.T) {
+	b := bookWithTrade(t) // one buy of 10 CW8 on 2026-05-15
+	var buy *domain.Transaction
+	for _, tx := range b.Transactions {
+		if tx.Kind == domain.Buy {
+			buy = tx
+		}
+	}
+	s := b.Market.Price("cw8")
+	s.Merge([]domain.PricePoint{
+		{Date: mustDate("2026-05-18"), Close: 404},
+		{Date: mustDate("2026-05-19"), Close: 408},
+	})
+	s.HistFrom = mustDate("2016-05-15")
+	s.FetchedAt = mustDate("2026-05-19")
+
+	src := &fakeSource{daily: map[string]DailyData{
+		"CW8.PA": {Currency: domain.EUR, Closes: []domain.PricePoint{
+			{Date: mustDate("2026-05-19"), Close: 102}, // 408 / 4
+			{Date: mustDate("2026-05-20"), Close: 103},
+		}},
+		"EURUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-20"), Close: 1.1}}},
+	}}
+	sum := Refresh(context.Background(), b, src, true)
+
+	joined := strings.Join(sum.Warnings, "\n")
+	for _, want := range []string{"4:1", "2026-05-19", "CW8.PA"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("warnings %q do not name %q", joined, want)
+		}
+	}
+	// The exact command, ready to paste: 10 shares become 40.
+	want := "finador tx edit " + string(buy.ID) + " --qty 40"
+	if !slices.ContainsFunc(sum.Actions, func(a string) bool { return strings.Contains(a, want) }) {
+		t.Errorf("actions = %v, expected %q", sum.Actions, want)
+	}
+}
+
+// A restatement that matches no split ratio must say so plainly rather than
+// invent one, and must offer no command: nothing is known to be wrong with
+// the quantities.
+func TestRestatementWithoutARatioClaimsNothing(t *testing.T) {
+	b := bookWithTrade(t)
+	s := b.Market.Price("cw8")
+	s.Merge([]domain.PricePoint{{Date: mustDate("2026-05-19"), Close: 408}})
+	s.HistFrom = mustDate("2016-05-15")
+	s.FetchedAt = mustDate("2026-05-19")
+
+	src := &fakeSource{daily: map[string]DailyData{
+		"CW8.PA": {Currency: domain.EUR, Closes: []domain.PricePoint{
+			{Date: mustDate("2026-05-19"), Close: 374}, // -8.3%: no split ratio
+			{Date: mustDate("2026-05-20"), Close: 376},
+		}},
+		"EURUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-20"), Close: 1.1}}},
+	}}
+	sum := Refresh(context.Background(), b, src, true)
+	joined := strings.Join(sum.Warnings, "\n")
+	if !strings.Contains(joined, "restated") {
+		t.Errorf("warnings = %v, expected the restatement to be named", sum.Warnings)
+	}
+	if strings.Contains(joined, ":1") || strings.Contains(joined, "split ratio") {
+		t.Errorf("warnings = %v, expected no ratio to be claimed", sum.Warnings)
+	}
+	if len(sum.Actions) != 0 {
+		t.Errorf("actions = %v, expected none", sum.Actions)
 	}
 }

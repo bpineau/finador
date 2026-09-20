@@ -28,6 +28,7 @@ func refreshCmd(a *app) *cobra.Command {
 			// finish with a spot pass for today's live prices.
 			spot := market.SpotRefresh(cmd.Context(), f.Book, a.marketSource())
 			warn(cmd, sum.Warnings, spot.Warnings)
+			actions(cmd, sum.Actions)
 			if err := f.SaveCache(); err != nil {
 				return err
 			}

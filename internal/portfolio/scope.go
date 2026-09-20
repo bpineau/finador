@@ -69,6 +69,23 @@ func AccountScope(acc *domain.Account) Scope {
 	return Scope{Kind: ByAccount, Account: acc, Label: acc.Name}
 }
 
+// AssetScope is one security or property, wherever it is held. Callers that
+// already HAVE the asset must use it rather than round-tripping its id
+// through [ParseScope]: that parser answers a free-form reference and tries
+// the group tier first, so an asset whose id is also a group path - a CSV
+// import slugifies the reference into the id - would resolve to the group.
+func AssetScope(asset *domain.Asset) Scope {
+	return Scope{Kind: ByAsset, Asset: asset, Label: asset.Name}
+}
+
+// GroupScope is one group subtree, named by its path. Like [AssetScope], it
+// exists so a caller that knows the KIND of what it holds never has to ask
+// the free-form parser to guess it.
+func GroupScope(group string) Scope {
+	g := strings.ToLower(group)
+	return Scope{Kind: ByGroup, Group: g, Label: g}
+}
+
 // LabelScope builds a scope limited to the (account, asset) pairs that carry
 // the given label name (case-insensitive). Returns an error if no such pair exists.
 func LabelScope(b *domain.Book, name string) (Scope, error) {
@@ -154,12 +171,35 @@ func FilterScope(lines []PositionLine, s Scope) []PositionLine {
 	return out
 }
 
+// InGroup reports whether an asset's group path falls under a group scope
+// path (lowercase), matching whole path segments.
+func InGroup(assetGroup, scope string) bool { return inGroup(assetGroup, scope) }
+
 // inGroup reports whether an asset group path falls under scope (lowercase),
 // matching whole path segments.
 func inGroup(assetGroup, scope string) bool {
 	g := strings.ToLower(assetGroup)
 	return g == scope || strings.HasPrefix(g, scope+"/")
 }
+
+// wholeEnvelopes reports whether the scope holds each of its envelopes
+// ENTIRE, which is what the exact envelope tax rule needs: an envelope's
+// latent tax is tax on max(0, value - contribution basis), and the basis
+// belongs to the envelope, not to any position of it. All and ByAccount are
+// whole-envelope shapes - until --exclude or --asset narrows them, which
+// takes positions out of the value and nothing out of the basis. Such a
+// scope reads the per-position rule instead, like a group or an asset scope.
+func (s Scope) wholeEnvelopes() bool {
+	if len(s.Excluded) > 0 || s.Only != nil {
+		return false
+	}
+	return s.Kind == All || s.Kind == ByAccount
+}
+
+// narrowedNote is what a scope says instead of an envelope tax it cannot
+// define. The per-line figures stay: they are the documented per-position
+// approximation, the only reading a partial envelope supports.
+const narrowedNote = "estimated tax is per position: --asset/--exclude narrows the envelope, whose latent tax is a property of the whole envelope"
 
 // HasAsset reports whether the (account, asset) position belongs to the scope.
 func (s Scope) HasAsset(acc *domain.Account, asset *domain.Asset) bool { return s.hasAsset(acc, asset) }

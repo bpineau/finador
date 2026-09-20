@@ -183,6 +183,19 @@ const spotMaxAge = 30 * time.Minute
 // warn prints each distinct warning once. The daily fetch and the spot pass
 // consult the same providers, so one unreachable instrument otherwise says
 // the same thing twice, which reads like two problems.
+// actions prints the ready-to-paste commands a warning earned, under one
+// heading and without the "warning:" prefix: they are meant to be copied.
+func actions(cmd *cobra.Command, cmds []string) {
+	if len(cmds) == 0 {
+		return
+	}
+	errw := cmd.ErrOrStderr()
+	fmt.Fprintln(errw, "to record it in the ledger:")
+	for _, c := range cmds {
+		fmt.Fprintln(errw, "   ", c)
+	}
+}
+
 func warn(cmd *cobra.Command, groups ...[]string) {
 	seen := map[string]bool{}
 	for _, g := range groups {
@@ -230,6 +243,7 @@ func (a *app) ensureFreshSpot(cmd *cobra.Command, f *store.File, extended bool) 
 		spotted = true
 	}
 	warn(cmd, sum.Warnings, spot.Warnings)
+	actions(cmd, sum.Actions)
 	if len(sum.Fetched) > 0 || spotted {
 		if err := f.SaveCache(); err != nil {
 			fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)

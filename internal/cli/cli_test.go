@@ -175,7 +175,9 @@ const ibkrStatement = "Statement,Header,Field Name,Field Value\r\n" +
 	"Deposits & Withdrawals,Header,Currency,Settle Date,Description,Amount\r\n" +
 	"Deposits & Withdrawals,Data,EUR,2026-01-05,Electronic Fund Transfer,\"10,000\"\r\n" +
 	"Fees,Header,Subtitle,Currency,Date,Description,Amount\r\n" +
-	"Fees,Data,Other Fees,EUR,2026-02-28,Market data subscription,-10\r\n"
+	"Fees,Data,Other Fees,EUR,2026-02-28,Market data subscription,-10\r\n" +
+	"Corporate Actions,Header,Asset Category,Currency,Report Date,Date/Time,Description,Quantity,Proceeds,Value,Realized P/L,Code\r\n" +
+	"Corporate Actions,Data,Stocks,EUR,2026-03-02,\"2026-03-01, 20:25:00\",\"CW8(LU1681043599) Split 4 for 1 (CW8, AMUNDI MSCI WORLD, LU1681043599)\",60,0,0,0,\r\n"
 
 func TestImportIBKRCommand(t *testing.T) {
 	db := newDB(t)
@@ -195,8 +197,15 @@ func TestImportIBKRCommand(t *testing.T) {
 	if !strings.Contains(out, "2 imported, 0 skipped") {
 		t.Fatalf("import: %q", out)
 	}
-	if !strings.Contains(out, "not imported: Fees (1)") {
+	if !strings.Contains(out, "not imported: Corporate Actions (1), Fees (1)") {
 		t.Fatalf("unsupported sections should be reported: %q", out)
+	}
+	// A corporate action moves a position, so it is named, not just counted:
+	// nothing but a hand-typed correction can follow it.
+	for _, want := range []string{"corporate actions", "2026-03-02", "CW8", "Split 4 for 1"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("corporate action not reported (%q missing): %q", want, out)
+		}
 	}
 	if out := run(t, db, "import", "--format", "ibkr", "--account", "CTO Meridia", path); !strings.Contains(out, "0 imported, 2 skipped") {
 		t.Fatalf("re-import: %q", out)
@@ -1584,5 +1593,76 @@ func TestInitCreatesTheDataDirectory(t *testing.T) {
 	run(t, db, "init")
 	if _, err := os.Stat(db); err != nil {
 		t.Fatalf("init should have created %s: %v", db, err)
+	}
+}
+
+// splitSource serves one instrument (ZBF) whose closes the test rewrites
+// between passes, so a whole history can be restated the way a split does.
+type splitSource struct {
+	fakeSource
+	closes []domain.PricePoint
+}
+
+func (s *splitSource) Daily(ctx context.Context, ref market.Ref, from domain.Date) (market.DailyData, error) {
+	if ref.Symbol == "ZBF" {
+		return market.DailyData{Currency: domain.EUR, Closes: s.closes}, nil
+	}
+	return s.fakeSource.Daily(ctx, ref, from)
+}
+
+func mustCLIDate(t *testing.T, s string) domain.Date {
+	t.Helper()
+	d, err := domain.ParseDate(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+// runWithSource runs finador online against a scripted market source.
+func runWithSource(t *testing.T, db string, src market.Source, args ...string) string {
+	t.Helper()
+	t.Setenv("FINADOR_PASSWORD", "secret-de-test")
+	var out bytes.Buffer
+	cmd := cli.New(cli.WithSource(src))
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append([]string{"--db", db, "--no-keychain"}, args...))
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("finador %s: %v\n%s", strings.Join(args, " "), err, out.String())
+	}
+	return out.String()
+}
+
+// TestRefreshPrintsTheSplitCommands: when the price source restates its
+// history by a simple split ratio, `refresh` names the split and prints the
+// exact commands that bring the ledger quantities back in line. The price
+// series is split-adjusted over its whole history; the ledger is not, and
+// only a ledger record can fix it.
+func TestRefreshPrintsTheSplitCommands(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	db := newDB(t)
+	run(t, db, "account", "add", "CTO Meridia")
+	run(t, db, "asset", "add", "ZBF", "--alias", "zbf", "--group", "equities")
+	run(t, db, "asset", "buy", "zbf", "10", "@400", "2026-05-15", "--account", "CTO Meridia")
+
+	// First pass caches the pre-split closes.
+	src := &splitSource{closes: []domain.PricePoint{
+		{Date: mustCLIDate(t, "2026-05-18"), Close: 404},
+		{Date: mustCLIDate(t, "2026-05-19"), Close: 408},
+	}}
+	runWithSource(t, db, src, "refresh")
+
+	// Second pass: a 4:1 split, every close divided by four.
+	src.closes = []domain.PricePoint{
+		{Date: mustCLIDate(t, "2026-05-18"), Close: 101},
+		{Date: mustCLIDate(t, "2026-05-19"), Close: 102},
+		{Date: mustCLIDate(t, "2026-05-20"), Close: 103},
+	}
+	out := runWithSource(t, db, src, "refresh")
+	for _, want := range []string{"restated", "4:1 split", "finador tx edit", "--qty 40"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("%q missing from the refresh report:\n%s", want, out)
+		}
 	}
 }

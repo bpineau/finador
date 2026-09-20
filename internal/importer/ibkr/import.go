@@ -35,8 +35,14 @@
 //     any cost basis, and the book's gross dividend plus its tax read
 //     correctly on their own lines.
 //   - Sections that carry real money but have no faithful equivalent yet
-//     (Fees, Interest, Corporate Actions, forex and derivatives trades) are
-//     counted and named in the result rather than approximated.
+//     (Fees, Interest, forex and derivatives trades) are counted and named in
+//     the result rather than approximated.
+//   - Corporate Actions go further: every row is reported one by one
+//     ([Result.CorporateActions]), with its date, its security and the
+//     broker's own words. A split, a merger or a spin-off moves the QUANTITY
+//     of a position and the ledger has no record for that, so the correction
+//     is a hand edit and the user has to know which line to correct
+//     (DECISIONS D47, which also holds the proposal for a `split` record).
 package ibkr
 
 import (
@@ -106,6 +112,39 @@ type Result struct {
 	BeforeSince int            // lines dated before Options.Since
 	Ignored     map[string]int // reason -> lines deliberately left out
 	Matches     []Match        // one entry per matched, adopted or ambiguous line
+	// CorporateActions names every Corporate Actions row, in statement
+	// order. They are counted in Ignored like the other unmapped sections,
+	// but a corporate action is not just unmapped money: a split, a merger
+	// or a spin-off MOVES A POSITION, and the price source applies it to its
+	// whole history while the ledger keeps the old quantity. A bare count
+	// said nothing about which security is now wrong (D47).
+	CorporateActions []CorporateAction
+}
+
+// A CorporateAction is one Corporate Actions row, reported rather than
+// mapped: what the broker says happened, to which security, and when.
+type CorporateAction struct {
+	Line        int         // the statement's own line number
+	Date        domain.Date // the report date, or the zero date if unreadable
+	Symbol      string      // the security the description names
+	Quantity    string      // the quantity the row carries, verbatim
+	Description string      // the broker's own words
+}
+
+// String renders one report line, in the vocabulary the CLI prints.
+func (c CorporateAction) String() string {
+	parts := []string{}
+	if !c.Date.IsZero() {
+		parts = append(parts, c.Date.String())
+	}
+	if c.Symbol != "" {
+		parts = append(parts, c.Symbol)
+	}
+	if c.Quantity != "" {
+		parts = append(parts, "qty "+c.Quantity)
+	}
+	parts = append(parts, c.Description)
+	return fmt.Sprintf("line %d: %s", c.Line, strings.Join(parts, " "))
 }
 
 // A Match is one statement line the guard recognised as already booked by
@@ -226,7 +265,7 @@ func Import(b *domain.Book, r io.Reader, opts Options) (Result, error) {
 			strings.Join(slices.Sorted(maps.Keys(im.missing)), ", "))
 	}
 
-	res := Result{Ignored: im.ignored, BeforeSince: im.beforeSince}
+	res := Result{Ignored: im.ignored, BeforeSince: im.beforeSince, CorporateActions: im.actions}
 	for _, st := range im.txs {
 		if b.HasImportHash(st.tx.ImportHash) || portfolio.HasLegacyImport(b, st.legacy, st.tx) {
 			res.Skipped++ // already imported: the dedup rule wins over any lookalike
@@ -281,6 +320,7 @@ type importer struct {
 	assets      map[string]*domain.Asset // symbol -> resolved security
 	missing     map[string]bool
 	ignored     map[string]int
+	actions     []CorporateAction
 	beforeSince int
 	txs         []staged
 }
@@ -321,6 +361,8 @@ func (im *importer) row(r row) error {
 		return im.withholding(r)
 	case "Deposits & Withdrawals", "Deposits/Withdrawals":
 		return im.cashFlow(r)
+	case "Corporate Actions":
+		return im.corporateAction(r)
 	default:
 		if sectionsWithMoney[r.section] {
 			im.ignore(r.section)
@@ -691,6 +733,30 @@ func number(s string) (decimal.Decimal, error) {
 // appends after a comma. IBKR renders dates per the statement's own date
 // format preference; only the default, ISO, is accepted - guessing between
 // 03/04/2026 read American and read European would be a silent one-month lie.
+// corporateAction reports one Corporate Actions row instead of mapping it.
+// A split, a merger or a spin-off moves the QUANTITY of a position, and the
+// ledger has no record for that yet (see DECISIONS D47): the honest answer
+// is to name every one of them - date, security, the broker's own words - so
+// the user knows exactly which line to restate by hand. The row is counted
+// like the other unmapped sections in the same breath.
+//
+// A date this parser cannot read never fails the import: the row is reported
+// undated rather than dropped, since being told about it is the whole point.
+func (im *importer) corporateAction(r row) error {
+	date, err := tradeDate(r.getAny("Report Date", "Date/Time", "Date"))
+	if err == nil && im.before(date) {
+		return nil
+	}
+	im.ignore("Corporate Actions")
+	description := r.get("Description")
+	symbol, _ := describedInstrument(description)
+	im.actions = append(im.actions, CorporateAction{
+		Line: r.line, Date: date, Symbol: symbol,
+		Quantity: r.get("Quantity"), Description: description,
+	})
+	return nil
+}
+
 func tradeDate(s string) (domain.Date, error) {
 	day, _, _ := strings.Cut(s, ",")
 	return domain.ParseDate(strings.TrimSpace(day))

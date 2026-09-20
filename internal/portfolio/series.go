@@ -3,8 +3,8 @@ package portfolio
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"strings"
 
 	"github.com/shopspring/decimal"
 
@@ -105,7 +105,10 @@ type walker struct {
 	accounts map[domain.AccountID]*accountState
 	manual   map[domain.AssetID]bool
 	flows    []ExternalFlow
-	warned   map[string]bool // key = "label:from→to", avoids duplicates
+	// warned keys are "what:from→to": one entry per amount that found no
+	// rate, whatever the number of days the loop retried it.
+	warned    map[string]*convFailure
+	warnOrder []string
 }
 
 type pairKey struct {
@@ -149,7 +152,7 @@ func newWalker(b *domain.Book, scope Scope, ccy domain.Currency, fx FX) *walker 
 		pairs:    map[pairKey]*pairState{},
 		accounts: map[domain.AccountID]*accountState{},
 		manual:   manualDividendAssets(b),
-		warned:   map[string]bool{},
+		warned:   map[string]*convFailure{},
 	}
 	for _, acc := range b.Accounts {
 		w.accounts[acc.ID] = &accountState{acc: acc}
@@ -175,48 +178,73 @@ func (w *walker) pair(t *domain.Transaction) *pairState {
 
 // conv converts a Money to display currency at a date; returns 0 on failure
 // (series semantics: missing FX → contribute 0, don't fail).
-// label is the asset or account name for warning deduplication.
-func (w *walker) conv(m domain.Money, to domain.Currency, at domain.Date, label string) float64 {
+// what names the record or the holding the amount belongs to, so the warning
+// says WHICH line was counted as zero and not merely which currency.
+func (w *walker) conv(m domain.Money, to domain.Currency, at domain.Date, what string) float64 {
 	v, err := w.fx.Convert(toF(m.Amount), m.Currency, to, at)
 	if err != nil {
-		w.warn(label, m.Currency, to)
+		w.warn(what, m.Currency, to, at)
 		return 0
 	}
 	return v
 }
 
 // convF converts a float amount from one currency to another; returns 0 on failure.
-func (w *walker) convF(amount float64, from, to domain.Currency, at domain.Date, label string) float64 {
+func (w *walker) convF(amount float64, from, to domain.Currency, at domain.Date, what string) float64 {
 	v, err := w.fx.Convert(amount, from, to, at)
 	if err != nil {
-		w.warn(label, from, to)
+		w.warn(what, from, to, at)
 		return 0
 	}
 	return v
 }
 
-// warn records a conversion warning only once per (label, currency).
-func (w *walker) warn(label string, from, to domain.Currency) {
-	key := fmt.Sprintf("%s:%s→%s", label, from, to)
-	if !w.warned[key] {
-		w.warned[key] = true
-	}
+// convTx converts a record's amount at the record's own date, naming the
+// record: a warning that only names a currency leaves the user hunting for
+// the line whose basis went missing.
+func (w *walker) convTx(t *domain.Transaction, to domain.Currency) float64 {
+	return w.conv(t.Amount, to, t.Date, describeTx(w.b, t))
 }
 
-// warnings returns the collected conversion warnings, one per currency pair,
-// sorted so the output is deterministic.
+// convFailure is one amount no rate could cross: what it was, and the first
+// date it was needed on. The daily loop retries the same holding every day,
+// so occurrences are counted rather than repeated.
+type convFailure struct {
+	what  string
+	from  domain.Currency
+	to    domain.Currency
+	first domain.Date
+	n     int
+}
+
+// warn records a conversion failure once per (what, currency pair); later
+// occurrences only bump the count.
+func (w *walker) warn(what string, from, to domain.Currency, at domain.Date) {
+	key := fmt.Sprintf("%s:%s→%s", what, from, to)
+	f, ok := w.warned[key]
+	if !ok {
+		f = &convFailure{what: what, from: from, to: to, first: at}
+		w.warned[key] = f
+		w.warnOrder = append(w.warnOrder, key)
+	}
+	f.n++
+}
+
+// warnings renders the collected conversion failures, one line each, sorted
+// so the output is deterministic.
 func (w *walker) warnings() []string {
-	if len(w.warned) == 0 {
+	if len(w.warnOrder) == 0 {
 		return nil
 	}
-	pairs := map[string]bool{}
-	for key := range w.warned {
-		_, ccy, _ := strings.Cut(key, ":") // key format: "label:from→to"
-		pairs[ccy] = true
-	}
-	out := make([]string, 0, len(pairs))
-	for ccy := range pairs {
-		out = append(out, fmt.Sprintf("cannot convert %s - counted as 0", ccy))
+	out := make([]string, 0, len(w.warnOrder))
+	for _, key := range w.warnOrder {
+		f := w.warned[key]
+		more := ""
+		if f.n > 1 {
+			more = fmt.Sprintf(" and on %d later days", f.n-1)
+		}
+		out = append(out, fmt.Sprintf("%s: cannot convert %s→%s (no rate on %s%s) - counted as 0, run 'finador refresh'",
+			f.what, f.from, f.to, f.first, more))
 	}
 	slices.Sort(out)
 	return out
@@ -274,7 +302,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			// counts it, so the basis must see it here too or the envelope
 			// tax splits between the two engines. Scoped like the envelope's
 			// own money, exactly like a fee that names no asset.
-			disp := w.conv(t.Amount, w.ccy, t.Date, acc.acc.Name)
+			disp := w.convTx(t, w.ccy)
 			acc.flowBasis += sign * disp
 			if inCash {
 				w.addFlow(t.Date, sign*disp, collect)
@@ -282,7 +310,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			return
 		}
 		label := p.asset.Name
-		disp := w.conv(t.Amount, w.ccy, t.Date, label)
+		disp := w.convTx(t, w.ccy)
 		qtyBefore := max(0, p.qty) // a sell moves no more market value than was held
 
 		// Update position state (not for property - property stays statement-valued)
@@ -329,9 +357,9 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		if t.Kind == domain.Withdraw {
 			sign = -1
 		}
-		label := acc.acc.Name
-		disp := w.conv(t.Amount, w.ccy, t.Date, label)
-		cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
+		what := describeTx(w.b, t)
+		disp := w.conv(t.Amount, w.ccy, t.Date, what)
+		cashAmt := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, what)
 		acc.cash += sign * cashAmt
 		if inCash {
 			w.addFlow(t.Date, sign*disp, collect)
@@ -339,11 +367,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 	case domain.Dividend:
 		p := w.pair(t)
-		label := ""
-		if p != nil {
-			label = p.asset.Name
-		}
-		disp := w.conv(t.Amount, w.ccy, t.Date, label)
+		disp := w.convTx(t, w.ccy)
 		// Income leaves the pocket: it never lands on the declared cash.
 		if p != nil && w.scope.hasAsset(acc.acc, p.asset) {
 			w.addFlow(t.Date, -disp, collect)
@@ -358,14 +382,14 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		// weighs on the whole account and vanishes from an asset scope.
 		p := w.pair(t)
 		if p == nil {
-			disp := w.conv(t.Amount, w.ccy, t.Date, acc.acc.Name)
+			disp := w.convTx(t, w.ccy)
 			acc.flowBasis += disp
 			if inCash {
 				w.addFlow(t.Date, disp, collect)
 			}
 			return
 		}
-		disp := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
+		disp := w.convTx(t, w.ccy)
 		acc.flowBasis += disp
 		if w.scope.hasAsset(acc.acc, p.asset) {
 			w.addFlow(t.Date, disp, collect)
@@ -376,13 +400,13 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			// Pure cash statement.
 			// First reconciliation = adoption (contribution), not performance;
 			// later statements measure performance (interest on a savings account).
-			label := acc.acc.Name
-			newBalance := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, label)
+			what := describeTx(w.b, t)
+			newBalance := w.convF(toF(t.Amount.Amount), t.Amount.Currency, acc.acc.Currency, t.Date, what)
 			if !acc.hadCashStmt {
 				// First cash statement: the gap between the current balance and the
 				// new balance is treated as an external contribution (adoption D8).
-				currentDisp := w.convF(acc.cash, acc.acc.Currency, w.ccy, t.Date, label)
-				newDisp := w.conv(t.Amount, w.ccy, t.Date, label)
+				currentDisp := w.convF(acc.cash, acc.acc.Currency, w.ccy, t.Date, acc.acc.Name+" cash")
+				newDisp := w.conv(t.Amount, w.ccy, t.Date, what)
 				adoptionAmt := newDisp - currentDisp
 				if w.scope.hasCash(acc.acc) {
 					w.addFlow(t.Date, adoptionAmt, collect)
@@ -397,6 +421,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		if p == nil {
 			return
 		}
+		what := describeTx(w.b, t)
 		isFirstStmt := p.stmt == nil
 		// Value this couple held just before the new statement (0 if first).
 		prevHeld := 0.0
@@ -407,7 +432,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		p.stmt = &m
 		p.stmtQty = p.qty
 		if !p.hasFst && p.asset.Kind == domain.Property {
-			p.first = w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
+			p.first = w.conv(t.Amount, w.ccy, t.Date, what)
 			p.hasFst = true
 		}
 		// A statement re-declares a value rather than observing a market, so the
@@ -423,7 +448,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		//     observation, and the cost→declared gap is performance - emitting a
 		//     flow there would count the same money twice.
 		if w.scope.hasAsset(acc.acc, p.asset) {
-			newDisp := w.conv(t.Amount, w.ccy, t.Date, p.asset.Name)
+			newDisp := w.conv(t.Amount, w.ccy, t.Date, what)
 			switch {
 			case p.asset.Kind == domain.Property:
 				w.addFlow(t.Date, newDisp-prevHeld, collect)
@@ -516,13 +541,16 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 		}
 	}
 
-	// 2. Declared cash balances of the accounts in scope
-	for accID, accSt := range w.accounts {
+	// 2. Declared cash balances of the accounts in scope. Sorted, never map
+	// order: a float sum is not associative, so iterating the map made the
+	// last digits of the curve depend on the run (see D46).
+	for _, accID := range slices.Sorted(maps.Keys(w.accounts)) {
+		accSt := w.accounts[accID]
 		if !w.scope.hasCash(accSt.acc) {
 			continue
 		}
 		// acc.cash is in account currency; convert to display currency at d
-		v := w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d, accSt.acc.Name)
+		v := w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d, accSt.acc.Name+" cash")
 		if v == 0 {
 			continue
 		}
@@ -533,11 +561,13 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 		}
 	}
 
+	// The envelope-exact rule needs WHOLE envelopes; a narrowed scope keeps
+	// the per-position sum, exactly as Value() does (see Scope.wholeEnvelopes).
 	tax := positionTax
-	if w.scope.Kind == All || w.scope.Kind == ByAccount {
-		// Envelope-exact tax rule: compute per account
+	if w.scope.wholeEnvelopes() {
 		tax = 0
-		for accID, g := range perAccount {
+		for _, accID := range slices.Sorted(maps.Keys(perAccount)) {
+			g := perAccount[accID]
 			accSt := w.accounts[accID]
 			switch accSt.acc.Tax.Mode {
 			case domain.TaxOnValue:
@@ -548,7 +578,7 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 				// taxable gain reduces to the positions' latent gain.
 				basis := accSt.flowBasis
 				if w.scope.hasCash(accSt.acc) {
-					basis += w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d, accSt.acc.Name)
+					basis += w.convF(accSt.cash, accSt.acc.Currency, w.ccy, d, accSt.acc.Name+" cash")
 				}
 				// Add first-statement basis for property assets in this account
 				for _, k := range w.order {

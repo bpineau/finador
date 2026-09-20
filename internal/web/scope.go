@@ -45,20 +45,66 @@ type scopeData struct {
 	PriceRangeLinks []tab
 }
 
-func (s *Server) scopePage(w http.ResponseWriter, r *http.Request) {
+// Each scope route already says which KIND it carries, and its URL is built
+// from an id: resolving them all through portfolio.ParseScope handed that
+// choice back to a free-form parser that tries the GROUP tier first, so an
+// asset or an account whose id is also a group path rendered the group. Each
+// route resolves in its own namespace instead.
+
+func (s *Server) assetPage(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	ref := r.PathValue("ref")
-	scope, err := portfolio.ParseScope(s.file.Book, ref)
+	asset, err := s.file.Book.Asset(ref)
 	if err != nil {
-		status := http.StatusNotFound
-		if !errors.Is(err, domain.ErrNotFound) {
-			status = http.StatusBadRequest
-		}
-		s.renderError(w, status, "unknown scope: "+ref)
+		s.renderRefError(w, err, "unknown asset: "+ref)
+		return
+	}
+	s.renderScope(w, r, portfolio.AssetScope(asset))
+}
+
+func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ref := r.PathValue("ref")
+	acc, err := s.file.Book.Account(ref)
+	if err != nil {
+		s.renderRefError(w, err, "unknown account: "+ref)
+		return
+	}
+	s.renderScope(w, r, portfolio.AccountScope(acc))
+}
+
+func (s *Server) groupPage(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ref := r.PathValue("ref")
+	scope := portfolio.GroupScope(ref)
+	if !groupExists(s.file.Book, scope.Group) {
+		s.renderError(w, http.StatusNotFound, "unknown group: "+ref)
 		return
 	}
 	s.renderScope(w, r, scope)
+}
+
+// groupExists reports whether any asset lives under the group path.
+func groupExists(b *domain.Book, group string) bool {
+	for _, a := range b.Assets {
+		if portfolio.InGroup(a.Group, group) {
+			return true
+		}
+	}
+	return false
+}
+
+// renderRefError maps a resolution failure onto a status: not found is a 404,
+// an ambiguity is the caller's fault.
+func (s *Server) renderRefError(w http.ResponseWriter, err error, msg string) {
+	status := http.StatusNotFound
+	if !errors.Is(err, domain.ErrNotFound) {
+		status = http.StatusBadRequest
+	}
+	s.renderError(w, status, msg)
 }
 
 func (s *Server) intersectPage(w http.ResponseWriter, r *http.Request) {

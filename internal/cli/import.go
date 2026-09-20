@@ -116,6 +116,14 @@ func runImportIBKR(cmd *cobra.Command, a *app, file io.Reader, opts ibkr.Options
 	if ignored := res.IgnoredReport(); ignored != "" {
 		fmt.Fprintf(out, "not imported: %s\n", ignored)
 	}
+	// A corporate action moves a POSITION, so a count is not enough: name
+	// every one of them, since only a hand-typed correction can follow.
+	if len(res.CorporateActions) > 0 {
+		fmt.Fprintln(out, "corporate actions (not mapped - check the quantities of these securities):")
+		for _, ca := range res.CorporateActions {
+			fmt.Fprintln(out, " ", ca)
+		}
+	}
 	return nil
 }
 

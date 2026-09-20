@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"finador/internal/domain"
 )
@@ -17,6 +20,11 @@ import (
 type Summary struct {
 	Fetched  []string
 	Warnings []string
+	// Actions are ready-to-paste finador commands the caller should run: a
+	// warning that names a problem the tool can spell out owes the user the
+	// fix, not a hint. Today they record a share split the price source has
+	// already applied to its history and the ledger has not (D40, D47).
+	Actions []string
 }
 
 // Refresh updates the market cache for everything the book needs: one price
@@ -58,7 +66,7 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		// the new one: a permanent cliff, which the value series reads as a
 		// session that never happened (a 4:1 split shows as -75% in the chart
 		// and in the TWR). Rebuild the whole series from the source instead.
-		if restated(series, data.Closes) {
+		if factor, on, yes := restated(series, data.Closes); yes {
 			deep := priceHistoryFloor(b, asset.ID)
 			full, ferr := src.Daily(ctx, Ref{Symbol: asset.Ticker, ISIN: asset.ISIN, Currency: asset.Currency}, deep)
 			if ferr != nil || len(full.Closes) == 0 ||
@@ -69,8 +77,16 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 				continue
 			}
 			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
-				"%s: history restated by the source (split or redenomination) - series rebuilt from %s; check the ledger quantities",
-				asset.Ticker, deep))
+				"%s: history restated by the source on %s (split or redenomination) - series rebuilt from %s; check the ledger quantities",
+				asset.Ticker, on, deep))
+			// Name the event when it looks like a split, and hand over the
+			// commands that record it: the price series is now split-adjusted
+			// over its whole history and the ledger is not, so the position
+			// reads at 1/N of reality until a record fixes it.
+			if head, cmds := splitAdvice(b, asset, factor, on); head != "" {
+				sum.Warnings = append(sum.Warnings, head)
+				sum.Actions = append(sum.Actions, cmds...)
+			}
 			series.Points = nil
 			data, from = full, deep
 		}
@@ -104,6 +120,9 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		}
 		series.Merge(data.Closes)
 		series.FetchedAt = today
+		if series.HistFrom.IsZero() || from.Before(series.HistFrom) {
+			series.HistFrom = from // remember how deep we have fetched
+		}
 		sum.Fetched = append(sum.Fetched, "fx "+string(ccy))
 	}
 	return sum
@@ -117,10 +136,13 @@ const restatedTolerance = 0.02
 // restated reports whether incoming closes contradict the cached series on a
 // date both cover - the signature of a source that re-scaled its history. It
 // compares the FIRST shared date: an incremental fetch starts at the last
-// cached point, so that date is the junction the merge would glue.
-func restated(s *domain.PriceSeries, incoming []domain.PricePoint) bool {
+// cached point, so that date is the junction the merge would glue. On a hit
+// it also returns that date and the FACTOR the source applied (cached close
+// divided by the re-served one), which is the split ratio when the cause is a
+// split: a 4:1 split serves every close at a quarter, so the factor is 4.
+func restated(s *domain.PriceSeries, incoming []domain.PricePoint) (factor float64, on domain.Date, yes bool) {
 	if s == nil || len(s.Points) == 0 {
-		return false
+		return 0, domain.Date{}, false
 	}
 	for _, p := range incoming {
 		i, found := slices.BinarySearchFunc(s.Points, p.Date, func(q domain.PricePoint, d domain.Date) int {
@@ -131,11 +153,82 @@ func restated(s *domain.PriceSeries, incoming []domain.PricePoint) bool {
 		}
 		cached := s.Points[i].Close
 		if cached <= 0 || p.Close <= 0 {
-			return false
+			return 0, domain.Date{}, false
 		}
-		return math.Abs(p.Close-cached) > restatedTolerance*cached
+		if math.Abs(p.Close-cached) <= restatedTolerance*cached {
+			return 0, domain.Date{}, false
+		}
+		return cached / p.Close, p.Date, true
 	}
-	return false
+	return 0, domain.Date{}, false
+}
+
+// splitRatios are the share splits a restatement factor is matched against,
+// as (new shares, old shares): a 4:1 split multiplies the quantity by 4 and
+// divides the price by 4. Reverses are the same list inverted. Anything else
+// - a currency redenomination, a class merge, a provider correcting a long
+// stretch of closes - matches nothing, and nothing is then claimed.
+var splitRatios = [][2]int{
+	{2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {10, 1}, {15, 1}, {20, 1}, {50, 1}, {100, 1},
+	{3, 2}, {4, 3}, {5, 2}, {5, 3}, {5, 4}, {7, 2}, {7, 5}, {9, 5},
+}
+
+// splitRatioTolerance is how far the measured factor may sit from a ratio and
+// still be named: 1%, which absorbs closes rounded to the cent while leaving
+// the ratios of splitRatios (the closest pair being 1.25 and 1.333) far apart.
+const splitRatioTolerance = 0.01
+
+// splitRatioFor matches a restatement factor against the usual split ratios.
+// It returns the ratio as it is written ("4:1", "1:10" for a reverse split)
+// and the multiplier the LEDGER quantities owe, or ok=false when the factor
+// looks like no split at all.
+func splitRatioFor(factor float64) (label string, quantity decimal.Decimal, ok bool) {
+	if factor <= 0 || math.IsInf(factor, 0) || math.IsNaN(factor) {
+		return "", decimal.Zero, false
+	}
+	for _, r := range splitRatios {
+		n, d := float64(r[0]), float64(r[1])
+		if math.Abs(factor-n/d) <= splitRatioTolerance*(n/d) {
+			return fmt.Sprintf("%d:%d", r[0], r[1]),
+				decimal.NewFromInt(int64(r[0])).Div(decimal.NewFromInt(int64(r[1]))), true
+		}
+		if math.Abs(factor-d/n) <= splitRatioTolerance*(d/n) {
+			return fmt.Sprintf("%d:%d", r[1], r[0]),
+				decimal.NewFromInt(int64(r[1])).Div(decimal.NewFromInt(int64(r[0]))), true
+		}
+	}
+	return "", decimal.Zero, false
+}
+
+// splitAdvice turns a measured restatement into the sentence and the commands
+// the user can act on. A split moves the POSITION as well as the price, and
+// nothing but a ledger record moves the position: the source has already
+// re-scaled its whole history, so every trade of the asset predating the
+// restatement owes the same re-scaling.
+func splitAdvice(b *domain.Book, asset *domain.Asset, factor float64, on domain.Date) (string, []string) {
+	label, mult, ok := splitRatioFor(factor)
+	if !ok {
+		return "", nil
+	}
+	head := fmt.Sprintf("%s: the factor is %s, a %s split", asset.Ticker, trimRatio(factor), label)
+	var cmds []string
+	for _, t := range b.Transactions {
+		if t.Asset != asset.ID || (t.Kind != domain.Buy && t.Kind != domain.Sell) || !t.Date.Before(on) {
+			continue
+		}
+		q := t.Quantity.Mul(mult)
+		cmds = append(cmds, fmt.Sprintf("finador tx edit %s --qty %s   # %s %s of %s on %s, was %s",
+			t.ID, q.String(), t.Kind, q.String(), asset.Name, t.Date, t.Quantity.String()))
+	}
+	if len(cmds) == 0 {
+		return head + " - no trade of this security predates it, so no quantity to restate", nil
+	}
+	return head + fmt.Sprintf(" - the ledger still holds the pre-split quantities of %s; restate them with:", asset.Name), cmds
+}
+
+// trimRatio renders a measured factor with at most three decimals.
+func trimRatio(f float64) string {
+	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
 // SpotSummary reports what a spot pass observed: the freshest quote per
@@ -363,10 +456,26 @@ func priceHistoryFloor(b *domain.Book, id domain.AssetID) domain.Date {
 	return floor
 }
 
+// fxFetchFrom picks the start of an FX fetch on the same two-step rule as
+// priceFetchFrom: (back-)fill down to the floor once, then refresh
+// incrementally from the last close. The HistFrom guard matters here too - a
+// record typed today may be dated years back (an old fee, a historical
+// deposit), and its amount is crossed at the rate OF ITS DATE, not today's.
 func fxFetchFrom(b *domain.Book, s *domain.PriceSeries) domain.Date {
+	floor := fxHistoryFloor(b)
+	if s.HistFrom.IsZero() || floor.Before(s.HistFrom) {
+		return floor // (back-)fill down to the floor once
+	}
 	if last, ok := s.Last(); ok {
 		return last.Date
 	}
+	return floor
+}
+
+// fxHistoryFloor is the earliest date an FX series must cover: a week before
+// the oldest record of the book, since any record may be denominated in any
+// currency. A book with no history at all gets a short window.
+func fxHistoryFloor(b *domain.Book) domain.Date {
 	if first, ok := firstTxDate(b, func(*domain.Transaction) bool { return true }); ok {
 		return first.AddDays(-7)
 	}
@@ -386,6 +495,13 @@ func firstTxDate(b *domain.Book, match func(*domain.Transaction) bool) (domain.D
 
 // neededCurrencies lists every currency the book uses except the USD pivot,
 // sorted for determinism.
+//
+// A currency reaches the book three ways, and all three need a rate: an
+// account is denominated in one, an asset quotes in one, and a RECORD may be
+// written in a fourth - a fee charged in JPY, a deposit made in CHF, a
+// dividend paid in USD on a EUR line, a statement declaring a balance. Listing
+// only the first two left those amounts with no rate to cross at, which the
+// valuation could only refuse or count as zero.
 func neededCurrencies(b *domain.Book) []domain.Currency {
 	set := map[domain.Currency]bool{}
 	for _, acc := range b.Accounts {
@@ -393,6 +509,9 @@ func neededCurrencies(b *domain.Book) []domain.Currency {
 	}
 	for _, a := range b.Assets {
 		set[a.Currency] = true
+	}
+	for _, t := range b.Transactions {
+		set[t.Amount.Currency] = true
 	}
 	delete(set, domain.USD)
 	delete(set, "")

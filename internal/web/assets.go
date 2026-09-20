@@ -74,10 +74,10 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 	estimates := s.estimatePrices()
 
 	for _, asset := range b.Assets {
-		scope, err := portfolio.ParseScope(b, string(asset.ID))
-		if err != nil {
-			continue
-		}
+		// By asset, never through ParseScope: that parser answers a
+		// free-form reference and tries the GROUP tier first, so an asset
+		// whose id is also a group path would show that group's value here.
+		scope := portfolio.AssetScope(asset)
 		val, err := portfolio.Value(b, scope, today, ccy, fx, estimates...)
 		if err != nil || val.Gross == 0 {
 			continue

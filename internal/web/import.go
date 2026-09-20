@@ -81,5 +81,8 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 	if n := len(sum.Warnings) + len(spot.Warnings); n > 0 {
 		flash += fmt.Sprintf(" (%d warning(s): %s)", n, strings.Join(append(sum.Warnings, spot.Warnings...), "; "))
 	}
+	if len(sum.Actions) > 0 {
+		flash += " - to record it in the ledger: " + strings.Join(sum.Actions, " ; ")
+	}
 	http.Redirect(w, r, "/assets?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }

@@ -214,6 +214,7 @@ func TestUnsupportedSectionsAreCountedNotGuessed(t *testing.T) {
 	res := importFixture(t, b)
 	want := map[string]int{
 		"Trades: Forex": 1, "Dividends: reversals": 1, "Fees": 1, "Interest": 1,
+		"Corporate Actions": 2,
 	}
 	for reason, n := range want {
 		if res.Ignored[reason] != n {
@@ -223,7 +224,7 @@ func TestUnsupportedSectionsAreCountedNotGuessed(t *testing.T) {
 	if len(res.Ignored) != len(want) {
 		t.Errorf("ignored = %v", res.Ignored)
 	}
-	if got := res.IgnoredReport(); got != "Dividends: reversals (1), Fees (1), Interest (1), Trades: Forex (1)" {
+	if got := res.IgnoredReport(); got != "Corporate Actions (2), Dividends: reversals (1), Fees (1), Interest (1), Trades: Forex (1)" {
 		t.Errorf("report = %q", got)
 	}
 }
@@ -571,8 +572,12 @@ func TestSinceIgnoresOlderLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("everything out of range should import cleanly: %v", err)
 	}
-	if res.Added != 0 || res.BeforeSince != 10 {
-		t.Fatalf("added=%d before=%d, want 0 and 10", res.Added, res.BeforeSince)
+	// 10 mappable lines plus the two corporate actions, all out of range.
+	if res.Added != 0 || res.BeforeSince != 12 {
+		t.Fatalf("added=%d before=%d, want 0 and 12", res.Added, res.BeforeSince)
+	}
+	if len(res.CorporateActions) != 0 {
+		t.Fatalf("corporate actions out of range still reported: %+v", res.CorporateActions)
 	}
 }
 
@@ -699,5 +704,62 @@ func TestLegacyBrokerIDStillSkips(t *testing.T) {
 	}
 	if len(b.Transactions) != 2 {
 		t.Fatalf("%d transactions, want the booked trade plus the deposit", len(b.Transactions))
+	}
+}
+
+// A corporate action MOVES a position - a split multiplies the quantity, a
+// merger replaces the line - and the importer maps none of them. Counting
+// them said "Corporate Actions (2)" and nothing else, so the user had no way
+// to know WHICH position was now wrong. Each row is named instead: its date,
+// its security and what the broker says happened.
+func TestCorporateActionsAreNamedNotJustCounted(t *testing.T) {
+	b := book(t)
+	res := importFixture(t, b)
+	if len(res.CorporateActions) != 2 {
+		t.Fatalf("corporate actions = %+v, want 2", res.CorporateActions)
+	}
+	split := res.CorporateActions[0]
+	if split.Symbol != "VT" {
+		t.Errorf("symbol = %q, want VT", split.Symbol)
+	}
+	if got := split.Date.String(); got != "2026-03-02" {
+		t.Errorf("date = %s, want the report date 2026-03-02", got)
+	}
+	if !strings.Contains(split.Description, "Split 4 for 1") {
+		t.Errorf("description = %q", split.Description)
+	}
+	if line := split.String(); !strings.Contains(line, "2026-03-02") ||
+		!strings.Contains(line, "VT") || !strings.Contains(line, "Split 4 for 1") {
+		t.Errorf("rendered line = %q", line)
+	}
+	if res.CorporateActions[1].Symbol != "CW8" {
+		t.Errorf("second action = %+v", res.CorporateActions[1])
+	}
+	// Still counted in the same breath: the partition of the statement's
+	// lines does not change.
+	if res.Ignored["Corporate Actions"] != 2 {
+		t.Errorf("ignored = %v", res.Ignored)
+	}
+}
+
+// --since drops a corporate action like any other line: it is counted as out
+// of range, and never reported as something to act on.
+func TestCorporateActionsRespectSince(t *testing.T) {
+	b := book(t)
+	since, err := domain.ParseDate("2026-03-10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(b, statement(t), Options{Account: "CTO Meridia", Since: since})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ca := range res.CorporateActions {
+		if ca.Date.Before(since) {
+			t.Errorf("reported an action before --since: %+v", ca)
+		}
+	}
+	if len(res.CorporateActions) != 1 {
+		t.Errorf("corporate actions = %+v, want only the March 18 one", res.CorporateActions)
 	}
 }
