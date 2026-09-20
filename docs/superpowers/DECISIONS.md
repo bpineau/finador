@@ -1098,6 +1098,14 @@ s'afficher parce qu'un frais de 2019 n'a pas de taux serait une régression
 pire que le trou qu'elle signale ; l'avertissement, lui, est désormais
 actionnable.
 
+**Côté Android, une divergence assumée.** Le client Kotlin collecte les mêmes
+devises et descend au même plancher FX, mais son `Valuator` ne REFUSE pas le
+total : un écran de téléphone doit s'afficher. Il compte le montant à 0, comme
+ici `Series()`, et nomme chaque enregistrement fautif dans
+`Valuation.taxNote`. Son `Perf` reste muet volontairement : il lit le même
+grand livre, donc la note affichée à côté de la courbe nomme déjà ce qu'il n'a
+pas su convertir. Un seul canal, pas un par vue.
+
 ## D44 - Une portée rétrécie n'est plus une enveloppe entière
 
 **Contexte :** `--exclude` et `--asset` sont des filtres jetables posés sur une
@@ -1185,6 +1193,12 @@ veulent rien dire.
 `TestSeriesPointsAreRunStable` rejouent la même valorisation 500 et 200 fois et
 exigent l'égalité BIT À BIT. Vérifié en retirant le tri : les deux tombent.
 
+**Côté Android :** les maps du client Kotlin sont des `LinkedHashMap`, donc son
+ordre était déjà stable d'une exécution à l'autre ; mais c'était l'ordre du
+grand livre, pas l'ordre trié. `Valuer` trie désormais lui aussi les
+identifiants de compte avant de sommer, faute de quoi les deux
+implémentations auraient pu diverger sur les derniers chiffres du même total.
+
 ## D47 - Le canari de restatement nomme le split, et le grand livre n'a pas d'enregistrement pour le dire
 
 **Contexte :** D40 a posé le canari : quand une source réécrit son historique,
@@ -1220,6 +1234,12 @@ deux flux externes valorisés au prix de marché des titres échangés
 fantôme de (N-1) x quantité x cours dans le TWR. Et l'édition porte
 l'`importHash` inchangé (piège documenté dans AGENTS.md), donc un rejeu du
 relevé ne duplique rien.
+
+**Côté Android :** `Quotes.splitRatioFor` porte la même table de ratios et la
+même tolérance, et l'avertissement liste les quantités que chaque transaction
+antérieure au split doit prendre. Il est émis AVANT la phrase de D40, parce que
+le client n'affiche qu'un message à la fois. Le client n'a pas d'import de
+relevé, donc rien à faire du volet ci-dessous.
 
 **Choix 2, l'import IBKR nomme chaque action sur titre.** `Result` porte
 `CorporateActions []CorporateAction` (ligne, date de rapport, symbole,
