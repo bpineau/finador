@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"finador/internal/domain"
+
+	"github.com/bpineau/pofo/pkg/metrics"
 )
 
 func d(s string) domain.Date {
@@ -53,13 +55,32 @@ func TestDailyReturnsWeekdaysOnly(t *testing.T) {
 		{d("2026-06-04"), 100}, {d("2026-06-05"), 102},
 		{d("2026-06-06"), 102}, {d("2026-06-07"), 102}, {d("2026-06-08"), 104},
 	}
-	rs := DailyReturns(pts, nil)
+	rs, _ := DailyReturns(pts, nil)
 	// Friday (+2%) and Monday (104/102 − 1) kept; Saturday/Sunday dropped
 	if len(rs) != 2 {
 		t.Fatalf("returns = %v, attendu 2 valeurs", rs)
 	}
 	approx(t, "r[0]", rs[0], 0.02, 1e-9)
 	approx(t, "r[1]", rs[1], 104.0/102.0-1, 1e-9)
+}
+
+func TestDailyReturnsCadence(t *testing.T) {
+	// A calendar-daily series (week-ends forward-filled) reads as the
+	// trading-day series it is; a weekly one must not be annualized at 252.
+	series := func(from string, step, n int) []Point {
+		start := d(from)
+		pts := make([]Point, n)
+		for i := range pts {
+			pts[i] = Point{start.AddDays(i * step), 100 + float64(i%3)}
+		}
+		return pts
+	}
+	if _, ppy := DailyReturns(series("2026-01-05", 1, 120), nil); ppy != metrics.TradingDaysPerYear {
+		t.Errorf("calendar-daily cadence = %v, want %v", ppy, metrics.TradingDaysPerYear)
+	}
+	if _, ppy := DailyReturns(series("2026-01-05", 7, 30), nil); ppy != 52 {
+		t.Errorf("weekly cadence = %v, want 52", ppy)
+	}
 }
 
 func TestCAGR(t *testing.T) {
@@ -76,10 +97,11 @@ func TestVolSharpeSortino(t *testing.T) {
 		ss += (r - mean) * (r - mean)
 	}
 	wantVol := math.Sqrt(ss/4) * math.Sqrt(252) // sample standard deviation, annualized
-	approx(t, "Vol", Vol(rs), wantVol, 1e-9)
+	approx(t, "Vol", Vol(rs, metrics.TradingDaysPerYear), wantVol, 1e-9)
+	approx(t, "Vol weekly", Vol(rs, 52), math.Sqrt(ss/4)*math.Sqrt(52), 1e-9)
 
 	wantSharpe := (mean*252 - 0.02) / wantVol
-	approx(t, "Sharpe", Sharpe(rs, 0.02), wantSharpe, 1e-9)
+	approx(t, "Sharpe", Sharpe(rs, 0.02, metrics.TradingDaysPerYear), wantSharpe, 1e-9)
 
 	// Sortino: only returns below rf/252 count toward the denominator
 	rfDaily := 0.02 / 252
@@ -93,17 +115,17 @@ func TestVolSharpeSortino(t *testing.T) {
 	}
 	_ = n
 	wantDown := math.Sqrt(dss/float64(len(rs))) * math.Sqrt(252)
-	approx(t, "Sortino", Sortino(rs, 0.02), (mean*252-0.02)/wantDown, 1e-9)
+	approx(t, "Sortino", Sortino(rs, 0.02, metrics.TradingDaysPerYear), (mean*252-0.02)/wantDown, 1e-9)
 }
 
 func TestVolEmptyAndSingle(t *testing.T) {
-	if v := Vol(nil); v != 0 {
+	if v := Vol(nil, metrics.TradingDaysPerYear); v != 0 {
 		t.Errorf("Vol(nil) = %v", v)
 	}
-	if v := Vol([]float64{0.01}); v != 0 {
+	if v := Vol([]float64{0.01}, metrics.TradingDaysPerYear); v != 0 {
 		t.Errorf("Vol(1 point) = %v", v)
 	}
-	if s := Sharpe(nil, 0.02); s != 0 {
+	if s := Sharpe(nil, 0.02, metrics.TradingDaysPerYear); s != 0 {
 		t.Errorf("Sharpe(nil) = %v", s)
 	}
 }
@@ -151,7 +173,7 @@ func TestDailyReturnsAdjustsFlows(t *testing.T) {
 	// Thursday June 4, Friday 5: a 100 contribution at Friday's open lifts the
 	// base to 200, then +10% → 220. Start-of-day flow: r = 220/(100+100) − 1 = +10%.
 	pts := []Point{{d("2026-06-04"), 100}, {d("2026-06-05"), 220}}
-	rs := DailyReturns(pts, []Flow{{d("2026-06-05"), 100}})
+	rs, _ := DailyReturns(pts, []Flow{{d("2026-06-05"), 100}})
 	if len(rs) != 1 {
 		t.Fatalf("returns = %v", rs)
 	}

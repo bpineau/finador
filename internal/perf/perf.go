@@ -63,9 +63,13 @@ func TWR(points []Point, flows []Flow) float64 {
 }
 
 // DailyReturns yields the flow-adjusted weekday returns of a calendar-daily
-// series. Week-ends are forward-filled flats: keeping them would dilute the
-// volatility, so they are dropped (≈252 returns a year, annualized with √252).
-func DailyReturns(points []Point, flows []Flow) []float64 {
+// series, and their cadence (returns per year) to annualize them with.
+// Week-ends are forward-filled flats: keeping them would dilute the
+// volatility, so they are dropped, and a calendar-daily series then reads
+// at metrics.TradingDaysPerYear (252). The cadence is measured on the dates,
+// not assumed, so a sparser series is never annualized as a daily one; it is
+// NaN when no return survives.
+func DailyReturns(points []Point, flows []Flow) (returns []float64, periodsPerYear float64) {
 	dates, values := toSeries(points)
 	return metrics.FlowReturns(dates, values, toFlows(flows))
 }
@@ -75,21 +79,22 @@ func CAGR(totalReturn float64, days int) float64 {
 	return metrics.Annualize(totalReturn, days)
 }
 
-// Vol is the annualized sample standard deviation of daily returns.
-func Vol(returns []float64) float64 {
-	return orZero(metrics.Volatility(returns))
+// Vol is the annualized sample standard deviation of per-period returns,
+// periodsPerYear being their cadence (as DailyReturns reports it).
+func Vol(returns []float64, periodsPerYear float64) float64 {
+	return orZero(metrics.Volatility(returns, periodsPerYear))
 }
 
-// Sharpe uses arithmetic annualization of the mean daily excess return -
-// the usual simple convention, documented in the plan.
-func Sharpe(returns []float64, rfAnnual float64) float64 {
-	return orZero(metrics.Sharpe(returns, rfAnnual))
+// Sharpe uses arithmetic annualization of the mean per-period excess return
+// at periodsPerYear, the usual simple convention.
+func Sharpe(returns []float64, rfAnnual, periodsPerYear float64) float64 {
+	return orZero(metrics.Sharpe(returns, rfAnnual, periodsPerYear))
 }
 
 // Sortino replaces the denominator with the downside deviation against the
-// daily risk-free target.
-func Sortino(returns []float64, rfAnnual float64) float64 {
-	return orZero(metrics.Sortino(returns, rfAnnual))
+// per-period risk-free target rfAnnual/periodsPerYear.
+func Sortino(returns []float64, rfAnnual, periodsPerYear float64) float64 {
+	return orZero(metrics.Sortino(returns, rfAnnual, periodsPerYear))
 }
 
 // Drawdown describes the worst peak-to-trough loss of a series.
