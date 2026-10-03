@@ -225,48 +225,19 @@ func (s *Server) mergeSpot(quotes map[domain.AssetID]market.Quote) {
 	}
 }
 
-// estimatePrices turns the estimates of the last spot pass into throwaway
-// price overrides, as options ready to hand to portfolio.Value. An estimate
-// (a fund priced once a day and published with a lag, nowcast from a listed
-// proxy) never enters the stored series, so today's valuation would otherwise
-// fall back to the last published price: the override is how the freshest
-// number reaches the page without being written anywhere. The note it carries
-// says so under the figure, and perf, chart and every history read published
-// prices only. Callers hold at least the read lock.
-func (s *Server) estimatePrices() []portfolio.ValueOption {
-	prices := map[domain.AssetID]portfolio.PriceOverride{}
-	for _, asset := range s.file.Book.Assets {
-		q, ok := s.spot[asset.ID]
-		if !ok || !q.Estimated || q.Price <= 0 {
-			continue
-		}
-		// The Source contract guarantees the declared currency; a quote that
-		// escaped it would be a silent unit bug in the total.
-		if q.Currency != "" && q.Currency != asset.Currency {
-			continue
-		}
-		prices[asset.ID] = portfolio.PriceOverride{Price: q.Price, Note: fmt.Sprintf(
-			"%s: estimate at %s, %.2f %s (carried by a proxy, no published price yet)",
-			assetLabel(asset), q.Time.Local().Format("2006-01-02 15:04 MST"), q.Price, asset.Currency)}
-	}
-	if len(prices) == 0 {
-		return nil
-	}
-	return []portfolio.ValueOption{portfolio.WithPriceOverrides(prices)}
-}
-
-// assetLabel names an asset in a note: its ticker when it has one.
-func assetLabel(a *domain.Asset) string {
-	if a.Ticker != "" {
-		return a.Ticker
-	}
-	return a.Name
-}
-
-// quoteNote describes the freshness of an asset's price for the UI: the spot
-// observed by the last refresh when there is one, otherwise the last stored
-// close. Callers hold at least the read lock.
+// quoteNote describes the freshness of an asset's price for the UI: the
+// estimate of a lagged fund (see portfolio.Prices), the spot observed by the
+// last refresh, otherwise the last stored close. Callers hold at least the
+// read lock.
 func (s *Server) quoteNote(asset *domain.Asset) string {
+	b := s.file.Book
+	prices, estimates := portfolio.Prices(b, market.Converter{FX: b.Market.FX})
+	if e, ok := estimates[asset.ID]; ok {
+		if last, ok := prices[asset.ID].Last(); ok {
+			return fmt.Sprintf("last quote %.2f %s · estimated for %s (NAV of %s carried by %s, no published price yet)",
+				last.Close, asset.Currency, last.Date, e.NAV.Date, e.Proxy)
+		}
+	}
 	if q, ok := s.spot[asset.ID]; ok {
 		if q.Live && q.Estimated {
 			return fmt.Sprintf("last quote %.2f %s · estimated at %s (proxy, no NAV yet)", q.Price, q.Currency, q.Time.Format("15:04 MST"))

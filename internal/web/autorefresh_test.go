@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -126,28 +127,34 @@ func TestQuoteNoteSaysEstimated(t *testing.T) {
 	}
 }
 
-// The overview values an estimated line at its estimate - the freshest thing
-// there is - through a throwaway override, and says so in the page's notes.
-func TestOverviewValuesEstimateAsOverride(t *testing.T) {
-	srv, f := testServer(t)
-	srv.offline = false
-	srv.source = &spotSrc{quote: market.Quote{Price: 600, Time: time.Now(),
-		Currency: domain.EUR, Live: true, Estimated: true}}
-	srv.refreshOnce(context.Background())
+// A lagged fund is valued at its estimate, computed from the cached proxy
+// quotes on every page (no spot pass needed), and every page says so: the
+// overview's notes and the asset page's quote caption.
+func TestPagesValueTheCachedEstimate(t *testing.T) {
+	srv, f := testServer(t) // offline: the cache only
+	nav := domain.Today().AddDays(-5)
+	f.Book.Market.Proxies = map[domain.AssetID]*domain.ProxyQuotes{"cw8": {
+		Symbol: "PRX", Currency: domain.EUR,
+		Closes: &domain.PriceSeries{Points: []domain.PricePoint{
+			{Date: nav, Close: 100}, {Date: domain.Today().AddDays(-1), Close: 110},
+		}},
+	}}
 
-	scope, err := portfolio.ParseScope(f.Book, "cw8")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	body := w.Body.String()
+	if !strings.Contains(body, "estimate for") || !strings.Contains(body, "carried by PRX") {
+		t.Errorf("the overview does not label the estimate:\n%s", body)
+	}
+	val, err := portfolio.Value(f.Book, portfolio.AssetScope(f.Book.Assets[0]), domain.Today(), domain.EUR,
+		market.Converter{FX: f.Book.Market.FX})
 	if err != nil {
 		t.Fatal(err)
 	}
-	val, err := portfolio.Value(f.Book, scope, domain.Today(), domain.EUR,
-		market.Converter{FX: f.Book.Market.FX}, srv.estimatePrices()...)
-	if err != nil {
-		t.Fatal(err)
+	if val.Gross != 6160 {
+		t.Errorf("gross = %v, want 10 x 560 x 110/100", val.Gross)
 	}
-	if val.Gross != 6000 {
-		t.Errorf("gross = %v, want the estimate (10 x 600) to price today", val.Gross)
-	}
-	if len(val.Stale) == 0 || !strings.Contains(strings.Join(val.Stale, " "), "estimate") {
-		t.Errorf("notes = %v, want the estimate named", val.Stale)
+	if note := srv.quoteNote(f.Book.Assets[0]); !strings.Contains(note, "616.00 EUR") || !strings.Contains(note, "estimated for") {
+		t.Errorf("quote note = %q, want the estimate", note)
 	}
 }

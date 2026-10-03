@@ -29,7 +29,7 @@ type ExternalFlow struct {
 type SeriesResult struct {
 	Points   []SeriesPoint
 	Flows    []ExternalFlow
-	Warnings []string // conversion warnings (once per (label, currency))
+	Warnings []string // conversion warnings (once per (label, currency)) and estimate labels (once per asset)
 }
 
 // PerfPoints converts the series points to perf.Point, using gross or net value.
@@ -109,6 +109,13 @@ type walker struct {
 	// rate, whatever the number of days the loop retried it.
 	warned    map[string]*convFailure
 	warnOrder []string
+
+	// prices are the series the walk reads (see Prices), and estimated the
+	// last estimated price it valued a held position at, per asset: what the
+	// curve owes a label.
+	prices    map[domain.AssetID]*domain.PriceSeries
+	estimates map[domain.AssetID]Estimate
+	estimated map[domain.AssetID]domain.PricePoint
 }
 
 type pairKey struct {
@@ -154,6 +161,7 @@ func newWalker(b *domain.Book, scope Scope, ccy domain.Currency, fx FX) *walker 
 		manual:   manualDividendAssets(b),
 		warned:   map[string]*convFailure{},
 	}
+	w.prices, w.estimates = Prices(b, fx)
 	for _, acc := range b.Accounts {
 		w.accounts[acc.ID] = &accountState{acc: acc}
 	}
@@ -230,13 +238,11 @@ func (w *walker) warn(what string, from, to domain.Currency, at domain.Date) {
 	f.n++
 }
 
-// warnings renders the collected conversion failures, one line each, sorted
-// so the output is deterministic.
+// warnings renders the collected conversion failures and the estimates the
+// curve read (see Prices), one line each, sorted so the output is
+// deterministic.
 func (w *walker) warnings() []string {
-	if len(w.warnOrder) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(w.warnOrder))
+	var out []string
 	for _, key := range w.warnOrder {
 		f := w.warned[key]
 		more := ""
@@ -246,8 +252,24 @@ func (w *walker) warnings() []string {
 		out = append(out, fmt.Sprintf("%s: cannot convert %s→%s (no rate on %s%s) - counted as 0, run 'finador refresh'",
 			f.what, f.from, f.to, f.first, more))
 	}
+	for id, p := range w.estimated {
+		out = append(out, w.estimates[id].Note(p))
+	}
 	slices.Sort(out)
 	return out
+}
+
+// noteEstimate remembers that a held position was valued at p, when p is
+// an estimate (see Prices); the latest one is what the curve ends on.
+func (w *walker) noteEstimate(id domain.AssetID, p domain.PricePoint) {
+	e, ok := w.estimates[id]
+	if !ok || !e.estimated(p.Date) {
+		return
+	}
+	if w.estimated == nil {
+		w.estimated = map[domain.AssetID]domain.PricePoint{}
+	}
+	w.estimated[id] = p
 }
 
 func (w *walker) addFlow(d domain.Date, amount float64, collect bool) {
@@ -337,7 +359,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 		// the cash amount when no price is known on that date.
 		flowVal := disp
 		if p.asset.Kind != domain.Property {
-			if close, _, ok := w.b.Market.Prices[p.asset.ID].At(t.Date); ok {
+			if close, _, ok := w.prices[p.asset.ID].At(t.Date); ok {
 				qtyTx := toF(t.Quantity)
 				if t.Kind == domain.Sell {
 					qtyTx = min(qtyTx, qtyBefore)
@@ -453,7 +475,7 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 			case p.asset.Kind == domain.Property:
 				w.addFlow(t.Date, newDisp-prevHeld, collect)
 			case isFirstStmt:
-				if _, _, hasPx := w.b.Market.Prices[p.asset.ID].At(t.Date); !hasPx && p.qty > 0 && p.basis == 0 {
+				if _, _, hasPx := w.prices[p.asset.ID].At(t.Date); !hasPx && p.qty > 0 && p.basis == 0 {
 					w.addFlow(t.Date, newDisp, collect)
 				}
 			}
@@ -515,7 +537,8 @@ func (w *walker) valueAt(d domain.Date) (gross, net float64) {
 			if p.qty <= 0 {
 				break
 			}
-			if close, _, ok := w.b.Market.Prices[p.asset.ID].At(d); ok {
+			if close, on, ok := w.prices[p.asset.ID].At(d); ok {
+				w.noteEstimate(p.asset.ID, domain.PricePoint{Date: on, Close: close})
 				val = w.convF(p.qty*close, p.asset.Currency, w.ccy, d, p.asset.Name)
 			} else if p.stmt != nil {
 				val = w.conv(*p.stmt, w.ccy, d, p.asset.Name)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strconv"
@@ -97,6 +98,9 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		}
 		mergeDividends(&b.Market, asset.ID, data.Dividends)
 		sum.Fetched = append(sum.Fetched, asset.Ticker)
+	}
+	if ns, ok := src.(NowcastSource); ok {
+		refreshProxies(ctx, b, ns, force, &sum)
 	}
 
 	for _, ccy := range neededCurrencies(b) {
@@ -275,11 +279,13 @@ func (s *SpotSummary) stale(label string, q Quote) {
 // degrades to a warning, and an instrument the source does not cover at all
 // is silently skipped (its last daily close already stands).
 //
-// An estimate is the one quote it reports without storing: a fund priced once
-// a day and published with a lag is nowcast from a proxy (Quote.Estimated),
-// and such a number would otherwise sit in the cache for good and be read as
-// the close of a day the fund never published. It is served in Quotes for the
-// valuation to use as a labelled override, exactly like an off-hours print.
+// A fund priced once a day and published with a lag is not spotted itself:
+// its estimate is computed at read time from its proxy (portfolio.Prices,
+// D48), so the pass spots the PROXY, whose price joins the cached proxy
+// closes. An estimate a source still answers for a fund with no cached proxy
+// (Quote.Estimated) is reported in Quotes and never merged: it would sit in
+// the cache for good and be read as the close of a day the fund never
+// published.
 func SpotRefresh(ctx context.Context, b *domain.Book, src Source) SpotSummary {
 	return spotRefresh(ctx, b, src, false)
 }
@@ -313,6 +319,9 @@ func spotRefresh(ctx context.Context, b *domain.Book, src Source, extended bool)
 		if asset.Kind != domain.Security || asset.Ticker == "" {
 			continue
 		}
+		if b.Market.Proxies[asset.ID] != nil {
+			continue // estimated from its proxy's quotes, spotted below
+		}
 		id, ccy, ticker := asset.ID, asset.Currency, asset.Ticker
 		targets = append(targets, target{
 			ref: Ref{Symbol: asset.Ticker, ISIN: asset.ISIN, Currency: ccy},
@@ -339,6 +348,29 @@ func spotRefresh(ctx context.Context, b *domain.Book, src Source, extended bool)
 				sum.stale(ticker, q)
 				b.Market.Price(id).Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 				sum.Quotes[id] = q
+			},
+		})
+	}
+	// A lagged fund's estimate moves with its proxy's session, so the proxy
+	// is spotted like any security: today's price joins its cached closes.
+	for _, id := range slices.Sorted(maps.Keys(b.Market.Proxies)) {
+		px := b.Market.Proxies[id]
+		if px.Closes == nil {
+			continue // never fetched: the daily refresh comes first
+		}
+		symbol, ccy := px.Symbol, px.Currency
+		targets = append(targets, target{
+			ref: Ref{Symbol: symbol, Currency: ccy},
+			apply: func(q Quote) {
+				if q.Currency != "" && q.Currency != ccy {
+					sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+						"%s spot in %s but the proxy quotes in %s: quote ignored", symbol, q.Currency, ccy))
+					return
+				}
+				if q.Time.IsZero() || q.DisplayOnly() {
+					return
+				}
+				px.Closes.Merge([]domain.PricePoint{{Date: domain.DateOf(q.Time), Close: q.Price}})
 			},
 		})
 	}
@@ -501,7 +533,9 @@ func firstTxDate(b *domain.Book, match func(*domain.Transaction) bool) (domain.D
 // written in a fourth - a fee charged in JPY, a deposit made in CHF, a
 // dividend paid in USD on a EUR line, a statement declaring a balance. Listing
 // only the first two left those amounts with no rate to cross at, which the
-// valuation could only refuse or count as zero.
+// valuation could only refuse or count as zero. A lagged fund's proxy adds
+// one more: its quote currency, crossed into the fund's at every estimated
+// day (portfolio.Prices).
 func neededCurrencies(b *domain.Book) []domain.Currency {
 	set := map[domain.Currency]bool{}
 	for _, acc := range b.Accounts {
@@ -512,6 +546,9 @@ func neededCurrencies(b *domain.Book) []domain.Currency {
 	}
 	for _, t := range b.Transactions {
 		set[t.Amount.Currency] = true
+	}
+	for _, px := range b.Market.Proxies {
+		set[px.Currency] = true // a proxy converts into its fund's currency
 	}
 	delete(set, domain.USD)
 	delete(set, "")
@@ -543,4 +580,65 @@ func mergeDividends(m *domain.MarketData, id domain.AssetID, events []domain.Div
 		}
 	}
 	m.Dividends[id] = existing
+}
+
+// proxyLookback is how many days before a fund's last published NAV its
+// proxy's closes start: the estimate anchors on the proxy's print of the
+// NAV's day, and a fortnight covers any holiday its venue took around it.
+const proxyLookback = 14
+
+// refreshProxies caches the raw inputs of every lagged fund's estimate (see
+// portfolio.Prices): the proxy the source names for it, the proxy's closes
+// from a little before the fund's last published NAV, and its opening prints
+// when the fund's NAV is struck on them. The window is re-fetched whole once
+// a day rather than merged: an adjusted series is restated by every
+// distribution, and the window is a few weeks of points. A fund the source
+// names no proxy for loses its entry.
+func refreshProxies(ctx context.Context, b *domain.Book, src NowcastSource, force bool, sum *Summary) {
+	today := domain.Today()
+	for _, asset := range b.Assets {
+		if asset.Kind != domain.Security || asset.Ticker == "" {
+			continue
+		}
+		proxy, ok := src.NowcastProxy(Ref{Symbol: asset.Ticker, ISIN: asset.ISIN, Currency: asset.Currency})
+		if !ok {
+			delete(b.Market.Proxies, asset.ID)
+			continue
+		}
+		px := b.Market.Proxies[asset.ID]
+		if px == nil || px.Symbol != proxy.Symbol || px.Currency != proxy.Currency || px.OnOpen != proxy.OnOpen {
+			px = &domain.ProxyQuotes{Symbol: proxy.Symbol, Currency: proxy.Currency, OnOpen: proxy.OnOpen}
+			if b.Market.Proxies == nil {
+				b.Market.Proxies = map[domain.AssetID]*domain.ProxyQuotes{}
+			}
+			b.Market.Proxies[asset.ID] = px
+		}
+		if !force && px.Closes != nil && !px.Closes.FetchedAt.Before(today) {
+			continue
+		}
+		from := today.AddDays(-2 * proxyLookback)
+		if nav, ok := b.Market.Prices[asset.ID].Last(); ok {
+			from = nav.Date.AddDays(-proxyLookback)
+		}
+		closes, err := src.ProxyCloses(ctx, proxy, from)
+		if err != nil {
+			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+				"%s: proxy %s: %v - valued at its last published price", asset.Ticker, proxy.Symbol, err))
+			continue
+		}
+		px.Closes = &domain.PriceSeries{FetchedAt: today, HistFrom: from}
+		px.Closes.Merge(closes)
+		px.Opens = nil
+		if proxy.OnOpen {
+			opens, err := src.OpenFactors(ctx, proxy, from)
+			if err != nil {
+				sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+					"%s: no opening prices of %s (%v) - estimate anchored on its close", asset.Ticker, proxy.Symbol, err))
+			} else {
+				px.Opens = &domain.PriceSeries{FetchedAt: today, HistFrom: from}
+				px.Opens.Merge(opens)
+			}
+		}
+		sum.Fetched = append(sum.Fetched, "proxy "+proxy.Symbol)
+	}
 }

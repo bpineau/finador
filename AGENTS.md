@@ -247,6 +247,15 @@ cmd/finador → cli ─┬→ store ──→ domain
   merges it into no series; the valuation gets it as a `portfolio.PriceOverride`,
   labelled with its session. Keep both properties: never merge it, never print
   it unlabelled.
+- **A lagged fund's estimate is computed, never stored** (D48). An
+  employee-savings fund published at D+2 is carried past its last NAV by a
+  listed proxy. The cache keeps the RAW inputs (`MarketData.Proxies`: the
+  proxy's closes and opening prints, fetched by `market.refreshProxies` and
+  spotted like a security); `portfolio.Prices` derives the estimated days at
+  every read, and `Value`, `Breakdown` and `Series` all read through it, so
+  they agree and the CLI matches `../finador-android` to the cent. Never merge
+  an estimate into `Market.Prices`, never print one unlabelled
+  (`Estimate.Note`, `PositionLine.Note`, the series warnings).
 - **A restated history is a wrong POSITION, not just a wrong price** (D47).
   When a source rewrites its whole series (a split, a redenomination), the
   canary rebuilds the series, and `market.splitRatioFor` confronts the measured
@@ -269,6 +278,7 @@ cmd/finador → cli ─┬→ store ──→ domain
 | Performance windows/metrics facade | `internal/perf/` (math itself in pofo/metrics) |
 | File format, crypto, merge | `internal/store/` + `docs/FORMAT.md` + cross-impl gate |
 | Market fetch policy (what/when to fetch) | `market/refresh.go` (fetching itself in pofo) |
+| Lagged-fund estimate (proxy nowcast) | `portfolio/nowcast.go` (inputs cached by `market/refresh.go`) |
 | Broker-statement import | `internal/importer/<broker>/` (one package per broker; the book is written only through `portfolio.AddImported`) |
 | New CLI command | `internal/cli/` (one file per command family; writes go through `a.mutate`) |
 | Web page or handler | `internal/web/` (embedded templates; keep CLI parity) |

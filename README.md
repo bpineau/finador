@@ -538,15 +538,22 @@ finador value --extended   # count tonight's after-hours prints
   flag), a European line usually has nothing to offer off-hours, and
   `config set extended-hours true` makes it the default. Off by default.
 - A fund priced once a day and published with a lag (an employee-savings fund)
-  is **estimated** between two publications: its last published price carried
-  forward by a listed proxy. That estimate prices today's `value`, because it
-  is the freshest number there is, and it names itself under the table
-  (`≈ ERES_DATADOG: estimate at 2026-09-17 18:04 CEST, 71.15 EUR (carried by a
-  proxy, no published price yet)`). Nobody struck it, though, so like an
-  off-hours print it is **shown, never stored**: `perf`, `chart` and every
-  history walk published prices only, and a command that does not re-ask (the
-  last spot pass being less than 30 minutes old) shows the last published price
-  and dates it. No opt-in: an estimate needs none.
+  is **estimated** past its last published price: that price carried by a
+  listed proxy's move since (the proxy closes converted into the fund's
+  currency; anchored on the proxy's OPEN of the NAV's day for a fund valued at
+  the opening). `value`, `--tree`, `export`, `perf`, `chart` and the web all
+  read it, and every figure that does names it:
+
+  ```sh
+  finador value
+  # ≈ ERES_DATADOG: estimate for 2026-10-02, 255.66 EUR (NAV of 2026-09-30 carried by DDOG, no published price yet)
+  finador --offline value   # same figure: computed from the cache, no network
+  ```
+
+  The quote cache holds the raw inputs only (published NAVs, the proxy's
+  closes and opening prints, FX); the estimate is recomputed at every read and
+  stored nowhere, so the NAV replaces it as soon as a refresh brings it in.
+  No opt-in: an estimate needs none.
 - A quote cache written by an older version can still hold estimates recorded
   as closes, and nothing tells them apart after the fact. The remedy is manual
   and cheap: `rm ~/.cache/finador/*.cache`, then `finador refresh`, which

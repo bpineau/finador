@@ -130,3 +130,30 @@ type DailyData struct {
 	Closes    []domain.PricePoint
 	Dividends []domain.DividendEvent
 }
+
+// Proxy names the listed instrument that carries a fund priced once a day
+// and published with a lag past its last published price (an
+// employee-savings fund): its symbol, its quote currency, and whether the
+// fund's NAV of a day is struck on the proxy's OPENING print rather than its
+// close.
+type Proxy struct {
+	Symbol   string
+	Currency domain.Currency
+	OnOpen   bool
+}
+
+// NowcastSource is an optional Source capability: the raw inputs of a lagged
+// fund's estimate, which finador caches and computes from at every read
+// (portfolio.Prices), never storing the estimate itself.
+type NowcastSource interface {
+	// NowcastProxy names the proxy of the fund ref points at, from static
+	// metadata (no network); false when the fund has none.
+	NowcastProxy(ref Ref) (Proxy, bool)
+	// ProxyCloses returns the proxy's daily closes from `from`, in
+	// p.Currency, ADJUSTED for distributions: a dividend paid by the proxy
+	// is no move of a fund that keeps its income.
+	ProxyCloses(ctx context.Context, p Proxy, from domain.Date) ([]domain.PricePoint, error)
+	// OpenFactors returns, from `from`, each session's opening print divided
+	// by its closing print.
+	OpenFactors(ctx context.Context, p Proxy, from domain.Date) ([]domain.PricePoint, error)
+}

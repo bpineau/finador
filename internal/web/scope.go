@@ -166,6 +166,14 @@ func priceRange(r *http.Request, today domain.Date) (domain.Date, string) {
 
 // pricePoints converts a cached daily close series to chart points, keeping only
 // those at or after `from` (zero from = the whole series).
+// seriesOr returns s, or an empty series for an asset nothing quotes.
+func seriesOr(s *domain.PriceSeries) *domain.PriceSeries {
+	if s == nil {
+		return &domain.PriceSeries{}
+	}
+	return s
+}
+
 func pricePoints(series *domain.PriceSeries, from domain.Date) []perf.Point {
 	if series == nil {
 		return nil
@@ -187,7 +195,7 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 	today := domain.Today()
 	fx := market.Converter{FX: b.Market.FX}
 	ccy := b.DisplayCurrency()
-	val, err := portfolio.Value(b, scope, today, ccy, fx, s.estimatePrices()...)
+	val, err := portfolio.Value(b, scope, today, ccy, fx)
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -220,6 +228,8 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 		pfrom, pname := priceRange(r, today)
 		data.IsAsset = true
 		data.QuoteNote = s.quoteNote(scope.Asset)
+		prices, _ := portfolio.Prices(b, fx)
+		ps := seriesOr(prices[scope.Asset.ID])
 		data.PriceRange = pname
 		data.PriceRangeLinks = rangeLinks(priceRangeLabels, r, "prange", pname, "1y")
 		ccy := string(scope.Asset.Currency)
@@ -234,14 +244,14 @@ func (s *Server) renderScope(w http.ResponseWriter, r *http.Request, scope portf
 			} else {
 				data.PriceFallback = "intraday unavailable"
 				fallbackFrom := domain.DateOf(today.Time().AddDate(0, -1, 0))
-				if dpts := pricePoints(b.Market.Price(scope.Asset.ID), fallbackFrom); len(dpts) >= 2 {
+				if dpts := pricePoints(ps, fallbackFrom); len(dpts) >= 2 {
 					data.PriceCurve = template.HTML(chart.SVG([]chart.Line{
 						{Label: "price " + ccy, Color: couleurEncre, Points: dpts},
 					}, 860, 280))
 				}
 			}
 		} else {
-			if pts := pricePoints(b.Market.Price(scope.Asset.ID), pfrom); len(pts) >= 2 {
+			if pts := pricePoints(ps, pfrom); len(pts) >= 2 {
 				data.PriceCurve = template.HTML(chart.SVG([]chart.Line{
 					{Label: "price " + ccy, Color: couleurEncre, Points: pts},
 				}, 860, 280))

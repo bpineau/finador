@@ -1,6 +1,10 @@
 package portfolio
 
-import "finador/internal/domain"
+import (
+	"slices"
+
+	"finador/internal/domain"
+)
 
 // PositionLine is one valued position - or one envelope's cash when Asset is
 // nil. The raw material of the web's hierarchical allocation trees. Net is the
@@ -10,12 +14,15 @@ type PositionLine struct {
 	Account    *domain.Account
 	Asset      *domain.Asset
 	Gross, Net float64
+	// Note labels a price that is an estimate (see Prices), to be shown
+	// wherever the line is: empty for a published price.
+	Note string
 }
 
 // Breakdown values every security position, property and declared cash at
 // `at`, in the display currency. Σ Gross equals Value(All).Gross.
 func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]PositionLine, error) {
-	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
+	v := newValuer(b, fx, at, ccy)
 	var out []PositionLine
 	for _, h := range Holdings(b, at) {
 		if h.Asset.Kind == domain.Property {
@@ -29,7 +36,8 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, PositionLine{Account: h.Account, Asset: h.Asset, Gross: gross, Net: gross - tax})
+		out = append(out, PositionLine{Account: h.Account, Asset: h.Asset, Gross: gross, Net: gross - tax,
+			Note: v.estimateNote(h.Asset.ID)})
 	}
 	for _, p := range statementPairs(b, at) {
 		if p.asset.Kind != domain.Property {
@@ -59,4 +67,16 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 		}
 	}
 	return out, nil
+}
+
+// Notes returns the distinct notes of lines, in first-seen order: an asset
+// held in several envelopes is one estimate, said once.
+func Notes(lines []PositionLine) []string {
+	var out []string
+	for _, l := range lines {
+		if l.Note != "" && !slices.Contains(out, l.Note) {
+			out = append(out, l.Note)
+		}
+	}
+	return out
 }

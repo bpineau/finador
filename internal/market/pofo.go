@@ -3,11 +3,13 @@ package market
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"finador/internal/domain"
 
+	"github.com/bpineau/pofo/pkg/datasets"
 	"github.com/bpineau/pofo/pkg/marketdata"
 )
 
@@ -215,4 +217,49 @@ func toDailyData(s *marketdata.Series) DailyData {
 		out.Dividends = append(out.Dividends, domain.DividendEvent{ExDate: domain.DateOf(d.Date), Amount: d.Amount})
 	}
 	return out
+}
+
+// NowcastProxy reads the proxy pofo's catalog names for the fund, by its
+// ticker first, then its ISIN.
+func (p *Pofo) NowcastProxy(ref Ref) (Proxy, bool) {
+	for _, id := range []string{ref.Symbol, ref.ISIN} {
+		if id == "" {
+			continue
+		}
+		if np, ok := marketdata.NowcastProxyOf(id); ok {
+			return Proxy{
+				Symbol:   np.ID,
+				Currency: domain.Currency(np.Currency),
+				OnOpen:   np.Anchor == datasets.NowcastAnchorOpen,
+			}, true
+		}
+	}
+	return Proxy{}, false
+}
+
+// ProxyCloses fetches the proxy's adjusted daily closes in its own currency,
+// the series pofo's own nowcast reads.
+func (p *Pofo) ProxyCloses(ctx context.Context, px Proxy, from domain.Date) ([]domain.PricePoint, error) {
+	s, err := p.Client.FetchExtended(ctx, px.Symbol, marketdata.FetchOptions{
+		From: from.Time(), NoSim: true, Currency: string(px.Currency), NoConvert: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if s.Currency != "" && s.Currency != string(px.Currency) {
+		return nil, fmt.Errorf("%s quotes in %s, not %s", px.Symbol, s.Currency, px.Currency)
+	}
+	return toDailyData(s).Closes, nil
+}
+
+// OpenFactors fetches the proxy's open-to-close factor of each session.
+func (p *Pofo) OpenFactors(ctx context.Context, px Proxy, from domain.Date) ([]domain.PricePoint, error) {
+	s, err := p.Client.OpenFactors(ctx, px.Symbol, from.Time())
+	if err != nil {
+		if errors.Is(err, marketdata.ErrNotCovered) {
+			return nil, ErrNotCovered
+		}
+		return nil, err
+	}
+	return toDailyData(s).Closes, nil
 }

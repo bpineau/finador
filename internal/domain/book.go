@@ -219,6 +219,7 @@ func (b *Book) RemoveAsset(ref string) error {
 	b.Assets = lo.Reject(b.Assets, func(a *Asset, _ int) bool { return a.ID == asset.ID })
 	delete(b.Market.Prices, asset.ID)
 	delete(b.Market.Dividends, asset.ID)
+	delete(b.Market.Proxies, asset.ID)
 	return nil
 }
 

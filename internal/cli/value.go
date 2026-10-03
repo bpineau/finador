@@ -82,8 +82,12 @@ func valueCmd(a *app) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return portfolio.WriteAssetTree(cmd.OutOrStdout(),
-					portfolio.FilterScope(lines, scope), display, date)
+				lines = portfolio.FilterScope(lines, scope)
+				if err := portfolio.WriteAssetTree(cmd.OutOrStdout(), lines, display, date); err != nil {
+					return err
+				}
+				printNotes(cmd, portfolio.Notes(lines))
+				return nil
 			}
 			var opts []portfolio.ValueOption
 			switch by {
@@ -97,20 +101,14 @@ func valueCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// A display-only quote prices today and nothing else, so a
-			// historical valuation ignores both kinds entirely. The
-			// estimate of a fund nobody has priced yet needs no opt-in:
-			// it is the freshest thing there is, and it carries its own
-			// note (printed with the valuation's own, below).
+			// An off-hours print prices today and nothing else, so a
+			// historical valuation ignores it entirely. A lagged fund's
+			// estimate needs no override: the valuation computes it from
+			// the cached proxy quotes and labels it itself.
 			overrides := map[domain.AssetID]portfolio.PriceOverride{}
 			var notes []string
-			if date == domain.Today() {
-				overrides = estimatedPrices(b, spot)
-				if ext {
-					offHours, offNotes := offHoursPrices(b, spot)
-					maps.Copy(overrides, offHours) // disjoint: an estimate claims no session
-					notes = offNotes
-				}
+			if date == domain.Today() && ext {
+				overrides, notes = offHoursPrices(b, spot)
 			}
 			if len(whatIfs) > 0 {
 				// A disposable hypothesis outranks an observed price.
@@ -222,33 +220,6 @@ func offHoursPrices(b *domain.Book, spot market.SpotSummary) (map[domain.AssetID
 	return prices, notes
 }
 
-// estimatedPrices turns the estimates of a spot pass into price overrides -
-// the same throwaway valuation input, never a stored quote. A fund priced once
-// a day and published with a lag (an employee-savings fund) is nowcast from a
-// listed proxy: that number is the freshest there is, so it prices today, but
-// nobody has struck it, so it never enters the series perf and chart read. Its
-// note travels with the override (PriceOverride.Note) and comes out with the
-// valuation's own freshness notes.
-func estimatedPrices(b *domain.Book, spot market.SpotSummary) map[domain.AssetID]portfolio.PriceOverride {
-	prices := map[domain.AssetID]portfolio.PriceOverride{}
-	for _, asset := range b.Assets {
-		q, ok := spot.Quotes[asset.ID]
-		if !ok || !q.Estimated || q.Price <= 0 {
-			continue
-		}
-		// The Source contract guarantees the declared currency; a quote that
-		// somehow escaped it would be a silent unit bug in the total.
-		if q.Currency != "" && q.Currency != asset.Currency {
-			continue
-		}
-		prices[asset.ID] = portfolio.PriceOverride{Price: q.Price, Note: fmt.Sprintf(
-			"%s: estimate at %s, %s (carried by a proxy, no published price yet)",
-			assetLabel(asset), q.Time.Local().Format("2006-01-02 15:04 MST"),
-			money(q.Price, asset.Currency))}
-	}
-	return prices
-}
-
 // assetLabel names an asset in a note: its ticker when it has one.
 func assetLabel(a *domain.Asset) string {
 	if a.Ticker != "" {
@@ -318,5 +289,13 @@ func ensureDisplayFX(cmd *cobra.Command, a *app, f *store.File, display domain.C
 	s.FetchedAt = domain.Today()
 	if err := f.SaveCache(); err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning: cache not saved:", err)
+	}
+}
+
+// printNotes prints the labels of the figures above it (an estimate, a stale
+// quote) on stderr, the way every valuation does.
+func printNotes(cmd *cobra.Command, notes []string) {
+	for _, s := range notes {
+		fmt.Fprintln(cmd.ErrOrStderr(), "≈", s)
 	}
 }

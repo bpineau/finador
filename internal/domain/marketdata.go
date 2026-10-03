@@ -84,6 +84,26 @@ type MarketData struct {
 	// PriceSeries.FetchedAt it is a full timestamp. Sidecar-cache state,
 	// never part of the synced ledger.
 	SpotAt time.Time `json:"spotAt,omitzero"`
+	// Proxies holds, per fund priced once a day and published with a lag
+	// (an employee-savings fund), the raw quotes of the listed proxy that
+	// carries it past its last published price. They are inputs only: the
+	// estimate itself is recomputed at every read (portfolio.Prices) and
+	// stored nowhere (D48).
+	Proxies map[AssetID]*ProxyQuotes `json:"proxies,omitempty"`
+}
+
+// ProxyQuotes is the raw material of one fund's estimate: which listed
+// instrument stands in for it, in which currency that instrument quotes, and
+// its daily closes. A fund whose NAV of a day is struck on the proxy's OPENING
+// print (OnOpen) also needs that print, kept as the session's open-to-close
+// factor (open divided by close), which the closes' adjustment and the
+// exchange rate both cancel out of.
+type ProxyQuotes struct {
+	Symbol   string       `json:"symbol"`
+	Currency Currency     `json:"ccy"`
+	OnOpen   bool         `json:"onOpen,omitempty"`
+	Closes   *PriceSeries `json:"closes"`
+	Opens    *PriceSeries `json:"opens,omitempty"`
 }
 
 // Price returns the price series of an asset, creating it lazily.

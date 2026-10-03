@@ -62,14 +62,26 @@ func exportCmd(a *app) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return portfolio.WriteAssetTree(cmd.OutOrStdout(),
-					portfolio.FilterScope(lines, scope), display, date)
+				lines = portfolio.FilterScope(lines, scope)
+				if err := portfolio.WriteAssetTree(cmd.OutOrStdout(), lines, display, date); err != nil {
+					return err
+				}
+				printNotes(cmd, portfolio.Notes(lines))
+				return nil
 			}
 			rows, err := portfolio.ScopedRows(b, scope, date, display, fx)
 			if err != nil {
 				return err
 			}
-			return portfolio.WriteAssetCSV(cmd.OutOrStdout(), rows)
+			if err := portfolio.WriteAssetCSV(cmd.OutOrStdout(), rows); err != nil {
+				return err
+			}
+			for _, r := range rows {
+				if r.Note != "" {
+					printNotes(cmd, []string{r.Note})
+				}
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&ccy, "ccy", "", "display currency (default: config currency, otherwise EUR)")

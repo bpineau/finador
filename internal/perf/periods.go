@@ -14,6 +14,8 @@ import (
 // underneath - noise, not a session (e.g. a EUR book holding a USD name shows
 // -0.4% the morning it actually closed +1.67%). Anchoring on the last close
 // makes "1d" mean "last close vs the previous close", matching Yahoo/Google.
+// A lagged fund's proxy counts too: the session it closed is the one the
+// fund's estimate stands on (portfolio.Prices).
 // Returns `on` unchanged when no security has any close (e.g. a property-only
 // book), so the caller's calendar-today behaviour is preserved.
 func CloseAnchor(m *domain.MarketData, on domain.Date) domain.Date {
@@ -23,6 +25,11 @@ func CloseAnchor(m *domain.MarketData, on domain.Date) domain.Date {
 	best := domain.Date{}
 	for _, s := range m.Prices {
 		if _, d, ok := s.At(on); ok && best.Before(d) {
+			best = d
+		}
+	}
+	for _, px := range m.Proxies {
+		if _, d, ok := px.Closes.At(on); ok && best.Before(d) {
 			best = d
 		}
 	}

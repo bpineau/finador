@@ -666,9 +666,20 @@ file:
 {
   "prices":    {"<asset-id>": {"points":[{"d":"2024-01-20","c":450.0}], "fetchedAt":"2024-01-21"}},
   "fx":        {"USD":        {"points":[{"d":"…","c":1.08}],            "fetchedAt":"…"}},
-  "dividends": {"<asset-id>": [{"exDate":"2024-03-10","amount":1.25}]}
+  "dividends": {"<asset-id>": [{"exDate":"2024-03-10","amount":1.25}]},
+  "spotAt":    "2024-01-21T16:14:00+01:00",
+  "proxies":   {"<asset-id>": {"symbol":"URTH", "ccy":"USD", "onOpen":false,
+                                "closes": {"points":[…], "fetchedAt":"…"},
+                                "opens":  {"points":[{"d":"…","c":0.98}], "fetchedAt":"…"}}}
 }
 ```
+
+`proxies` holds, for a fund priced once a day and published with a lag, the
+raw quotes of the listed instrument that carries it past its last published
+price: its daily closes in `ccy` (adjusted for distributions) and, when the
+fund's NAV is struck on that instrument's opening print (`onOpen`), each
+session's open-to-close factor. The estimate derived from them is never
+stored, here or anywhere.
 
 The cache is fully **regenerable**: a missing, unreadable or stale sidecar is not an
 error - a quote refresh rebuilds it. An alternate implementation can ignore the

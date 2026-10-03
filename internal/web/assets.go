@@ -69,16 +69,17 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 	bySection := map[string]*assetSection{}
 	var rawWarnings []string
 	rf := perf.RiskFreeFromConfig(b.Config)
-	// Computed once for the whole table: an estimated line is valued at its
-	// nowcast, a price that lives nowhere but in this request.
-	estimates := s.estimatePrices()
+	// Computed once for the whole table: a lagged fund's series carries its
+	// estimated days (see portfolio.Prices), a price that lives nowhere but
+	// in this request.
+	prices, _ := portfolio.Prices(b, fx)
 
 	for _, asset := range b.Assets {
 		// By asset, never through ParseScope: that parser answers a
 		// free-form reference and tries the GROUP tier first, so an asset
 		// whose id is also a group path would show that group's value here.
 		scope := portfolio.AssetScope(asset)
-		val, err := portfolio.Value(b, scope, today, ccy, fx, estimates...)
+		val, err := portfolio.Value(b, scope, today, ccy, fx)
 		if err != nil || val.Gross == 0 {
 			continue
 		}
@@ -86,7 +87,7 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 		if err != nil {
 			continue
 		}
-		ps := b.Market.Price(asset.ID)
+		ps := seriesOr(prices[asset.ID])
 		day1d, hasDay1d := perfDay1d(res, today, rf)
 		// For instruments whose latest published price predates today (e.g. NAV
 		// funds with a 1-day publication lag), forward-fill makes V(today) equal

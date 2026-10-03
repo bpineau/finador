@@ -18,6 +18,9 @@ type AssetRow struct {
 	Ticker, Name, ISIN string
 	Gross, Net         float64
 	Currency           domain.Currency
+	// Note labels an estimated price (see Prices). It is not a CSV column:
+	// a caller shows it beside the export.
+	Note string
 }
 
 // AssetRows returns one row per held asset (non-zero value), each valued across
@@ -106,6 +109,7 @@ func ScopedRows(b *domain.Book, s Scope, at domain.Date, ccy domain.Currency, fx
 			Kind:   l.Asset.Kind.String(),
 			Ticker: l.Asset.Ticker, Name: l.Asset.Name, ISIN: l.Asset.ISIN,
 			Gross: l.Gross, Net: l.Net, Currency: ccy,
+			Note: l.Note,
 		})
 	}
 	sortRows(rows)

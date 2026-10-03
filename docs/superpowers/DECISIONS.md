@@ -1277,3 +1277,54 @@ peine de rendre le grand livre illisible sur le téléphone. Cela ne se décide
 pas dans une passe de correction de bugs : la proposition est ici, rien n'est
 embarqué, et le texte de FORMAT.md section 8 gagnera à dire explicitement que
 `kind` suit la règle 3 le jour où la question sera tranchée.
+
+## D48 - L'estimation d'un fonds en retard se calcule à la lecture, depuis des cotes brutes en cache
+
+*2026-10-03. Révise D38.*
+
+**Le symptôme :** sur le même grand livre, `finador value` affichait un total
+net nettement inférieur à celui du client Android. Les deux moteurs fiscaux sont identiques ;
+l'écart venait des deux FCPE (VL publiée à J+2). Android les prolonge par leur
+proxy coté (DDOG, URTH) depuis la dernière VL ; la CLI ne le faisait que si la
+commande avait elle-même fait la passe spot (D38 : l'estimation ne vit que le
+temps du processus). Dans les 30 minutes suivant n'importe quelle passe, en
+`--offline`, en `--tree`, dans `perf` et `chart`, la CLI retombait sur la VL de
+l'avant-veille : un chiffre juste, mais en retard, et dont la valeur dépendait
+de l'heure à laquelle on lançait la commande.
+
+**La règle retenue :** le cache garde les données SOURCES, les calculs se font
+à la lecture. Le sidecar porte, par fonds en retard, les cotes brutes de son
+proxy (`MarketData.Proxies` : symbole, devise, clôtures ajustées des
+distributions, et pour un fonds valorisé à l'ouverture le facteur
+ouverture/clôture de chaque séance). `portfolio.Prices` en dérive à chaque
+lecture la série « publiée + jours estimés » : VL × P(d) / P(ancre), P étant la
+clôture du proxy convertie dans la devise du fonds à sa propre date, l'ancre
+étant la clôture du jour de la VL, ou son ouverture (`OnOpen`) quand elle
+existe. `Value`, `Breakdown` et `Series` lisent tous par là : ils restent
+d'accord point à point, et la CLI retombe au centime sur le chiffre Android
+(vérifié sur le grand livre du symptôme).
+
+**Ce qui ne change pas de D38 :** une estimation n'entre jamais dans
+`Market.Prices` ni dans aucun fichier ; elle s'affiche toujours étiquetée
+(`≈ ERES_DATADOG: estimate for 2026-10-02, … (NAV of 2026-09-30 carried by
+DDOG, no published price yet)`), et la VL publiée la remplace dès qu'un
+rafraîchissement l'apporte, sans rien à purger.
+
+**Ce qui change :** `perf`, `chart` et `perf --tree` lisent aussi
+l'estimation (choix explicite de l'utilisateur, à l'inverse de D38) : un FCPE
+ne reste plus à +0,00 % sur « 1d » pendant deux jours, et chaque sortie nomme
+l'estimation qu'elle a mesurée. `perf.CloseAnchor` compte les séances des
+proxies, sans quoi un livre ne détenant qu'un fonds en retard s'arrêterait à sa
+VL. La passe spot cote le proxy, plus le fonds lui-même ; le mécanisme
+d'override par processus (`estimatedPrices` côté CLI, `estimatePrices` côté
+web) disparaît.
+
+**pofo :** `marketdata.NowcastProxyOf` (proxy, devise et ancre lus dans le
+catalogue, sans réseau) et `Client.OpenFactors` sont exportés pour qu'un
+consommateur calcule lui-même l'estimation depuis ses propres caches.
+
+**Écarté :** mettre en cache l'estimation calculée par la passe spot (un
+résultat de calcul dans le cache : exactement ce que la règle interdit, et un
+chiffre figé à l'heure de la passe) ; refaire la passe spot à chaque commande
+(lent, exposé au throttling, et rien en `--offline`) ; fusionner la queue
+nowcast de pofo dans la série (le bug d'origine de D38).

@@ -87,7 +87,7 @@ func (v *valuer) noteOverride(name string, ov PriceOverride, ccy domain.Currency
 // accounts - each with its estimated latent tax. It is the engine behind
 // `finador value` and the web dashboard; it never writes anything.
 func Value(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx FX, opts ...ValueOption) (Valuation, error) {
-	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
+	v := newValuer(b, fx, at, ccy)
 	for _, o := range opts {
 		o(v)
 	}
@@ -233,6 +233,30 @@ type valuer struct {
 	stale     []string
 	byAccount bool
 	overrides map[domain.AssetID]PriceOverride
+	// prices are the series the valuation reads (see Prices): the cached
+	// ones, a lagged fund extended by its estimated days.
+	prices    map[domain.AssetID]*domain.PriceSeries
+	estimates map[domain.AssetID]Estimate
+}
+
+func newValuer(b *domain.Book, fx FX, at domain.Date, ccy domain.Currency) *valuer {
+	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
+	v.prices, v.estimates = Prices(b, fx)
+	return v
+}
+
+// estimateNote labels the asset's price at v.at when it is an estimate (see
+// Prices), and is empty otherwise.
+func (v *valuer) estimateNote(id domain.AssetID) string {
+	e, ok := v.estimates[id]
+	if !ok {
+		return ""
+	}
+	close, on, ok := v.prices[id].At(v.at)
+	if !ok || !e.estimated(on) {
+		return ""
+	}
+	return e.Note(domain.PricePoint{Date: on, Close: close})
 }
 
 // trimFloat formats a float64 without trailing zeros.
@@ -292,7 +316,10 @@ func (v *valuer) positionValue(h Holding) (float64, error) {
 		v.noteOverride(h.Asset.Name, ov, h.Asset.Currency)
 		return v.convNamed(toF(h.Qty)*ov.Price, h.Asset.Currency, v.ccy, v.at, h.Asset.Name)
 	}
-	if close, cdate, ok := v.b.Market.Prices[h.Asset.ID].At(v.at); ok {
+	if close, cdate, ok := v.prices[h.Asset.ID].At(v.at); ok {
+		if note := v.estimateNote(h.Asset.ID); note != "" {
+			v.stale = append(v.stale, note)
+		}
 		if cdate.AddDays(staleAfterDays).Before(v.at) {
 			v.stale = append(v.stale, fmt.Sprintf("%s: last quote on %s", h.Asset.Name, cdate))
 		}

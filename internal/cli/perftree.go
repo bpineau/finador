@@ -130,5 +130,6 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 	}
 	fmt.Fprintln(out, strings.Repeat("-", labelW+2+grossW+2+netW+len(perfTreePeriods)*(cellW+2)))
 	printRow("TOTAL", num(totGross), num(totNet), totTexts, totSigns)
+	printNotes(cmd, portfolio.Notes(portfolio.FilterScope(lines, scope)))
 	return nil
 }
