@@ -1432,3 +1432,56 @@ comme une baisse de cours sans revenu en face.
 (quantité de la clôture de la veille), et un dividende manuel ne remplace les
 automatiques que pour son couple (compte, actif). **Android** (`Perf.kt`,
 `manualDividendAssets`) doit porter les deux règles.
+
+## D54 - La convention de flux est celle de pofo ; finador n'a plus d'indice à lui
+
+*2026-10-21.*
+
+**Le contexte :** D49, D50 et D52 vivaient dans `perf.growth`, un indice local
+que finador donnait à pofo avec, pour chaque jour mort, un faux flux de
+`-index[t-1]` qui annulait la base sous l'ancienne règle de pofo (tout flux en
+début de journée). pofo v0.2.88 porte les mêmes règles nativement
+(`metrics.FlowIndex`, `TWR`, `FlowReturns`, `Report` : flux du jour nettés,
+entrant en début de journée, sortant à la clôture, jour sans rien de détenu ni
+avant ni après hors rendement, drawdown sur l'indice). Sous la nouvelle règle,
+le faux flux négatif sortait à la clôture : chaque jour mort aurait lu environ
++100 %.
+
+**La règle retenue :** `perf.growth` et `perf.gain` sont supprimés ; `TWR`,
+`DailyReturns`, `MaxDrawdown` et `Report` passent à pofo les valeurs brutes et
+les vrais flux, et les gains de `Report` sont ceux de pofo (base = dernière
+clôture au plus tard au début de la fenêtre, flux strictement après). Les tests
+de D49, D50, D52 et D53 passent sans changement de chiffres : aucune
+divergence entre pofo et finador. Seul écart de règle relevé : pofo rattache
+un flux au premier point à sa date ou après, finador le cherchait au jour
+exact ; la série de finador est quotidienne, calendaire, donc c'est sans effet.
+
+**Les fenêtres :** `perf.PeriodRange` lit `metrics.StandardWindows` : un mois
+avant le 31 mars est le 28 (29) février, comme EDATE, et non plus le 3 mars
+de `AddDate` (l'« accepted quirk » d'avant). `2d`, `3d`, `5d` restent des jours
+calendaires ; les plages de graphique `1m`/`3m`/`1y` de la page web suivent le
+même calendrier. **Android** doit porter la même borne.
+
+## D55 - Le cache passe en FINCACHE3 : un correctif de données force la reconstruction
+
+*2026-10-21.*
+
+**Le symptôme :** pofo v0.2.88 date les cours croisés Yahoo sur la séance dont
+ils portent la clôture (avant : décalés d'une séance chaque jour d'hiver et
+chaque vendredi d'été, depuis 2010-08), et ne prend plus une vraie séance à
+-90 % pour un changement d'unité. Mais le rafraîchissement incrémental ne
+réécrit qu'à partir du dernier point, et rien ne détecte qu'un historique FX
+a changé (le canari de D47/D51 ne garde que les cours des titres) : les points
+mal datés resteraient en cache pour toujours.
+
+**La règle retenue :** le magic du sidecar est sa version. `cacheMagic` passe
+de `FINCACHE2` à `FINCACHE3` ; un sidecar sous un autre magic est ignoré comme
+s'il manquait (`loadCache`), et la première commande en ligne (ou
+`finador refresh`) reconstruit chaque série depuis son plancher. Le cache se
+régénère par construction (invariant), la seule perte est une première
+exécution plus lente. FORMAT.md §7 l'écrit. **Écarté :** un détecteur de
+réécriture sur les séries FX (un canari de plus, pour une correction unique) ;
+un drapeau de version dans le JSON (le magic, déjà authentifié comme AAD, fait
+ce travail). **Android** a son propre sidecar, local à l'appareil, et son
+propre client Yahoo qui date les croisés en UTC : il doit porter la datation
+de pofo (`crossSessionDay`) puis monter son propre magic.

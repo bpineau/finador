@@ -85,21 +85,16 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 	}
 	windows = append(windows, metrics.Window{Name: "inception", From: origin.Time(), To: evalTo.Time()})
 
-	// pofo measures the flow-neutral growth (see growth), whose own flows
-	// only mark the days with nothing to earn on; the money gains come from
-	// the values and the real flows (gain).
-	dates, index, dead := growth(points, flows)
-	mrows, sum := metrics.Report(dates, index, dead, metrics.ReportOptions{
+	// pofo measures the raw values and the real flows: TWR, risk, CAGR and
+	// drawdown on their flow-neutral index (D49, D50), the money gains on
+	// the values net of the flows after each window's base.
+	dates, values, mflows := toSeries(points, flows)
+	mrows, sum := metrics.Report(dates, values, mflows, metrics.ReportOptions{
 		Windows:     windows,
 		RiskFree:    rf,
 		MinRiskDays: MinDaysForRisk,
 		MinCAGRDays: MinDaysForCAGR,
 	})
-	for i, mr := range mrows {
-		if mr.OK {
-			mrows[i].Gain = gain(points, flows, domain.DateOf(mr.From), domain.DateOf(mr.To))
-		}
-	}
 
 	// Flat-window dedup: a longer today-anchored window that measures
 	// exactly what a shorter one already showed (bit-equal TWR and gain:
@@ -149,28 +144,4 @@ func Held(points []Point) []Point {
 		return points[first:]
 	}
 	return points
-}
-
-// gain is the money made over [from, to], net of contributions: the last
-// value less the first, less the flows booked strictly after from and at or
-// before to (a flow on the base day is already part of the first value).
-func gain(points []Point, flows []Flow, from, to domain.Date) float64 {
-	var first, last float64
-	seen := false
-	for _, p := range points {
-		if p.Date.Before(from) || to.Before(p.Date) {
-			continue
-		}
-		if !seen {
-			first, seen = p.Value, true
-		}
-		last = p.Value
-	}
-	net := 0.0
-	for _, f := range flows {
-		if from.Before(f.Date) && !to.Before(f.Date) {
-			net += f.Amount
-		}
-	}
-	return last - first - net
 }

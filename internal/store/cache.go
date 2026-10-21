@@ -12,7 +12,16 @@ import (
 	"finador/internal/paths"
 )
 
-const cacheMagic = "FINCACHE2"
+// cacheMagic opens the sidecar and is its GCM AAD; it doubles as the cache
+// version. A sidecar under any other magic is ignored (loadCache leaves the
+// market empty) and the next refresh rebuilds every series from its floor,
+// so bumping it is how a fix to fetched data reaches quotes an incremental
+// refresh would never rewrite. FINCACHE3 (D55): pofo v0.2.88 dates Yahoo
+// currency crosses on the session whose close they hold (the FX points
+// cached before sat a session off: every winter day, and every summer
+// Friday), and no longer erases a genuine -90 % session as a denomination
+// break.
+const cacheMagic = "FINCACHE3"
 
 // cachePath derives the sidecar path from the file id: deterministic and stable
 // across machines, physically outside any git repo.

@@ -41,15 +41,13 @@ type dashData struct {
 	Error      string
 }
 
-// chartRange resolves ?range= into a start date (zero = inception) and its name.
+// chartRange resolves ?range= into a start date (zero = inception) and its
+// name, on the period table's own calendar (perf.PeriodRange).
 func chartRange(r *http.Request, today domain.Date) (domain.Date, string) {
-	switch r.URL.Query().Get("range") {
-	case "1m":
-		return domain.DateOf(today.Time().AddDate(0, -1, 0)), "1m"
-	case "3m":
-		return domain.DateOf(today.Time().AddDate(0, -3, 0)), "3m"
-	case "1y":
-		return domain.DateOf(today.Time().AddDate(-1, 0, 0)), "1y"
+	switch name := r.URL.Query().Get("range"); name {
+	case "1m", "3m", "1y":
+		from, _, _ := perf.PeriodRange(name, today)
+		return from, name
 	}
 	return domain.Date{}, "all"
 }

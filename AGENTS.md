@@ -230,6 +230,18 @@ cmd/finador → cli ─┬→ store ──→ domain
   oldest record (`fxHistoryFloor` + the `HistFrom` guard), because a rate is
   needed at the record's own DATE. A missing rate refuses the total in
   `Value()` and counts as 0 in `Series()`, both naming the record (D43).
+- **The flow convention is pofo's, never re-derived here** (D54). `perf` hands
+  `metrics.TWR`/`FlowReturns`/`FlowIndex`/`Report` the RAW values and the
+  REAL flows: pofo nets a day's flows, books money in at the start of the day
+  and money out at the close (D50), treats a day with nothing held before nor
+  after as no return (D52) and reads the drawdown on its flow index (D49).
+  Never feed pofo a hand-built index or synthetic flows: a negative flow
+  leaves at the close, so a fake `-index[t-1]` reads as +100 %.
+- **A fix to already-fetched data needs a cache bump** (D55). The incremental
+  refresh only rewrites from the last point and nothing watches an FX history
+  for change, so a pofo fix that moves past quotes reaches the cache only when
+  `store.cacheMagic` changes (FINCACHE3 since pofo v0.2.88): an older sidecar
+  is ignored and the next refresh rebuilds it. Update FORMAT.md §7 with it.
 - **`--exclude` / `--asset` narrow an envelope, so its latent tax stops being
   defined**: `Scope.wholeEnvelopes` gates the exact rule, and a narrowed scope
   falls back on the per-position estimate with a note (D44). Change `Value()`

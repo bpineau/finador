@@ -32,3 +32,22 @@ func TestPeriodRange(t *testing.T) {
 		t.Error("unknown period accepted")
 	}
 }
+
+// Months and years clamp to the end of a shorter month, as EDATE does: Go's
+// AddDate normalization put "1m" from March 31 on March 3, a month-end row
+// three days short (D54).
+func TestPeriodRangeMonthEnd(t *testing.T) {
+	for _, tc := range []struct{ name, today, from string }{
+		{"1m", "2026-03-31", "2026-02-28"},
+		{"1m", "2028-03-31", "2028-02-29"}, // leap year
+		{"3m", "2026-05-31", "2026-02-28"},
+		{"1m", "2026-07-31", "2026-06-30"},
+		{"1y", "2028-02-29", "2027-02-28"},
+		{"1m", "2026-03-15", "2026-02-15"}, // mid-month: unchanged
+	} {
+		from, _, err := PeriodRange(tc.name, d(tc.today))
+		if err != nil || from != d(tc.from) {
+			t.Errorf("PeriodRange(%s, %s) from = %s, %v; want %s", tc.name, tc.today, from, err, tc.from)
+		}
+	}
+}

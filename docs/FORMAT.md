@@ -652,13 +652,20 @@ file:
 **File format** (binary, not line-oriented):
 
 ```
-"FINCACHE2"  ‖  nonce[12]  ‖  AES-256-GCM( gzip( JSON(MarketData) ), AAD="FINCACHE2" )
+"FINCACHE3"  ‖  nonce[12]  ‖  AES-256-GCM( gzip( JSON(MarketData) ), AAD="FINCACHE3" )
 ```
 
-- Magic prefix is the 9 ASCII bytes `FINCACHE2`.
+- Magic prefix is the 9 ASCII bytes `FINCACHE3`.
 - The cipher is AES-256-GCM under **`keyCache`** (§2.1).
-- The AAD is exactly the 9 magic bytes `FINCACHE2`.
+- The AAD is exactly the 9 magic bytes `FINCACHE3`.
 - The plaintext is `gzip(UTF-8 JSON of MarketData)`.
+- The magic is also the **cache version**. A reader ignores a sidecar under any
+  other magic, exactly as if it were missing, and the next refresh rebuilds
+  every series from its history floor; bumping it is how a correction to
+  already-fetched quotes reaches a cache that incremental refreshes would
+  never rewrite. `FINCACHE2` sidecars (before 2026-10-21) hold Yahoo currency
+  crosses dated a session off and are discarded. The sidecar never leaves the
+  device, so each implementation versions its own.
 
 `MarketData` JSON shape (all maps keyed by id/currency; everything refetchable):
 

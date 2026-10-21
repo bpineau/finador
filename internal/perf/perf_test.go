@@ -96,6 +96,27 @@ func TestTWRCostOnAnEmptyScopeIsNoReturn(t *testing.T) {
 	}
 }
 
+// A line sold, held at zero for days, then bought again: the empty days are
+// no return (D52) and the track record resumes on the new money. Under the
+// old local index, which handed pofo each such day as a flow of
+// -index[t-1], pofo's outflow-at-the-close rule would have read every empty
+// day as about +100 % (D54).
+func TestTWRResumesAfterAnEmptySpell(t *testing.T) {
+	pts := []Point{
+		{d("2026-03-02"), 1000}, {d("2026-03-03"), 0}, {d("2026-03-04"), 0},
+		{d("2026-03-05"), 500}, {d("2026-03-06"), 550},
+	}
+	flows := []Flow{{d("2026-03-03"), -1100}, {d("2026-03-05"), 500}} // sold at +10 %, bought back
+	approx(t, "TWR", TWR(pts, flows), 1.1*1.1-1, 1e-9)
+	rs, _ := DailyReturns(pts, flows)
+	if len(rs) != 3 { // sale day, re-entry day (flat), last day
+		t.Fatalf("returns = %v, want 3", rs)
+	}
+	approx(t, "drawdown", MaxDrawdown(pts, flows).Depth, 0, 1e-9)
+	_, m := Report(pts, flows, d("2026-03-06"), 0)
+	approx(t, "report TWR", m.InceptionTWR, 1.1*1.1-1, 1e-9)
+}
+
 func TestDailyReturnsWeekdaysOnly(t *testing.T) {
 	// Friday June 5 2026, Saturday 6, Sunday 7, Monday 8
 	pts := []Point{

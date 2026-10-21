@@ -573,7 +573,10 @@ finador perf pea --tree    # same, scoped to one envelope, group or label
 ```
 
 Prints a period table - `1d 7d 1m 3m ytd 1y prev-yr inception` (plus a `window`
-row when `--from` is given) - with two complementary measures:
+row when `--from` is given) - with two complementary measures. Each window is
+measured against the close of its first day (`ytd` from Dec 31), and months count
+on the calendar, clamped to the end of a shorter month as a spreadsheet's EDATE
+does: on March 31, `1m` starts on February 28.
 
 - **TWR** chains daily returns with external flows neutralized: the real growth
   percentage of what you hold, comparable across scopes and to any index. It is

@@ -48,6 +48,50 @@ func TestMarketCacheRoundTripsViaSidecar(t *testing.T) {
 	}
 }
 
+// A sidecar sealed under an older magic is a cache of another version: it
+// decrypts fine but is ignored, so the next refresh rebuilds every series
+// from its floor (D55: the FX crosses cached before pofo v0.2.88 are
+// misdated, and an incremental refresh never rewrites them).
+func TestOlderCacheVersionIsIgnored(t *testing.T) {
+	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
+	path := filepath.Join(t.TempDir(), "v.fin")
+	f, err := Create(path, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Book.Market.FXSeries("USD").Merge([]domain.PricePoint{{Date: domain.Date{Year: 2025, Month: 1, Day: 3}, Close: 1.03}})
+	if err := f.SaveCache(); err != nil {
+		t.Fatal(err)
+	}
+	p, err := f.cachePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := gcmOf(f.keyCache)
+	nonce := raw[len(cacheMagic) : len(cacheMagic)+nonceSize]
+	plain, err := g.Open(nil, nonce, raw[len(cacheMagic)+nonceSize:], []byte(cacheMagic))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const older = "FINCACHE2"
+	old := g.Seal(append([]byte(older), nonce...), nonce, plain, []byte(older))
+	if err := os.WriteFile(p, old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := Open(path, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(back.Book.Market.FX) != 0 {
+		t.Fatalf("a %s sidecar was read: %+v", older, back.Book.Market.FX)
+	}
+}
+
 func TestMissingSidecarIsEmptyMarketNoError(t *testing.T) {
 	t.Setenv("FINADOR_CACHE_DIR", t.TempDir())
 	path := filepath.Join(t.TempDir(), "y.fin")

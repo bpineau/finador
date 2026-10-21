@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"finador/internal/domain"
+
+	"github.com/bpineau/pofo/pkg/metrics"
 )
 
 // CloseAnchor is the "as of" date for the period table: the most recent settled
@@ -40,33 +42,25 @@ func CloseAnchor(m *domain.MarketData, on domain.Date) domain.Date {
 }
 
 // PeriodRange resolves a period name into [from, to]: the value at `from` is
-// the comparison base, so "ytd" starts at Dec 31 of last year. Month/year
-// arithmetic follows Go's AddDate normalization: from March 31, "1m" lands on
-// March 3 (Feb 31 doesn't exist) - accepted quirk for month-end dates.
+// the comparison base, so "ytd" starts at Dec 31 of last year. The table's
+// windows are pofo's metrics.StandardWindows, whose months and years are
+// counted on the calendar and clamped to the end of a shorter month, as a
+// spreadsheet's EDATE does: from March 31, "1m" starts on February 28 (29 in
+// a leap year), never on Go's AddDate normalization to March 3 (D54). "2d",
+// "3d" and "5d" are plain calendar-day spans.
 func PeriodRange(name string, today domain.Date) (from, to domain.Date, err error) {
-	to = today
 	switch name {
-	case "1d":
-		return today.AddDays(-1), to, nil
 	case "2d":
-		return today.AddDays(-2), to, nil
+		return today.AddDays(-2), today, nil
 	case "3d":
-		return today.AddDays(-3), to, nil
+		return today.AddDays(-3), today, nil
 	case "5d":
-		return today.AddDays(-5), to, nil
-	case "7d":
-		return today.AddDays(-7), to, nil
-	case "1m":
-		return domain.DateOf(today.Time().AddDate(0, -1, 0)), to, nil
-	case "3m":
-		return domain.DateOf(today.Time().AddDate(0, -3, 0)), to, nil
-	case "ytd":
-		return domain.Date{Year: today.Year - 1, Month: 12, Day: 31}, to, nil
-	case "1y":
-		return domain.DateOf(today.Time().AddDate(-1, 0, 0)), to, nil
-	case "prev-yr":
-		return domain.Date{Year: today.Year - 2, Month: 12, Day: 31},
-			domain.Date{Year: today.Year - 1, Month: 12, Day: 31}, nil
+		return today.AddDays(-5), today, nil
+	}
+	for _, w := range metrics.StandardWindows(today.Time()) {
+		if w.Name == name {
+			return domain.DateOf(w.From), domain.DateOf(w.To), nil
+		}
 	}
 	return from, to, fmt.Errorf("unknown period %q (1d, 2d, 3d, 5d, 7d, 1m, 3m, ytd, 1y, prev-yr)", name)
 }

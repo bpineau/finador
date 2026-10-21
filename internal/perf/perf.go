@@ -3,11 +3,13 @@
 // itself is pofo's metrics package, adapted to finador's domain types
 // (its 0-instead-of-NaN convention for undefined ratios included).
 //
-// One piece is finador's own: the flow-neutral growth index (growth) that
-// every figure reads. pofo books every flow at the start of its day, while
-// finador values a sale at the day's close, so an outflow must leave at the
-// close (D50); and pofo reads its drawdown on the raw value, where a sale is
-// a fall (D49). pofo then measures the index, which carries no flow.
+// Every figure but the money gains reads pofo's flow-neutral growth index
+// (metrics.FlowIndex), fed with the raw values and the real flows: a day's
+// flows netted, money in booked at the start of the day, money out at its
+// close (D50, since finador values a sale at the day's close), a day with
+// nothing held before nor after counting as no return (D52), and the
+// drawdown measured on that index rather than on the value, where a sale is
+// a fall (D49). finador keeps no growth arithmetic of its own (D54).
 package perf
 
 import (
@@ -29,22 +31,30 @@ type Point struct {
 // The day's flows are netted: money that comes in is booked at the start of
 // its day (it earns that day), money that goes out at its end (a sale is
 // valued at the day's close, so the shares earned the day before leaving).
-// See growth.
+// A flow dated between two points counts on the next one; see
+// metrics.FlowIndex.
 type Flow struct {
 	Date   domain.Date
 	Amount float64
 }
 
-// toSeries converts points to the parallel dates/values slices pofo's
-// metrics operate on (dates as midnight UTC, matching domain.Date.Time).
-func toSeries(points []Point) ([]time.Time, []float64) {
+// toSeries converts points and flows to the parallel slices pofo's metrics
+// operate on (dates as midnight UTC, matching domain.Date.Time).
+func toSeries(points []Point, flows []Flow) ([]time.Time, []float64, []metrics.Flow) {
 	dates := make([]time.Time, len(points))
 	values := make([]float64, len(points))
 	for i, p := range points {
 		dates[i] = p.Date.Time()
 		values[i] = p.Value
 	}
-	return dates, values
+	var mflows []metrics.Flow
+	if len(flows) > 0 {
+		mflows = make([]metrics.Flow, len(flows))
+		for i, f := range flows {
+			mflows[i] = metrics.Flow{Date: f.Date.Time(), Amount: f.Amount}
+		}
+	}
+	return dates, values, mflows
 }
 
 // orZero maps pofo's NaN (undefined) convention to finador's 0.
@@ -56,26 +66,24 @@ func orZero(v float64) float64 {
 }
 
 // TWR chain-links the daily returns of the series, external flows
-// neutralized (see growth): it measures the strategy, not the saver.
+// neutralized (metrics.TWR): it measures the strategy, not the saver. 0 for
+// fewer than two points.
 func TWR(points []Point, flows []Flow) float64 {
-	if len(points) < 2 {
-		return 0
-	}
-	_, index, _ := growth(points, flows)
-	return index[len(index)-1] - 1
+	twr, _ := metrics.TWR(toSeries(points, flows))
+	return twr
 }
 
 // DailyReturns yields the flow-adjusted weekday returns of a calendar-daily
-// series, and their cadence (returns per year) to annualize them with.
-// Week-ends are forward-filled flats: keeping them would dilute the
-// volatility, so they are dropped, and a calendar-daily series then reads
-// at metrics.TradingDaysPerYear (252). The cadence is measured on the dates,
-// not assumed, so a sparser series is never annualized as a daily one; it is
-// NaN when no return survives. A day with nothing to earn on (see growth) is
-// no return at all.
+// series, and their cadence (returns per year) to annualize them with
+// (metrics.FlowReturns). Week-end points are folded into Monday's return:
+// forward-filled flats would dilute the volatility, and a calendar-daily
+// series then reads at metrics.TradingDaysPerYear (252). The cadence is
+// measured on the dates, not assumed, so a sparser series is never
+// annualized as a daily one; it is NaN when no return survives. A day with
+// nothing to earn on (no base, or nothing held before nor after) is no
+// return at all.
 func DailyReturns(points []Point, flows []Flow) (returns []float64, periodsPerYear float64) {
-	dates, index, dead := growth(points, flows)
-	return metrics.FlowReturns(dates, index, dead)
+	return metrics.FlowReturns(toSeries(points, flows))
 }
 
 // CAGR annualizes a total return over a calendar-day span.
@@ -109,75 +117,11 @@ type Drawdown struct {
 }
 
 // MaxDrawdown returns the deepest drawdown episode of the series, measured on
-// its flow-neutral growth (see growth): a withdrawal or a sale lowers the
-// value and loses nothing, so it is never a drawdown.
+// its flow-neutral growth (metrics.FlowIndex): a withdrawal or a sale lowers
+// the value and loses nothing, so it is never a drawdown (D49).
 func MaxDrawdown(points []Point, flows []Flow) Drawdown {
-	dates, index, _ := growth(points, flows)
-	return toDrawdown(metrics.MaxDrawdown(dates, index))
-}
-
-// growth chain-links the flow-adjusted daily factors of a value series into
-// an index that starts at 1: what one unit held from the first point became,
-// contributions and withdrawals neutralized - the TWR read day by day.
-//
-// The flows of a day are netted, and the net is booked by its direction. Money
-// coming in is booked at the start of the day, r_t = V_t/(V_{t-1} + F_t): it
-// earns that day, and a large contribution never has its first-day move
-// charged to a tiny pre-flow value (D28). Money going out is booked at the
-// end, r_t = (V_t - F_t)/V_{t-1}: finador values a sale at the day's close, so
-// the shares earned the day before they left. Booked at the start, the
-// outflow was subtracted from a previous close it never faced, and selling a
-// whole line on a down day read as a -100 % day that zeroed the TWR (D50).
-//
-// A day whose base (V_{t-1} + F_t in, V_{t-1} out) is not positive has nothing
-// to earn on, and neither has a day the scope holds nothing before nor after:
-// a fee posted after a line was sold would otherwise read 0/fee, a -100 % day.
-// The index stays flat and the day is returned in dead, as a flow
-// that zeroes pofo's base on the index (-index[t-1]), so that pofo's own
-// return and window functions run on the index and skip exactly those days.
-//
-// Every statistic reads this index rather than the value: the value falls by
-// the whole amount of a withdrawal or a sale, which is money leaving the
-// scope, not money lost. Between two flows the index is the value times a
-// constant scale, never a running product, so a flowless stretch reads
-// exactly the value's ratios and an exact retouch of a peak stays exact.
-func growth(points []Point, flows []Flow) (dates []time.Time, index []float64, dead []metrics.Flow) {
-	dates, values := toSeries(points)
-	byDay := map[domain.Date]float64{}
-	for _, f := range flows {
-		byDay[f.Date] += f.Amount
-	}
-	index = make([]float64, len(values))
-	scale := 0.0 // index per unit of value; 0 until a positive value sets it
-	for i, v := range values {
-		flow := byDay[points[i].Date]
-		switch {
-		case i == 0:
-			index[0] = 1
-		case flow == 0 && scale > 0 && v > 0:
-			index[i] = scale * v
-			continue // the scale holds until the next flow
-		default:
-			index[i] = index[i-1]
-			num, base := v, values[i-1]+flow // money in: at the start
-			if flow < 0 {
-				num, base = v-flow, values[i-1] // money out: at the close
-			}
-			if values[i-1] <= 0 && v <= 0 {
-				base = 0 // held nothing before nor after: a cost here has no capital to be a return of
-			}
-			if base > 0 {
-				index[i] *= num / base
-			} else {
-				dead = append(dead, metrics.Flow{Date: dates[i], Amount: -index[i-1]})
-			}
-		}
-		scale = 0
-		if v > 0 {
-			scale = index[i] / v
-		}
-	}
-	return dates, index, dead
+	dates, values, mflows := toSeries(points, flows)
+	return toDrawdown(metrics.MaxDrawdown(dates, metrics.FlowIndex(dates, values, mflows)))
 }
 
 // toDrawdown maps a pofo episode to the domain-dated Drawdown; the zero
