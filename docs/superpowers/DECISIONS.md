@@ -1397,3 +1397,21 @@ dernier (`priceFetchFrom`), si bien que la première date partagée, celle que l
 `restated`, est une clôture réglée ; le dernier point est réécrit comme avant.
 Le faux `Source` des tests ne sert plus rien d'antérieur à `from`, comme une
 vraie source.
+
+## D52 - L'historique d'un périmètre commence à sa première détention
+
+*2026-10-21.*
+
+**Les symptômes :** (1) la série d'un périmètre commence au premier
+enregistrement du LIVRE ; une ligne achetée il y a deux mois dans un grand livre
+ouvert il y a trois ans affichait « tracking since » à la date d'ouverture, et
+un CAGR (qui n'avait pas lieu d'être) annualisant deux mois sur trois ans. (2) un
+coût passé un jour où le périmètre ne détient rien (une retenue à la source
+régularisée, une commission postée après la vente de la ligne) donnait un
+facteur 0/frais, soit -100 %, qui annulait le TWR de la ligne et du compte.
+
+**La règle retenue :** `perf.Held` coupe les points qui précèdent la première
+valeur non nulle ; `Report` et `perf --tree` mesurent à partir de là (fenêtres,
+« tracking since », annualisation). Dans `perf.growth`, un jour sans rien de
+détenu ni avant ni après est un jour mort : pas de rendement, l'indice reste
+plat, et l'argent figure toujours dans le GAIN.

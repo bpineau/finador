@@ -585,8 +585,9 @@ row when `--from` is given) - with two complementary measures:
   value change your deposits and onboarding declarations don't explain. Declaring
   "I hold 1000 € of X" is not a 1000 € gain; only what it earns afterwards counts.
 
-Periods that predate your first transaction are omitted (a fresh portfolio has no
-"1y"), and a longer window that would just repeat a shorter one (nothing moved in
+Periods that predate the scope's first holding are omitted (a fresh portfolio has no
+"1y", nor does a line bought last month in an old ledger: its track record, and
+`tracking since`, start with that buy), and a longer window that would just repeat a shorter one (nothing moved in
 between: same TWR, same gain to the cent) is omitted too - the `inception` row
 always shows the real, full span.
 

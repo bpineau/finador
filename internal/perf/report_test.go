@@ -184,6 +184,31 @@ func TestReportMetricsGating(t *testing.T) {
 	}
 }
 
+// A scope's series starts with the BOOK's first record, so a line bought
+// two months ago in a ledger begun years earlier arrived with years of
+// zeros in front: "tracking since" named the ledger's first day, and the
+// two months' return was annualized over the whole span - a CAGR shown, and
+// wrong, where none is due. The track record starts with the first holding.
+func TestReportInceptionIsTheFirstHolding(t *testing.T) {
+	var pts []Point
+	for i := range 500 {
+		pts = append(pts, Point{Date: d("2025-01-01").AddDays(i), Value: 0})
+	}
+	bought := d("2025-01-01").AddDays(500)
+	ramp, evalTo := rampSeries(bought, 60)
+	pts = append(pts, ramp...)
+	flows := []Flow{{Date: bought, Amount: ramp[0].Value}}
+
+	_, m := Report(pts, flows, evalTo, 0)
+	if m.Since != bought || m.Days != 60 {
+		t.Errorf("tracking since %s (%d d), want %s (60 d)", m.Since, m.Days, bought)
+	}
+	if m.HasCAGR || m.HasRisk {
+		t.Errorf("60 days annualized: HasCAGR=%v HasRisk=%v", m.HasCAGR, m.HasRisk)
+	}
+	approx(t, "inception TWR", m.InceptionTWR, ramp[len(ramp)-1].Value/ramp[0].Value-1, 1e-9)
+}
+
 // Periods whose window starts before the first data point are omitted (the
 // portfolio didn't exist then); the inception row covers the real span.
 func TestReportSkipsPreInceptionPeriods(t *testing.T) {

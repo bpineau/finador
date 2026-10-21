@@ -1,6 +1,7 @@
 package perf
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -62,7 +63,13 @@ type Metrics struct {
 // scope holds it"), the flat-window dedup and the house 0-instead-of-NaN
 // convention. Points and flows are expressed in display currency; rf is
 // the annualized risk-free rate.
+//
+// The track record starts with the first point the scope holds anything:
+// a scope's series starts with the book's first record, and the zeros in
+// front of a line bought later would otherwise date its inception years
+// early and annualize a few weeks' return over them.
 func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row, Metrics) {
+	points = Held(points)
 	if len(points) == 0 {
 		return nil, Metrics{}
 	}
@@ -132,6 +139,16 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 		m.CAGR = sum.CAGR
 	}
 	return rows, m
+}
+
+// Held drops the points in front of the first one the scope holds anything
+// at: where a scope's track record, and every window measured on it, starts.
+// A series that never holds anything is returned whole.
+func Held(points []Point) []Point {
+	if first := slices.IndexFunc(points, func(p Point) bool { return p.Value != 0 }); first > 0 {
+		return points[first:]
+	}
+	return points
 }
 
 // gain is the money made over [from, to], net of contributions: the last

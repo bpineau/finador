@@ -130,7 +130,9 @@ func MaxDrawdown(points []Point, flows []Flow) Drawdown {
 // whole line on a down day read as a -100 % day that zeroed the TWR (D50).
 //
 // A day whose base (V_{t-1} + F_t in, V_{t-1} out) is not positive has nothing
-// to earn on: the index stays flat and the day is returned in dead, as a flow
+// to earn on, and neither has a day the scope holds nothing before nor after:
+// a fee posted after a line was sold would otherwise read 0/fee, a -100 % day.
+// The index stays flat and the day is returned in dead, as a flow
 // that zeroes pofo's base on the index (-index[t-1]), so that pofo's own
 // return and window functions run on the index and skip exactly those days.
 //
@@ -160,6 +162,9 @@ func growth(points []Point, flows []Flow) (dates []time.Time, index []float64, d
 			num, base := v, values[i-1]+flow // money in: at the start
 			if flow < 0 {
 				num, base = v-flow, values[i-1] // money out: at the close
+			}
+			if values[i-1] <= 0 && v <= 0 {
+				base = 0 // held nothing before nor after: a cost here has no capital to be a return of
 			}
 			if base > 0 {
 				index[i] *= num / base

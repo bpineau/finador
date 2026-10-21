@@ -51,9 +51,10 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 		if err != nil || len(res.Points) < 2 {
 			return texts, signs
 		}
+		inception := perf.Held(res.PerfPoints(false))[0].Date // the flat table's origin
 		for i, name := range perfTreePeriods {
 			from, _, perr := perf.PeriodRange(name, evalTo)
-			if perr != nil || from.Before(res.Points[0].Date) {
+			if perr != nil || from.Before(inception) {
 				continue // window predates this line's track record
 			}
 			pts, fls := window(res, from, evalTo)

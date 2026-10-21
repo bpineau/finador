@@ -79,6 +79,23 @@ func TestTWRSkipsZeroBase(t *testing.T) {
 	approx(t, "TWR", TWR(pts, flows), 0.10, 1e-9)
 }
 
+// A cost booked on a day the scope holds nothing - a withholding adjustment
+// or a commission posted after the line was sold - has no capital to be a
+// return of. Its factor was 0/fee: a -100 % day that zeroed the TWR of the
+// line and of everything it was part of. Such a day is no return at all;
+// the money still shows in the gain.
+func TestTWRCostOnAnEmptyScopeIsNoReturn(t *testing.T) {
+	pts := []Point{{d("2026-03-02"), 1000}, {d("2026-03-03"), 0}, {d("2026-03-04"), 0}, {d("2026-03-05"), 0}}
+	flows := []Flow{{d("2026-03-03"), -1100}, {d("2026-03-05"), 2}} // sold at +10 %, a fee two days later
+	approx(t, "TWR", TWR(pts, flows), 0.10, 1e-9)
+	rows, _ := Report(pts, flows, d("2026-03-05"), 0)
+	for _, r := range rows {
+		if r.Name == "inception" {
+			approx(t, "inception gain", r.Gain, 98, 1e-9)
+		}
+	}
+}
+
 func TestDailyReturnsWeekdaysOnly(t *testing.T) {
 	// Friday June 5 2026, Saturday 6, Sunday 7, Monday 8
 	pts := []Point{
