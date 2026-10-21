@@ -1328,3 +1328,24 @@ résultat de calcul dans le cache : exactement ce que la règle interdit, et un
 chiffre figé à l'heure de la passe) ; refaire la passe spot à chaque commande
 (lent, exposé au throttling, et rien en `--offline`) ; fusionner la queue
 nowcast de pofo dans la série (le bug d'origine de D38).
+
+## D49 - Le drawdown se mesure sur la croissance neutre des flux, pas sur la valeur
+
+*2026-10-21.*
+
+**Le symptôme :** `perf` (et la page web) calculait le drawdown maximal sur la
+VALEUR du périmètre, flux compris. Or chaque vente est un flux sortant (D29) :
+vendre la moitié d'une ligne restée stable affichait un drawdown de -50 %, et
+retirer tout le cash d'un compte, un drawdown de -100 %. `metrics.Report` de
+pofo fait la même chose (son `MaxDrawdown` lit les valeurs brutes).
+
+**La règle retenue :** `perf.growth` chaîne les facteurs journaliers du TWR en
+un indice qui part de 1, et `perf.MaxDrawdown(points, flows)` lit cet indice ;
+`perf.Report` remplace le drawdown de pofo par celui-là. Entre deux flux,
+l'indice est la valeur multipliée par une échelle constante (pas un produit
+courant), si bien qu'une série sans flux garde exactement les rapports de ses
+valeurs et qu'un retour exact au pic reste exact.
+
+**pofo :** le même correctif a sa place dans `metrics.Report` ; une fois tagué,
+la façade pourra reprendre le drawdown de pofo. **Android** doit porter le
+même changement pour que les deux clients affichent le même drawdown.

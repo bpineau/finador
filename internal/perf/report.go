@@ -113,7 +113,7 @@ func Report(points []Point, flows []Flow, evalTo domain.Date, rf float64) ([]Row
 		Since:        origin,
 		Days:         sum.Days,
 		RiskFree:     rf,
-		Drawdown:     toDrawdown(sum.MaxDrawdown),
+		Drawdown:     MaxDrawdown(points, flows), // on the growth: pofo's reads the raw value
 		HasRisk:      sum.HasRisk,
 		HasCAGR:      sum.HasCAGR,
 	}

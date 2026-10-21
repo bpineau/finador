@@ -590,7 +590,9 @@ always shows the real, full span.
 Below the table: `tracking since <date> (N d)`, then the annualized figures, each
 gated by how much history backs it - **vol, Sharpe, Sortino** appear from ~90 days,
 **CAGR** only from a full year (annualizing a few weeks compounds noise into
-nonsense). Max drawdown shows whenever there's a dip. Risk-free rate comes from
+nonsense). Max drawdown shows whenever there's a dip, measured on the
+flow-neutral growth (the TWR day by day): a withdrawal or a sale lowers the value
+but is never a drawdown. Risk-free rate comes from
 `config set risk-free 2.4%`; `--to` moves the evaluation date (periods are relative
 to it), which makes output reproducible in scripts.
 

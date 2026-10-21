@@ -135,7 +135,7 @@ func TestMaxDrawdown(t *testing.T) {
 		{d("2026-01-01"), 100}, {d("2026-02-01"), 120}, {d("2026-03-01"), 90},
 		{d("2026-04-01"), 100}, {d("2026-05-01"), 125},
 	}
-	dd := MaxDrawdown(pts)
+	dd := MaxDrawdown(pts, nil)
 	approx(t, "depth", dd.Depth, -0.25, 1e-9) // 120 → 90
 	if dd.Peak != d("2026-02-01") || dd.Trough != d("2026-03-01") {
 		t.Errorf("pic/creux = %s/%s", dd.Peak, dd.Trough)
@@ -147,7 +147,7 @@ func TestMaxDrawdown(t *testing.T) {
 
 func TestMaxDrawdownNotRecovered(t *testing.T) {
 	pts := []Point{{d("2026-01-01"), 100}, {d("2026-02-01"), 80}}
-	dd := MaxDrawdown(pts)
+	dd := MaxDrawdown(pts, nil)
 	approx(t, "depth", dd.Depth, -0.20, 1e-9)
 	if dd.Recovered != nil {
 		t.Errorf("récupération = %v, attendu nil", dd.Recovered)
@@ -159,7 +159,7 @@ func TestMaxDrawdownReanchorsOnExactRetouch(t *testing.T) {
 		{d("2026-01-01"), 100}, {d("2026-02-01"), 120}, {d("2026-03-01"), 90},
 		{d("2026-04-01"), 120}, {d("2026-05-01"), 60}, {d("2026-06-01"), 121},
 	}
-	dd := MaxDrawdown(pts)
+	dd := MaxDrawdown(pts, nil)
 	approx(t, "depth", dd.Depth, -0.5, 1e-9)
 	if dd.Peak != d("2026-04-01") || dd.Trough != d("2026-05-01") {
 		t.Errorf("pic/creux = %s/%s, attendu 2026-04-01/2026-05-01", dd.Peak, dd.Trough)
@@ -167,6 +167,26 @@ func TestMaxDrawdownReanchorsOnExactRetouch(t *testing.T) {
 	if dd.Recovered == nil || *dd.Recovered != d("2026-06-01") {
 		t.Errorf("récupération = %v", dd.Recovered)
 	}
+}
+
+// A withdrawal lowers the value and loses nothing: a drawdown is a fall of
+// the flow-neutral growth, never of the money left in the scope. Taking half
+// out of a flat account read as a 50 % drawdown, and so did every sale, since
+// a sale is an outflow of the position it leaves.
+func TestMaxDrawdownIgnoresWithdrawals(t *testing.T) {
+	pts := []Point{
+		{d("2026-06-01"), 100}, {d("2026-06-02"), 110}, {d("2026-06-03"), 55},
+		{d("2026-06-04"), 49.5},
+	}
+	flows := []Flow{{d("2026-06-03"), -55}} // half withdrawn, the rest flat, then -10 %
+	dd := MaxDrawdown(pts, flows)
+	approx(t, "depth", dd.Depth, -0.10, 1e-9)
+	if dd.Peak != d("2026-06-03") || dd.Trough != d("2026-06-04") {
+		t.Errorf("peak/trough = %s/%s, want 2026-06-03/2026-06-04", dd.Peak, dd.Trough)
+	}
+
+	_, m := Report(pts, flows, d("2026-06-04"), 0)
+	approx(t, "report depth", m.Drawdown.Depth, -0.10, 1e-9)
 }
 
 func TestDailyReturnsAdjustsFlows(t *testing.T) {

@@ -104,10 +104,54 @@ type Drawdown struct {
 	Recovered    *domain.Date // nil if the peak is never regained
 }
 
-// MaxDrawdown returns the deepest drawdown episode of the series.
-func MaxDrawdown(points []Point) Drawdown {
+// MaxDrawdown returns the deepest drawdown episode of the series, measured on
+// its flow-neutral growth (see growth): a withdrawal or a sale lowers the
+// value and loses nothing, so it is never a drawdown.
+func MaxDrawdown(points []Point, flows []Flow) Drawdown {
+	dates, index := growth(points, flows)
+	return toDrawdown(metrics.MaxDrawdown(dates, index))
+}
+
+// growth chain-links the flow-adjusted daily factors of a value series into
+// an index that starts at 1: what one unit held from the first point became,
+// contributions and withdrawals neutralized - the TWR read day by day. The
+// factor of a day is pofo's, V_t/(V_{t-1} + F_t) with the day's flows booked
+// at its start, and a day whose base is not positive keeps the index flat.
+//
+// Every path-dependent statistic reads this index rather than the value: the
+// value falls by the whole amount of a withdrawal or a sale, which is money
+// leaving the scope, not money lost.
+//
+// Between two flows the index is the value times a constant scale, never a
+// running product, so a flowless stretch reads exactly the value's ratios and
+// an exact retouch of a peak stays exact.
+func growth(points []Point, flows []Flow) ([]time.Time, []float64) {
 	dates, values := toSeries(points)
-	return toDrawdown(metrics.MaxDrawdown(dates, values))
+	byDay := map[domain.Date]float64{}
+	for _, f := range flows {
+		byDay[f.Date] += f.Amount
+	}
+	index := make([]float64, len(values))
+	scale := 0.0 // index per unit of value; 0 until a positive value sets it
+	for i, v := range values {
+		switch flow := byDay[points[i].Date]; {
+		case i == 0:
+			index[0] = 1
+		case flow == 0 && scale > 0 && v > 0:
+			index[i] = scale * v
+			continue // the scale holds until the next flow
+		default:
+			index[i] = index[i-1]
+			if base := values[i-1] + flow; base > 0 {
+				index[i] *= v / base
+			}
+		}
+		scale = 0
+		if v > 0 {
+			scale = index[i] / v
+		}
+	}
+	return dates, index
 }
 
 // toDrawdown maps a pofo episode to the domain-dated Drawdown; the zero
