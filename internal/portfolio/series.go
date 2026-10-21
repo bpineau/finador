@@ -74,6 +74,10 @@ func Series(b *domain.Book, scope Scope, from, to domain.Date, ccy domain.Curren
 	var out SeriesResult
 	ti := 0
 	for d := from; !to.Before(d); d = d.AddDays(1) {
+		// The day's coupons first: an ex-date's dividend belongs to the
+		// shares held at the previous close, so a share bought that day
+		// comes without it and a share sold that day still collects it.
+		w.applyDividends(d, from.Before(d))
 		// Apply all transactions up to and including day d, one calendar day
 		// at a time (applyDay owns the order inside a day).
 		// Transactions strictly after from are collected as flows.
@@ -84,7 +88,6 @@ func Series(b *domain.Book, scope Scope, from, to domain.Date, ccy domain.Curren
 			}
 			w.applyDay(txs[start:ti], from.Before(day)) // strictly after from → flows
 		}
-		w.applyDividends(d, from.Before(d))
 		gross, net := w.valueAt(d)
 		out.Points = append(out.Points, SeriesPoint{Date: d, Gross: gross, Net: net})
 	}
@@ -485,7 +488,9 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 
 // applyDividends emits the scope flows of the day's automatic dividends
 // (assets without any manual Dividend tx). Like every other income, they
-// leave the pocket: they never land on the account's declared cash.
+// leave the pocket: they never land on the account's declared cash. It runs
+// before the day's trades: the quantity it reads is the previous close's,
+// the one the ex-date pays.
 func (w *walker) applyDividends(d domain.Date, collect bool) {
 	for _, k := range w.order {
 		p := w.pairs[k]

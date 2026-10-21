@@ -1340,8 +1340,9 @@ retirer tout le cash d'un compte, un drawdown de -100 %. `metrics.Report` de
 pofo fait la même chose (son `MaxDrawdown` lit les valeurs brutes).
 
 **La règle retenue :** `perf.growth` chaîne les facteurs journaliers du TWR en
-un indice qui part de 1, et `perf.MaxDrawdown(points, flows)` lit cet indice ;
-`perf.Report` remplace le drawdown de pofo par celui-là. Entre deux flux,
+un indice qui part de 1, et `perf.MaxDrawdown(points, flows)` comme
+`perf.Report` mesurent le drawdown sur cet indice (depuis D50, `Report` donne
+l'indice entier à pofo). Entre deux flux,
 l'indice est la valeur multipliée par une échelle constante (pas un produit
 courant), si bien qu'une série sans flux garde exactement les rapports de ses
 valeurs et qu'un retour exact au pic reste exact.

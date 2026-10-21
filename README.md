@@ -958,7 +958,8 @@ own date* for bases and *at the valuation date* for values. Display anything in
 any currency with `--ccy` - the needed FX series is fetched on demand.
 
 **Dividends.** Listed assets get their dividends automatically from Yahoo
-(quantity held at ex-date × gross amount). Like every income, a dividend
+(quantity held at the close before the ex-date × gross amount: a share bought
+on the ex-date comes without the coupon, one sold that day keeps it). Like every income, a dividend
 *leaves the pocket*: it is neutralised as an external flow, so the ex-date price
 drop is not read as a loss, but the income is not credited anywhere either -
 account returns are price returns. Declare the cash with `cash deposit` if you

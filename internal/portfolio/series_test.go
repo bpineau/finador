@@ -319,6 +319,56 @@ func TestSeriesAutoDividendFlows(t *testing.T) {
 	approx(t, "flux dividende sortant", divFlow, -34)
 }
 
+// The dividend of an ex-date belongs to the shares held at the previous
+// close: a share bought ON the ex-date is bought without its coupon, and a
+// share sold that day still collects it. The walk applied the day's trades
+// first, so a buy on the ex-date booked a coupon the holder never got (a
+// phantom gain in the TWR) and a sale lost one he did get.
+func TestSeriesAutoDividendGoesToThePreviousCloseHolders(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "cto", Name: "CTO Meridia", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []domain.AssetID{"aa", "bb"} {
+		if err := b.AddAsset(&domain.Asset{ID: id, Kind: domain.Security, Name: string(id), Currency: domain.EUR}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ex := mustDate("2026-03-04")
+	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{
+		"aa": {{ExDate: ex, Amount: 2}},
+		"bb": {{ExDate: ex, Amount: 3}},
+	}
+	// aa: 10 held the day before, 5 more bought on the ex-date -> 10 x 2.
+	addTx(b, "t1", domain.Transaction{Date: mustDate("2026-03-02"), Account: "cto", Asset: "aa",
+		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("1000")})
+	addTx(b, "t2", domain.Transaction{Date: ex, Account: "cto", Asset: "aa",
+		Kind: domain.Buy, Quantity: dec("5"), Amount: eur("490")})
+	// bb: 4 held the day before, all sold on the ex-date -> 4 x 3.
+	addTx(b, "t3", domain.Transaction{Date: mustDate("2026-03-02"), Account: "cto", Asset: "bb",
+		Kind: domain.Buy, Quantity: dec("4"), Amount: eur("400")})
+	addTx(b, "t4", domain.Transaction{Date: ex, Account: "cto", Asset: "bb",
+		Kind: domain.Sell, Quantity: dec("4"), Amount: eur("388")})
+
+	for _, tc := range []struct {
+		asset domain.AssetID
+		want  float64
+	}{{"aa", -20}, {"bb", -12}} {
+		asset, _ := b.Asset(string(tc.asset))
+		res, err := Series(b, AssetScope(asset), mustDate("2026-03-01"), mustDate("2026-03-05"), domain.EUR, fxStub{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var div float64
+		for _, f := range res.Flows {
+			if f.Date == ex && f.Amount < 0 && f.Amount > -50 { // the coupon, not the sale
+				div += f.Amount
+			}
+		}
+		approx(t, string(tc.asset)+" coupon flow", div, tc.want)
+	}
+}
+
 func TestSeriesAdoptionFlowsForProperty(t *testing.T) {
 	b := valuationBook(t)
 	// The house is valued by declaration, not by a market: each statement
