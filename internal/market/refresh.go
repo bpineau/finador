@@ -62,7 +62,7 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		}
 		// A source that RESTATES its history - a share split, a currency
 		// redenomination, a class merge - answers the overlap day with a
-		// different close. An incremental fetch starts at the last cached
+		// different close. An incremental fetch starts next to the last cached
 		// point, so merging such an answer leaves the old scale in front of
 		// the new one: a permanent cliff, which the value series reads as a
 		// session that never happened (a 4:1 split shows as -75% in the chart
@@ -139,8 +139,9 @@ const restatedTolerance = 0.02
 
 // restated reports whether incoming closes contradict the cached series on a
 // date both cover - the signature of a source that re-scaled its history. It
-// compares the FIRST shared date: an incremental fetch starts at the last
-// cached point, so that date is the junction the merge would glue. On a hit
+// compares the FIRST shared date: an incremental fetch starts at the point
+// before the last cached one (see priceFetchFrom), so that date is a settled
+// close next to the junction the merge would glue. On a hit
 // it also returns that date and the FACTOR the source applied (cached close
 // divided by the re-served one), which is the split ratio when the cause is a
 // split: a 4:1 split serves every close at a quarter, so the factor is 4.
@@ -458,7 +459,13 @@ const priceHistoryYears = 10
 // priceFetchFrom picks the start of a fetch. We want each price series to cover
 // a deep history floor (for the price chart), then refresh incrementally:
 //   - not yet back-filled to the floor (HistFrom) → fetch from the floor;
-//   - already deep enough → fetch from the last close (it moves intraday).
+//   - already deep enough → fetch from the point BEFORE the last one.
+//
+// The last point is rewritten (it moves intraday, and the spot pass merges a
+// live print under today's date), so it is no settled close: the restatement
+// canary (restated) compares the first date the fetch shares with the cache,
+// and only the point before the last one is a close both sides agree on. A
+// mid-session print 2 % away from its day's close otherwise read as a split.
 //
 // HistFrom (the floor already requested, not the earliest data point) guards
 // against re-fetching deep history forever when a security is younger than the
@@ -468,8 +475,11 @@ func priceFetchFrom(b *domain.Book, id domain.AssetID, s *domain.PriceSeries) do
 	if s.HistFrom.IsZero() || floor.Before(s.HistFrom) {
 		return floor // (back-)fill deep history once
 	}
-	if last, ok := s.Last(); ok {
-		return last.Date
+	switch n := len(s.Points); {
+	case n >= 2:
+		return s.Points[n-2].Date
+	case n == 1:
+		return s.Points[0].Date
 	}
 	return floor
 }

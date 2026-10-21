@@ -1380,3 +1380,20 @@ jour) ; décaler la sortie au lendemain (la série et `Value()` ne seraient plus
 d'accord le jour de la vente). **pofo :** la même convention a sa place dans
 `metrics.TWR`/`FlowReturns`/`Report`. **Android** doit porter la règle pour
 garder les mêmes chiffres que la CLI.
+
+## D51 - Le canari de restatement lit une clôture réglée, pas le dernier point (raffine D40)
+
+*2026-10-21.*
+
+**Le symptôme :** le dernier point d'une série de cours n'est souvent pas une
+clôture : la passe spot y range le cours vif de la séance sous la date du jour,
+et le rafraîchissement du lendemain partait de ce point. Une valeur qui avait
+bougé de plus de 2 % après la passe faisait comparer un cours de 10 h à une
+clôture : « history restated (split or redenomination) - check the ledger
+quantities », puis une reconstruction sur dix ans.
+
+**La règle retenue :** le rafraîchissement incrémental part du point AVANT le
+dernier (`priceFetchFrom`), si bien que la première date partagée, celle que lit
+`restated`, est une clôture réglée ; le dernier point est réécrit comme avant.
+Le faux `Source` des tests ne sert plus rien d'antérieur à `from`, comme une
+vraie source.

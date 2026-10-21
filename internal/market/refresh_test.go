@@ -40,7 +40,11 @@ func (f *fakeSource) Daily(_ context.Context, ref Ref, from domain.Date) (DailyD
 	if f.fail[ref.Symbol] {
 		return DailyData{}, domain.ErrNotFound
 	}
-	return f.daily[ref.Symbol], nil
+	// Like a real source, nothing before from: the overlap the restatement
+	// canary reads is the one the fetch start really yields.
+	d := f.daily[ref.Symbol]
+	d.Closes = slices.DeleteFunc(slices.Clone(d.Closes), func(p domain.PricePoint) bool { return p.Date.Before(from) })
+	return d, nil
 }
 
 func (f *fakeSource) Intraday(_ context.Context, _ Ref) (IntradayData, error) {
@@ -650,7 +654,8 @@ func TestPriceHistoryFloorReachesTheFirstTrade(t *testing.T) {
 }
 
 // TestPriceFetchFromFloorThenIncremental: deep history is (back-)filled once,
-// then every run refreshes from the last close - which still moves intraday.
+// then every run refreshes from the close before the last point - the last
+// one still moves intraday, so it is no settled overlap for the canary.
 func TestPriceFetchFromFloorThenIncremental(t *testing.T) {
 	b := bookWithTrade(t)
 	floor := priceHistoryFloor(b, "cw8")
@@ -667,7 +672,11 @@ func TestPriceFetchFromFloorThenIncremental(t *testing.T) {
 	}
 	s.Merge([]domain.PricePoint{{Date: mustDate("2026-06-02"), Close: 100}})
 	if got := priceFetchFrom(b, "cw8", s); got != mustDate("2026-06-02") {
-		t.Fatalf("incremental fetch from %s, want the last close", got)
+		t.Fatalf("incremental fetch from %s, want the only close", got)
+	}
+	s.Merge([]domain.PricePoint{{Date: mustDate("2026-06-03"), Close: 101}})
+	if got := priceFetchFrom(b, "cw8", s); got != mustDate("2026-06-02") {
+		t.Fatalf("incremental fetch from %s, want the close before the last point", got)
 	}
 }
 
@@ -891,6 +900,42 @@ func TestRefreshKeepsHistoryWhenOverlapAgrees(t *testing.T) {
 	// Exactly one daily call per instrument: no deep re-fetch.
 	if n := strings.Count(strings.Join(src.calls, "\n"), "DAILY CW8.PA"); n != 1 {
 		t.Errorf("calls = %v, expected a single CW8.PA fetch", src.calls)
+	}
+}
+
+// The last cached point is often no close at all: the spot pass merges the
+// live price struck mid-session under today's date, and the next day's
+// refresh then serves that day's real close. A stock that moved more than 2 %
+// after the pass made the canary compare a 10:00 print with a close, cry
+// "restated (split or redenomination) - check the ledger quantities" and
+// re-fetch ten years. The canary must read a settled close: the one before.
+func TestRefreshCanaryIgnoresTheSpotPrint(t *testing.T) {
+	b := bookWithTrade(t)
+	s := b.Market.Price("cw8")
+	s.Merge([]domain.PricePoint{
+		{Date: mustDate("2026-05-18"), Close: 404},
+		{Date: mustDate("2026-05-19"), Close: 408}, // spot at 10:00, the day closed at 396
+	})
+	s.HistFrom = mustDate("2016-05-15")
+	s.FetchedAt = mustDate("2026-05-19")
+
+	src := &fakeSource{daily: map[string]DailyData{
+		"CW8.PA": {Currency: domain.EUR, Closes: []domain.PricePoint{
+			{Date: mustDate("2026-05-18"), Close: 404},
+			{Date: mustDate("2026-05-19"), Close: 396},
+			{Date: mustDate("2026-05-20"), Close: 399},
+		}},
+		"EURUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-20"), Close: 1.1}}},
+	}}
+	sum := Refresh(context.Background(), b, src, true)
+	if strings.Contains(strings.Join(sum.Warnings, "\n"), "restated") {
+		t.Errorf("warnings = %v, expected no restatement", sum.Warnings)
+	}
+	if n := strings.Count(strings.Join(src.calls, "\n"), "DAILY CW8.PA"); n != 1 {
+		t.Errorf("calls = %v, expected a single CW8.PA fetch", src.calls)
+	}
+	if c, _, _ := s.At(mustDate("2026-05-19")); c != 396 {
+		t.Errorf("05-19 = %v, expected the real close 396 over the spot print", c)
 	}
 }
 
