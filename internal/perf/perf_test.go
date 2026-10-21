@@ -42,6 +42,36 @@ func TestTWRNeutralizesFlows(t *testing.T) {
 	approx(t, "TWR", TWR(pts, flows), 0.155, 1e-9)
 }
 
+// A sale is valued at the day's close, so the money it takes out leaves at
+// the END of its day: the shares earned that day before they left. Booked at
+// the start, the outflow was subtracted from the previous close it never
+// faced: selling a whole line on a down day left a base of the day's loss
+// and a value of 0, a -100 % day that zeroed the whole TWR for good.
+func TestTWROutflowLeavesAtTheClose(t *testing.T) {
+	// 10 shares: 100 -> 110 -> sold at the 105 close. The holder made +5 %.
+	pts := []Point{{d("2026-03-02"), 1000}, {d("2026-03-03"), 1100}, {d("2026-03-04"), 0}, {d("2026-03-05"), 0}}
+	flows := []Flow{{d("2026-03-04"), -1050}}
+	approx(t, "TWR, whole line sold", TWR(pts, flows), 0.05, 1e-9)
+
+	// Half sold at the same 105 close: the kept half reads the same day.
+	half := []Point{{d("2026-03-02"), 1000}, {d("2026-03-03"), 1100}, {d("2026-03-04"), 525}}
+	approx(t, "TWR, half sold", TWR(half, []Flow{{d("2026-03-04"), -525}}), 0.05, 1e-9)
+
+	rows, m := Report(pts, flows, d("2026-03-05"), 0)
+	approx(t, "inception TWR", m.InceptionTWR, 0.05, 1e-9)
+	approx(t, "drawdown", m.Drawdown.Depth, 105.0/110-1, 1e-9)
+	for _, r := range rows {
+		if r.Name == "inception" {
+			approx(t, "inception gain", r.Gain, 50, 1e-9) // 1050 out of 1000 in
+		}
+	}
+	rs, _ := DailyReturns(pts, flows)
+	if len(rs) != 2 { // the day after the sale has nothing left to earn on
+		t.Fatalf("returns = %v, want 2", rs)
+	}
+	approx(t, "sale day return", rs[1], 105.0/110-1, 1e-9)
+}
+
 func TestTWRSkipsZeroBase(t *testing.T) {
 	pts := []Point{{d("2026-06-01"), 0}, {d("2026-06-02"), 100}, {d("2026-06-03"), 110}}
 	flows := []Flow{{d("2026-06-02"), 100}}

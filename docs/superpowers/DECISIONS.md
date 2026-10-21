@@ -1349,3 +1349,33 @@ valeurs et qu'un retour exact au pic reste exact.
 **pofo :** le même correctif a sa place dans `metrics.Report` ; une fois tagué,
 la façade pourra reprendre le drawdown de pofo. **Android** doit porter le
 même changement pour que les deux clients affichent le même drawdown.
+
+## D50 - Un flux sortant quitte le périmètre à la clôture (raffine D28)
+
+*2026-10-21.*
+
+**Le symptôme :** acheter une ligne à 100, la voir monter à 110, la vendre en
+entier à la clôture de 105 affichait un TWR de -100 %, pour toujours, sur
+l'actif comme sur l'enveloppe : le gain (+50) était juste, le pourcentage
+absurde. D28 booke tous les flux en début de journée, `r = V_t/(V_{t-1} + F_t)`.
+Or une vente est valorisée au cours de CLÔTURE du jour (`Series` : le flux est la
+valeur de marché des titres à la date de l'opération) ; retranchée de la clôture
+de la veille, elle laisse pour base la perte du jour et pour valeur 0, soit un
+facteur nul qui annule tout le chaînage. Une vente partielle un jour de baisse
+diluait de même le rendement du jour.
+
+**La règle retenue :** les flux d'un jour sont nettés, et le solde se booke selon
+son sens. Entrant : début de journée, comme D28 (il gagne ce jour-là, et un gros
+apport n'est jamais rapporté à une base minuscule). Sortant : fin de journée,
+`r = (V_t - F_t)/V_{t-1}` : les titres ont gagné la journée avant de partir. Un
+jour sans base positive reste plat et ne compte pas comme rendement, comme avant.
+`perf.growth` porte la règle sous forme d'indice ; `TWR`, `DailyReturns` et
+`Report` mesurent cet indice avec pofo (fenêtres, risque, CAGR, drawdown D49),
+et les GAINS restent calculés sur les valeurs et les vrais flux.
+
+**Écarté :** valoriser la vente à la clôture de la veille (le pourcentage serait
+juste à l'ouverture près, mais le gain en monnaie perdrait le mouvement du
+jour) ; décaler la sortie au lendemain (la série et `Value()` ne seraient plus
+d'accord le jour de la vente). **pofo :** la même convention a sa place dans
+`metrics.TWR`/`FlowReturns`/`Report`. **Android** doit porter la règle pour
+garder les mêmes chiffres que la CLI.

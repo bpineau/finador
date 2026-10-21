@@ -578,6 +578,9 @@ row when `--from` is given) - with two complementary measures:
 - **TWR** chains daily returns with external flows neutralized: the real growth
   percentage of what you hold, comparable across scopes and to any index. It is
   the same figure Yahoo Finance shows for a price, extended to a portfolio.
+  Money coming in counts from the start of its day (it earns that day); money
+  going out, a sale above all, leaves at the day's close, so a line sold on a
+  down day still shows that day's move and never a -100 %.
 - **GAIN** is the money made or lost over the window, *net of contributions* - the
   value change your deposits and onboarding declarations don't explain. Declaring
   "I hold 1000 € of X" is not a 1000 € gain; only what it earns afterwards counts.

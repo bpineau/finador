@@ -586,6 +586,38 @@ func TestSeriesTWRSaneWhenFundedByTinyThenLargeFlow(t *testing.T) {
 	}
 }
 
+// The mirror of the trap above, on the way out: selling a whole line on a day
+// its price fell. The sale's flow is the shares' value at that close, and
+// booked at the start of the day it was subtracted from the previous close,
+// leaving the day's loss as the base and nothing as the value: a -100 % day,
+// and an envelope whose every window through it read -100 % for good (D50).
+func TestSeriesTWRSaneWhenAWholeLineIsSoldOnADownDay(t *testing.T) {
+	b := domain.NewBook()
+	if err := b.AddAccount(&domain.Account{ID: "cto", Name: "CTO Meridia", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddAsset(&domain.Asset{ID: "cw8", Kind: domain.Security, Name: "World", Ticker: "CW8.PA", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	b.Market.Price("cw8").Merge([]domain.PricePoint{
+		{Date: mustDate("2026-03-02"), Close: 100},
+		{Date: mustDate("2026-03-03"), Close: 110},
+		{Date: mustDate("2026-03-04"), Close: 105},
+	})
+	addTx(b, "t1", domain.Transaction{Date: mustDate("2026-03-02"), Account: "cto", Asset: "cw8",
+		Kind: domain.Buy, Quantity: dec("10"), Amount: eur("1000")})
+	addTx(b, "t2", domain.Transaction{Date: mustDate("2026-03-04"), Account: "cto", Asset: "cw8",
+		Kind: domain.Sell, Quantity: dec("10"), Amount: eur("1050")})
+
+	res, err := Series(b, Scope{Kind: All}, domain.Date{}, mustDate("2026-03-06"), domain.EUR, fxStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, m := perf.Report(res.PerfPoints(false), res.PerfFlows(), mustDate("2026-03-06"), 0)
+	approx(t, "inception TWR (%)", m.InceptionTWR*100, 5) // bought at 100, sold at 105
+	approx(t, "max drawdown (%)", m.Drawdown.Depth*100, (105.0/110-1)*100)
+}
+
 // addTx appends a transaction with an explicit id, so a fixture can pin the
 // ledger order of two records sharing a day (domain.NewID would order two
 // same-millisecond ids randomly).
