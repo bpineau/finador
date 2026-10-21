@@ -319,6 +319,53 @@ func TestSeriesAutoDividendFlows(t *testing.T) {
 	approx(t, "flux dividende sortant", divFlow, -34)
 }
 
+// A manual dividend replaces the automatic ones of ITS envelope only: a
+// broker import books the coupons of the line it covers, and the same fund
+// held in another envelope still collects its own. Switching them off for
+// the whole asset read every ex-date of the other envelope as a price drop
+// with no income against it.
+func TestSeriesManualDividendSilencesOnlyItsEnvelope(t *testing.T) {
+	b := domain.NewBook()
+	for _, id := range []domain.AccountID{"cto", "pea"} {
+		if err := b.AddAccount(&domain.Account{ID: id, Name: string(id), Currency: domain.EUR}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := b.AddAsset(&domain.Asset{ID: "vt", Kind: domain.Security, Name: "World", Currency: domain.EUR}); err != nil {
+		t.Fatal(err)
+	}
+	ex := mustDate("2026-03-04")
+	b.Market.Dividends = map[domain.AssetID][]domain.DividendEvent{"vt": {{ExDate: ex, Amount: 1}}}
+	for _, acc := range []domain.AccountID{"cto", "pea"} {
+		addTx(b, "b-"+string(acc), domain.Transaction{Date: mustDate("2026-03-02"), Account: acc, Asset: "vt",
+			Kind: domain.Buy, Quantity: dec("10"), Amount: eur("1000")})
+	}
+	// The broker statement of the CTO books its coupon by hand, paid later.
+	addTx(b, "d-cto", domain.Transaction{Date: mustDate("2026-03-10"), Account: "cto", Asset: "vt",
+		Kind: domain.Dividend, Amount: eur("10")})
+
+	for _, tc := range []struct {
+		acc  domain.AccountID
+		date domain.Date
+	}{{"cto", mustDate("2026-03-10")}, {"pea", ex}} {
+		acc, _ := b.Account(string(tc.acc))
+		res, err := Series(b, AccountScope(acc), mustDate("2026-03-01"), mustDate("2026-03-12"), domain.EUR, fxStub{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var div float64
+		for _, f := range res.Flows {
+			if f.Amount < 0 {
+				div += f.Amount
+				if f.Date != tc.date {
+					t.Errorf("%s: coupon on %s, want %s", tc.acc, f.Date, tc.date)
+				}
+			}
+		}
+		approx(t, string(tc.acc)+" coupon", div, -10) // once each, never twice
+	}
+}
+
 // The dividend of an ex-date belongs to the shares held at the previous
 // close: a share bought ON the ex-date is bought without its coupon, and a
 // share sold that day still collects it. The walk applied the day's trades

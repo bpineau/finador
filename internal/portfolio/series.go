@@ -106,7 +106,7 @@ type walker struct {
 	pairs    map[pairKey]*pairState
 	order    []pairKey
 	accounts map[domain.AccountID]*accountState
-	manual   map[domain.AssetID]bool
+	manual   map[pairKey]bool // pairs whose coupons the ledger books by hand
 	flows    []ExternalFlow
 	// warned keys are "what:from→to": one entry per amount that found no
 	// rate, whatever the number of days the loop retried it.
@@ -161,7 +161,7 @@ func newWalker(b *domain.Book, scope Scope, ccy domain.Currency, fx FX) *walker 
 		b: b, scope: scope, ccy: ccy, fx: fx,
 		pairs:    map[pairKey]*pairState{},
 		accounts: map[domain.AccountID]*accountState{},
-		manual:   manualDividendAssets(b),
+		manual:   manualDividendPairs(b),
 		warned:   map[string]*convFailure{},
 	}
 	w.prices, w.estimates = Prices(b, fx)
@@ -487,14 +487,14 @@ func (w *walker) applyTx(t *domain.Transaction, collect bool) {
 }
 
 // applyDividends emits the scope flows of the day's automatic dividends
-// (assets without any manual Dividend tx). Like every other income, they
-// leave the pocket: they never land on the account's declared cash. It runs
-// before the day's trades: the quantity it reads is the previous close's,
-// the one the ex-date pays.
+// (positions whose envelope books no manual Dividend for the asset). Like
+// every other income, they leave the pocket: they never land on the
+// account's declared cash. It runs before the day's trades: the quantity it
+// reads is the previous close's, the one the ex-date pays.
 func (w *walker) applyDividends(d domain.Date, collect bool) {
 	for _, k := range w.order {
 		p := w.pairs[k]
-		if p.qty <= 0 || w.manual[p.asset.ID] {
+		if p.qty <= 0 || w.manual[k] {
 			continue
 		}
 		for _, ev := range w.b.Market.Dividends[p.asset.ID] {

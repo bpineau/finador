@@ -554,11 +554,15 @@ func (v *valuer) cashValue(acc *domain.Account) (float64, error) {
 	return v.convNamed(balance, acc.Currency, v.ccy, v.at, acc.Name+" cash")
 }
 
-func manualDividendAssets(b *domain.Book) map[domain.AssetID]bool {
-	out := map[domain.AssetID]bool{}
+// manualDividendPairs lists the (account, asset) pairs carrying at least one
+// manual Dividend record: their coupons are the ledger's, so the automatic
+// ones are switched off - for that envelope only, since the same fund held
+// elsewhere still collects its own.
+func manualDividendPairs(b *domain.Book) map[pairKey]bool {
+	out := map[pairKey]bool{}
 	for _, t := range b.Transactions {
 		if t.Kind == domain.Dividend && t.Asset != "" {
-			out[t.Asset] = true
+			out[pairKey{t.Account, t.Asset}] = true
 		}
 	}
 	return out

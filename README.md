@@ -966,8 +966,10 @@ drop is not read as a loss, but the income is not credited anywhere either -
 account returns are price returns. Declare the cash with `cash deposit` if you
 want to see it. Set a per-asset withholding tax with
 `asset edit aapl --withholding 15%` to net the amounts. Recording any *manual*
-`dividend` transaction for an asset disables the automatic ones for that asset
-(no double counting); manual dividends are assumed already net.
+`dividend` transaction for an asset in an envelope disables the automatic ones
+for that asset in that envelope (no double counting; the same fund held in
+another envelope keeps its automatic coupons); manual dividends are assumed
+already net.
 
 **Comparing and isolating pockets.**
 

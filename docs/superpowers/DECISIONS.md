@@ -1415,3 +1415,20 @@ valeur non nulle ; `Report` et `perf --tree` mesurent à partir de là (fenêtre
 « tracking since », annualisation). Dans `perf.growth`, un jour sans rien de
 détenu ni avant ni après est un jour mort : pas de rendement, l'indice reste
 plat, et l'argent figure toujours dans le GAIN.
+
+## D53 - Les dividendes automatiques : détenteurs de la veille, enveloppe par enveloppe
+
+*2026-10-21.*
+
+**Les symptômes :** (1) `Series` payait le coupon d'une date de détachement sur
+la quantité APRÈS les opérations du jour : un titre acheté ce jour-là (sans son
+coupon) en touchait un, gain fantôme dans le TWR, et un titre vendu ce jour-là
+(qui le garde) le perdait. (2) un seul dividende saisi (ou importé d'un relevé
+de courtier) pour un actif coupait les dividendes automatiques de cet actif dans
+TOUTES les enveloppes : le même fonds détenu ailleurs voyait chaque détachement
+comme une baisse de cours sans revenu en face.
+
+**La règle retenue :** les coupons du jour passent avant les opérations du jour
+(quantité de la clôture de la veille), et un dividende manuel ne remplace les
+automatiques que pour son couple (compte, actif). **Android** (`Perf.kt`,
+`manualDividendAssets`) doit porter les deux règles.
