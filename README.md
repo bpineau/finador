@@ -325,9 +325,11 @@ your backup. All derived state (positions, cost bases, series) is recomputed by
 replaying the ledger, so transactions can always be edited or deleted safely.
 
 **Accounts are tax envelopes.** `--tax gains:18.6%` taxes
-`max(0, value − basis)`, the basis being `asset buy − asset sell + asset fee`
-plus whatever cash the account declares (cash is never a gain, so it cancels
-out). `--tax value:20%` taxes the whole value. `--tax none` (default) taxes
+`max(0, value − basis)`, the basis being `asset buy − asset sell` (average
+cost; fold a trading commission into the trade's total, as the IBKR importer
+does, since a separate `asset fee` weighs on performance but never enters the
+basis) plus whatever cash the account declares (cash is never a gain, so it
+cancels out). `--tax value:20%` taxes the whole value. `--tax none` (default) taxes
 nothing. Estimated tax shows up in `value`, on net curves and on the web.
 Cash that *earns* (a fonds euros, a yielding balance) should be modelled as an
 asset rather than declared cash, otherwise its gain is never taxed.
