@@ -78,16 +78,7 @@ func valueCmd(a *app) *cobra.Command {
 				if gross || by != "group" || len(whatIf) > 0 {
 					return fmt.Errorf("--tree is incompatible with --gross, --by and --what-if")
 				}
-				lines, err := portfolio.Breakdown(b, date, display, market.Converter{FX: b.Market.FX})
-				if err != nil {
-					return err
-				}
-				lines = portfolio.FilterScope(lines, scope)
-				if err := portfolio.WriteAssetTree(cmd.OutOrStdout(), lines, display, date); err != nil {
-					return err
-				}
-				printNotes(cmd, portfolio.Notes(lines))
-				return nil
+				return printTree(cmd, b, scope, date, display, market.Converter{FX: b.Market.FX})
 			}
 			var opts []portfolio.ValueOption
 			switch by {
@@ -298,4 +289,22 @@ func printNotes(cmd *cobra.Command, notes []string) {
 	for _, s := range notes {
 		fmt.Fprintln(cmd.ErrOrStderr(), "≈", s)
 	}
+}
+
+// printTree renders the envelope-grouped tree of `value --tree` and
+// `export --tree`: per-position lines, the exact total, then the notes.
+func printTree(cmd *cobra.Command, b *domain.Book, scope portfolio.Scope, at domain.Date, ccy domain.Currency, fx portfolio.FX) error {
+	tree, err := portfolio.ScopedTree(b, scope, at, ccy, fx)
+	if err != nil {
+		return err
+	}
+	if err := portfolio.WriteAssetTree(cmd.OutOrStdout(), tree, ccy, at); err != nil {
+		return err
+	}
+	notes := tree.Notes
+	if tree.TaxNote != "" {
+		notes = append(notes, tree.TaxNote)
+	}
+	printNotes(cmd, notes)
+	return nil
 }

@@ -18,83 +18,23 @@ type AssetRow struct {
 	Ticker, Name, ISIN string
 	Gross, Net         float64
 	Currency           domain.Currency
-	// Note labels an estimated price (see Prices). It is not a CSV column:
-	// a caller shows it beside the export.
+	// Note labels an estimated price (see Prices), in the CSV's last column
+	// too: the downloaded file is read away from the page that labelled it.
 	Note string
-}
-
-// AssetRows returns one row per held asset (non-zero value), each valued across
-// all the envelopes holding it, converted to ccy. Sorted by gross descending.
-func AssetRows(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]AssetRow, error) {
-	rows := make([]AssetRow, 0, len(b.Assets))
-	for _, a := range b.Assets {
-		v, err := Value(b, Scope{Kind: ByAsset, Asset: a, Label: a.Name}, at, ccy, fx)
-		if err != nil {
-			return nil, err
-		}
-		if v.Gross == 0 && v.Net == 0 {
-			continue // not held (or worth nothing): skip
-		}
-		rows = append(rows, AssetRow{
-			Kind:   a.Kind.String(),
-			Ticker: a.Ticker, Name: a.Name, ISIN: a.ISIN,
-			Gross: v.Gross, Net: v.Net, Currency: ccy,
-		})
-	}
-	sortRows(rows)
-	return rows, nil
-}
-
-// CashRows returns one row per account with a non-zero declared cash balance,
-// valued in ccy (net subtracts the value-tax for a TaxOnValue envelope).
-func CashRows(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]AssetRow, error) {
-	v := &valuer{b: b, fx: fx, at: at, ccy: ccy}
-	rows := make([]AssetRow, 0, len(b.Accounts))
-	for _, acc := range b.Accounts {
-		gross, err := v.cashValue(acc)
-		if err != nil {
-			return nil, err
-		}
-		if gross == 0 {
-			continue
-		}
-		net := gross
-		if acc.Tax.Mode == domain.TaxOnValue {
-			net = gross - gross*rate(acc.Tax)
-		}
-		rows = append(rows, AssetRow{Kind: "cash", Name: acc.Name, Gross: gross, Net: net, Currency: ccy})
-	}
-	return rows, nil
-}
-
-// AllRows is everything the portfolio holds: securities, properties AND
-// per-account cash, sorted by gross descending. The CSV export dumps this so
-// nothing is hidden.
-func AllRows(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]AssetRow, error) {
-	assets, err := AssetRows(b, at, ccy, fx)
-	if err != nil {
-		return nil, err
-	}
-	cash, err := CashRows(b, at, ccy, fx)
-	if err != nil {
-		return nil, err
-	}
-	rows := append(assets, cash...)
-	sortRows(rows)
-	return rows, nil
 }
 
 // ScopedRows values what the scope holds - securities and properties
 // aggregated per asset, plus one cash row per account whose cash the scope
-// keeps - sorted by gross descending. With an All scope it matches AllRows.
+// keeps - sorted by gross descending. With an All scope it is the whole
+// export, CLI and web alike.
 func ScopedRows(b *domain.Book, s Scope, at domain.Date, ccy domain.Currency, fx FX) ([]AssetRow, error) {
-	lines, err := Breakdown(b, at, ccy, fx)
+	lines, err := ScopedBreakdown(b, s, at, ccy, fx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []AssetRow
 	assetRows := map[domain.AssetID]int{} // asset → index in rows, for aggregation
-	for _, l := range FilterScope(lines, s) {
+	for _, l := range lines {
 		if l.Asset == nil {
 			rows = append(rows, AssetRow{Kind: "cash", Name: l.Account.Name, Gross: l.Gross, Net: l.Net, Currency: ccy})
 			continue
@@ -126,10 +66,10 @@ func sortRows(rows []AssetRow) {
 }
 
 // WriteAssetCSV writes rows as CSV with a header:
-// kind,ticker,name,isin,gross,net,currency.
+// kind,ticker,name,isin,gross,net,currency,note.
 func WriteAssetCSV(w io.Writer, rows []AssetRow) error {
 	cw := csv.NewWriter(w)
-	if err := cw.Write([]string{"kind", "ticker", "name", "isin", "gross", "net", "currency"}); err != nil {
+	if err := cw.Write([]string{"kind", "ticker", "name", "isin", "gross", "net", "currency", "note"}); err != nil {
 		return err
 	}
 	for _, r := range rows {
@@ -138,6 +78,7 @@ func WriteAssetCSV(w io.Writer, rows []AssetRow) error {
 			strconv.FormatFloat(r.Gross, 'f', 2, 64),
 			strconv.FormatFloat(r.Net, 'f', 2, 64),
 			string(r.Currency),
+			r.Note,
 		}); err != nil {
 			return err
 		}
@@ -198,6 +139,41 @@ func AssetTree(lines []PositionLine) []TreeEnvelope {
 	return out
 }
 
+// Tree is the envelope-grouped view of a scope, with its exact figures: each
+// envelope's Net and the total follow the per-envelope tax rule (Value), while
+// the item lines keep the per-position estimate. TaxNote says so when the two
+// readings differ; Notes are the price estimates the lines use.
+type Tree struct {
+	Envelopes  []TreeEnvelope
+	Gross, Net float64
+	TaxNote    string
+	Notes      []string
+}
+
+// ScopedTree builds the Tree of scope at `at` in ccy: the lines scope keeps,
+// grouped by envelope, with each envelope's net and the total read from Value
+// so a tree view never shows a total `value` would contradict.
+func ScopedTree(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx FX) (Tree, error) {
+	lines, err := ScopedBreakdown(b, scope, at, ccy, fx)
+	if err != nil {
+		return Tree{}, err
+	}
+	t := Tree{Envelopes: AssetTree(lines), Notes: Notes(lines)}
+	for i := range t.Envelopes {
+		v, err := Value(b, EnvelopeScope(scope, t.Envelopes[i].Account), at, ccy, fx)
+		if err != nil {
+			return Tree{}, err
+		}
+		t.Envelopes[i].Net = v.Net
+	}
+	total, err := Value(b, scope, at, ccy, fx)
+	if err != nil {
+		return Tree{}, err
+	}
+	t.Gross, t.Net, t.TaxNote = total.Gross, total.Net, total.TaxNote
+	return t, nil
+}
+
 // name is the item's sort key: the asset name, "cash" for a cash line.
 func (it TreeItem) name() string {
 	if it.Asset == nil {
@@ -230,13 +206,13 @@ func (e TreeEnvelope) CashOnly() bool {
 	return true
 }
 
-// WriteAssetTree renders the holdings as an indented, envelope-grouped tree with
-// two right-aligned columns (gross, after-tax net) in ccy at `at`. Each envelope
-// is a bare header over its indented holdings, which carry the figures; the
-// per-envelope total lives only in its children's columns. A cash-only envelope,
-// whose lone child would merely echo it, collapses onto a single numbered row.
-func WriteAssetTree(w io.Writer, lines []PositionLine, ccy domain.Currency, at domain.Date) error {
-	envs := AssetTree(lines)
+// WriteAssetTree renders a Tree as an indented, envelope-grouped list with two
+// right-aligned columns (gross, after-tax net) in ccy at `at`. Each envelope is
+// a bare header over its indented holdings, which carry the figures. A
+// cash-only envelope, whose lone child would merely echo it, collapses onto a
+// single numbered row. The TOTAL is the tree's exact one (see ScopedTree).
+func WriteAssetTree(w io.Writer, tree Tree, ccy domain.Currency, at domain.Date) error {
+	envs := tree.Envelopes
 
 	// Materialize every printable row first, to size the columns to content.
 	type row struct {
@@ -245,10 +221,8 @@ func WriteAssetTree(w io.Writer, lines []PositionLine, ccy domain.Currency, at d
 		hasNum     bool
 	}
 	var rows []row
-	var totGross, totNet float64
+	totGross, totNet := tree.Gross, tree.Net
 	for _, env := range envs {
-		totGross += env.Gross
-		totNet += env.Net
 		if env.CashOnly() {
 			rows = append(rows, row{text: env.Account.Name, gross: env.Gross, net: env.Net, hasNum: true})
 			continue

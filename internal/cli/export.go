@@ -58,16 +58,7 @@ func exportCmd(a *app) *cobra.Command {
 			ensureDisplayFX(cmd, a, f, display)
 			fx := market.Converter{FX: b.Market.FX}
 			if tree {
-				lines, err := portfolio.Breakdown(b, date, display, fx)
-				if err != nil {
-					return err
-				}
-				lines = portfolio.FilterScope(lines, scope)
-				if err := portfolio.WriteAssetTree(cmd.OutOrStdout(), lines, display, date); err != nil {
-					return err
-				}
-				printNotes(cmd, portfolio.Notes(lines))
-				return nil
+				return printTree(cmd, b, scope, date, display, fx)
 			}
 			rows, err := portfolio.ScopedRows(b, scope, date, display, fx)
 			if err != nil {

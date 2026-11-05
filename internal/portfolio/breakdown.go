@@ -22,11 +22,18 @@ type PositionLine struct {
 // Breakdown values every security position, property and declared cash at
 // `at`, in the display currency. Σ Gross equals Value(All).Gross.
 func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]PositionLine, error) {
+	return ScopedBreakdown(b, Scope{Kind: All}, at, ccy, fx)
+}
+
+// ScopedBreakdown is Breakdown restricted to the lines scope keeps, which it
+// never values outside of: a position the scope excludes cannot fail the
+// request (a missing exchange rate), exactly as with Value.
+func ScopedBreakdown(b *domain.Book, scope Scope, at domain.Date, ccy domain.Currency, fx FX) ([]PositionLine, error) {
 	v := newValuer(b, fx, at, ccy)
 	var out []PositionLine
 	for _, h := range Holdings(b, at) {
-		if h.Asset.Kind == domain.Property {
-			continue // statement-valued below
+		if h.Asset.Kind == domain.Property || !scope.hasAsset(h.Account, h.Asset) {
+			continue // a property is statement-valued below
 		}
 		gross, err := v.positionValue(h)
 		if err != nil {
@@ -40,7 +47,7 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 			Note: v.estimateNote(h.Asset.ID)})
 	}
 	for _, p := range statementPairs(b, at) {
-		if p.asset.Kind != domain.Property {
+		if p.asset.Kind != domain.Property || !scope.hasAsset(p.account, p.asset) {
 			continue
 		}
 		gross, err := v.statementValue(p.account.ID, p.asset)
@@ -54,6 +61,9 @@ func Breakdown(b *domain.Book, at domain.Date, ccy domain.Currency, fx FX) ([]Po
 		out = append(out, PositionLine{Account: p.account, Asset: p.asset, Gross: gross, Net: gross - tax})
 	}
 	for _, acc := range b.Accounts {
+		if !scope.hasCash(acc) {
+			continue
+		}
 		gross, err := v.cashValue(acc)
 		if err != nil {
 			return nil, err

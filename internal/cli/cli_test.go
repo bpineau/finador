@@ -1286,7 +1286,7 @@ func TestExportCSV(t *testing.T) {
 	out := run(t, db, "export", "--at", "2026-06-05")
 	// header, then the held position: 10 × 560 = 5600 gross ; base 5500 →
 	// gain 100 → tax 17.20 → net 5582.80.
-	if !strings.HasPrefix(out, "kind,ticker,name,isin,gross,net,currency\n") {
+	if !strings.HasPrefix(out, "kind,ticker,name,isin,gross,net,currency,note\n") {
 		t.Errorf("missing CSV header:\n%s", out)
 	}
 	if !strings.Contains(out, "security,CW8.PA,Amundi MSCI World,LU1681043599,5600.00,5582.80,EUR") {

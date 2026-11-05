@@ -157,12 +157,12 @@ func (s *Server) renderAssetsPage(w http.ResponseWriter, status int, flash, errM
 }
 
 // assetsCSV serves every holding as a CSV download (kind, ticker, name, ISIN,
-// gross, net, currency), cash included.
+// gross, net, currency, note), cash included: the CLI export, byte for byte.
 func (s *Server) assetsCSV(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	b := s.file.Book
-	rows, err := portfolio.AllRows(b, domain.Today(), b.DisplayCurrency(),
+	rows, err := portfolio.ScopedRows(b, portfolio.Scope{Kind: portfolio.All}, domain.Today(), b.DisplayCurrency(),
 		market.Converter{FX: b.Market.FX})
 	if err != nil {
 		s.renderError(w, http.StatusInternalServerError, err.Error())
@@ -363,7 +363,8 @@ func perfDay1d(res portfolio.SeriesResult, today domain.Date, rf float64) (float
 
 // assetPricePoints converts a price series into perf.Points for a sparkline,
 // filtering to [from, today] and converting from the asset's native currency
-// to the display currency. FX failures are skipped gracefully.
+// to the display currency. A day with no exchange rate is left out, never
+// drawn in the native currency beside converted ones.
 func assetPricePoints(ps *domain.PriceSeries, from, today domain.Date, assetCcy, displayCcy domain.Currency, fx market.Converter) []perf.Point {
 	if ps == nil {
 		return nil
@@ -375,9 +376,11 @@ func assetPricePoints(ps *domain.PriceSeries, from, today domain.Date, assetCcy,
 		}
 		v := p.Close
 		if assetCcy != displayCcy {
-			if converted, err := fx.Convert(p.Close, assetCcy, displayCcy, p.Date); err == nil {
-				v = converted
+			converted, err := fx.Convert(p.Close, assetCcy, displayCcy, p.Date)
+			if err != nil {
+				continue
 			}
+			v = converted
 		}
 		pts = append(pts, perf.Point{Date: p.Date, Value: v})
 	}

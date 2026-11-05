@@ -575,7 +575,7 @@ func TestAssetsCSV(t *testing.T) {
 		t.Errorf("Content-Disposition = %q", cd)
 	}
 	body := rec.Body.String()
-	if !strings.HasPrefix(body, "kind,ticker,name,isin,gross,net,currency\n") {
+	if !strings.HasPrefix(body, "kind,ticker,name,isin,gross,net,currency,note\n") {
 		t.Errorf("missing CSV header:\n%s", body)
 	}
 	// cw8: 10 × 560 = 5600 gross ; base 5500 → gain 100 → tax 17.20 → net 5582.80.

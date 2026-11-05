@@ -645,8 +645,9 @@ diffable rebuild recipe. Entry ids are regenerated on replay, so the copy is a
 new lineage - the encrypted file itself remains the real backup.
 
 Writes a CSV to stdout, one row per holding (securities, properties AND cash):
-`kind,ticker,name,isin,gross,net,currency`, each valued (gross and after estimated latent
-tax) like `value`, in the display currency. The web app serves the same file from the **export CSV** link at the bottom of
+`kind,ticker,name,isin,gross,net,currency,note`, each valued (gross and after estimated latent
+tax) like `value`, in the display currency; `note` labels a price that is an
+estimate (a lagged fund carried by its proxy), empty otherwise. The web app serves the same file from the **export CSV** link at the bottom of
 the assets tab (`GET /assets.csv`).
 
 ### Quotes: `refresh` and `--offline`

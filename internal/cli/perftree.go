@@ -27,11 +27,11 @@ var perfTreePeriods = []string{"1d", "3d", "7d", "1m", "3m", "ytd", "1y"}
 // included, belongs to the envelope row.
 func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope, display domain.Currency, evalTo domain.Date) error {
 	fx := market.Converter{FX: b.Market.FX}
-	lines, err := portfolio.Breakdown(b, evalTo, display, fx)
+	tree, err := portfolio.ScopedTree(b, scope, evalTo, display, fx)
 	if err != nil {
 		return err
 	}
-	envs := portfolio.AssetTree(portfolio.FilterScope(lines, scope))
+	envs := tree.Envelopes
 	if len(envs) == 0 {
 		return errors.New("nothing to show in this scope")
 	}
@@ -75,10 +75,8 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 	num := func(f float64) string { return strconv.FormatFloat(f, 'f', 0, 64) }
 
 	var rows []row
-	var totGross, totNet float64
+	totGross, totNet := tree.Gross, tree.Net
 	for _, env := range envs {
-		totGross += env.Gross
-		totNet += env.Net
 		envTexts, envSigns := dashes()
 		if !env.CashOnly() { // a cash-only envelope has no market performance to show
 			envTexts, envSigns = cells(portfolio.EnvelopeScope(scope, env.Account))
@@ -131,6 +129,10 @@ func perfTree(cmd *cobra.Command, a *app, b *domain.Book, scope portfolio.Scope,
 	}
 	fmt.Fprintln(out, strings.Repeat("-", labelW+2+grossW+2+netW+len(perfTreePeriods)*(cellW+2)))
 	printRow("TOTAL", num(totGross), num(totNet), totTexts, totSigns)
-	printNotes(cmd, portfolio.Notes(portfolio.FilterScope(lines, scope)))
+	notes := tree.Notes
+	if tree.TaxNote != "" {
+		notes = append(notes, tree.TaxNote)
+	}
+	printNotes(cmd, notes)
 	return nil
 }

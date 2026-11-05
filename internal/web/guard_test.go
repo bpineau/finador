@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"finador/internal/domain"
+	"finador/internal/market"
 	"finador/internal/store"
 )
 
@@ -166,5 +167,18 @@ func TestNewAssetTakesTheEnteredCurrency(t *testing.T) {
 	}
 	if a.Currency != domain.USD {
 		t.Fatalf("new asset declared in %s, want USD", a.Currency)
+	}
+}
+
+// TestSparkSkipsDaysWithoutRate: a USD price with no USD/EUR rate is left out
+// of an EUR sparkline, never drawn as if it were euros.
+func TestSparkSkipsDaysWithoutRate(t *testing.T) {
+	ps := &domain.PriceSeries{Points: []domain.PricePoint{
+		{Date: day(t, "2026-01-02"), Close: 10}, {Date: day(t, "2026-01-05"), Close: 20},
+	}}
+	pts := assetPricePoints(ps, day(t, "2026-01-01"), day(t, "2026-01-06"), domain.USD, domain.EUR,
+		market.Converter{FX: map[domain.Currency]*domain.PriceSeries{}})
+	if len(pts) != 0 {
+		t.Fatalf("USD closes drawn on an EUR sparkline with no rate: %+v", pts)
 	}
 }

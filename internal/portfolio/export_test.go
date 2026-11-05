@@ -20,9 +20,15 @@ func TestAssetRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, err := AssetRows(b, mustDate("2026-06-05"), domain.EUR, fxStub{})
+	all, err := ScopedRows(b, Scope{Kind: All}, mustDate("2026-06-05"), domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	var rows []AssetRow
+	for _, r := range all {
+		if r.Kind != "cash" {
+			rows = append(rows, r)
+		}
 	}
 	if len(rows) != 2 {
 		t.Fatalf("rows = %d, want 2 (ghost skipped):\n%+v", len(rows), rows)
@@ -87,12 +93,12 @@ func TestWriteAssetTree(t *testing.T) {
 	at := mustDate("2026-06-05")
 	cw8, _ := b.Asset("cw8")
 	cw8.ISIN = "LU1681043599"
-	lines, err := Breakdown(b, at, domain.EUR, fxStub{})
+	tree, err := ScopedTree(b, Scope{Kind: All}, at, domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if err := WriteAssetTree(&buf, lines, domain.EUR, at); err != nil {
+	if err := WriteAssetTree(&buf, tree, domain.EUR, at); err != nil {
 		t.Fatal(err)
 	}
 	out := buf.String()
@@ -137,11 +143,7 @@ func TestWriteAssetTree(t *testing.T) {
 		t.Errorf("a cash-only account must keep its total on one row, got %q:\n%s", livret, out)
 	}
 	// a TOTAL footer with a net below the gross (latent tax on the house gain)
-	var totG, totN float64
-	for _, l := range lines {
-		totG += l.Gross
-		totN += l.Net
-	}
+	totG, totN := tree.Gross, tree.Net
 	if totN >= totG {
 		t.Fatalf("net %.0f should sit below gross %.0f", totN, totG)
 	}
@@ -153,23 +155,16 @@ func TestWriteAssetTree(t *testing.T) {
 	footer := out[i:]
 	if !strings.Contains(footer, strconv.FormatFloat(totG, 'f', 0, 64)) ||
 		!strings.Contains(footer, strconv.FormatFloat(totN, 'f', 0, 64)) {
-		t.Errorf("TOTAL must show Σgross and Σnet (%s):\n%s", want, footer)
+		t.Errorf("TOTAL must show the exact gross and net (%s):\n%s", want, footer)
 	}
 }
 
-func TestAllRowsIncludesCash(t *testing.T) {
+func TestExportIncludesCash(t *testing.T) {
 	b := valuationBook(t)
 	at := mustDate("2026-06-05")
-	assets, err := AssetRows(b, at, domain.EUR, fxStub{})
+	all, err := ScopedRows(b, Scope{Kind: All}, at, domain.EUR, fxStub{})
 	if err != nil {
 		t.Fatal(err)
-	}
-	all, err := AllRows(b, at, domain.EUR, fxStub{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(all) <= len(assets) {
-		t.Fatalf("AllRows (%d) must add cash rows on top of AssetRows (%d)", len(all), len(assets))
 	}
 	// the Livret's tracked cash (statement 12000) must surface as a cash row.
 	found := false
@@ -179,33 +174,15 @@ func TestAllRowsIncludesCash(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("AllRows must expose the Livret tracked cash (12000)")
+		t.Error("the export must expose the Livret tracked cash (12000)")
 	}
 }
 
-// ScopedRows with All must be exactly the full export; a narrower scope
-// keeps only its own positions and cash.
+// A narrower scope keeps only its own positions and cash.
 func TestScopedRows(t *testing.T) {
 	b := valuationBook(t)
 	at := mustDate("2026-06-05")
 	fx := fxStub{}
-
-	all, err := AllRows(b, at, domain.EUR, fx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	scoped, err := ScopedRows(b, Scope{Kind: All}, at, domain.EUR, fx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(scoped) != len(all) {
-		t.Fatalf("All scope: %d rows, want %d", len(scoped), len(all))
-	}
-	for i := range all {
-		if all[i] != scoped[i] {
-			t.Errorf("row %d differs: %+v vs %+v", i, all[i], scoped[i])
-		}
-	}
 
 	pea, _ := b.Account("pea")
 	got, err := ScopedRows(b, Scope{Kind: ByAccount, Account: pea}, at, domain.EUR, fx)
