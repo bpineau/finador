@@ -8,7 +8,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -123,12 +125,22 @@ func (s *Server) syncSaved(ctx context.Context, msg string) error {
 	return nil
 }
 
-// persist saves the ledger then pushes it. Used by writes that have no
-// in-memory rollback step; handlers that revert the book on save failure call
-// s.file.Save() and s.syncSaved() separately, so a push error does not trigger
-// a rollback that would diverge memory from the saved-and-dirty working copy.
+// persist saves the ledger then pushes it. A failed Save reverts the book to
+// what is on disk, so the change reported as failed cannot ride along with the
+// next successful save. A failed push does not: the save stands (the working
+// copy stays dirty and is pushed later), and memory must keep matching it.
+// revert drops the book's unsaved changes after a mutation failed halfway
+// (a CSV import stopped by a bad line, a form that created an asset before
+// failing). Callers hold the write lock.
+func (s *Server) revert() {
+	if err := s.file.Revert(); err != nil {
+		log.Printf("revert: %v", err)
+	}
+}
+
 func (s *Server) persist(ctx context.Context, msg string) error {
 	if err := s.file.Save(); err != nil {
+		s.revert()
 		return err
 	}
 	return s.syncSaved(ctx, msg)
@@ -247,7 +259,9 @@ func (s *Server) quoteNote(asset *domain.Asset) string {
 		}
 		return fmt.Sprintf("last quote %.2f %s · close of %s", q.Price, q.Currency, q.Time.Format("2006-01-02"))
 	}
-	if last, ok := s.file.Book.Market.Price(asset.ID).Last(); ok {
+	// Index the map, never Market.Price: that one creates the series on a
+	// miss, a write two page loads would race on under the read lock.
+	if last, ok := s.file.Book.Market.Prices[asset.ID].Last(); ok {
 		return fmt.Sprintf("last quote %.2f %s · close of %s", last.Close, asset.Currency, last.Date)
 	}
 	return ""
@@ -308,7 +322,29 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /import", s.importUpload)
 	mux.HandleFunc("POST /refresh", s.refresh)
 	mux.HandleFunc("GET /", s.notFound)
-	return s.freshen(mux)
+	// No cookies and a loopback bind do not stop a page on another site from
+	// submitting a form here: refuse every cross-origin POST (Sec-Fetch-Site,
+	// then Origin; a non-browser client sends neither and passes).
+	return http.NewCrossOriginProtection().Handler(s.freshen(mux))
+}
+
+// LoopbackOnly refuses a request whose Host is not a loopback name. A server
+// bound to 127.0.0.1 is still reachable from a browser page through DNS
+// rebinding (a hostile name re-pointed at 127.0.0.1): that request carries the
+// hostile name in Host, which this check turns away before it reads anything.
+func LoopbackOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		switch strings.Trim(host, "[]") {
+		case "127.0.0.1", "localhost", "::1":
+			next.ServeHTTP(w, r)
+		default:
+			http.Error(w, "finador: unexpected Host header", http.StatusMisdirectedRequest)
+		}
+	})
 }
 
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {

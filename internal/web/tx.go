@@ -296,6 +296,7 @@ func (s *Server) txCreate(w http.ResponseWriter, r *http.Request) {
 	b := s.file.Book
 	tx, err := parseTxForm(b, r)
 	if err != nil {
+		s.revert() // the form may have created its asset before failing
 		s.renderTxPage(w, http.StatusBadRequest, "", err.Error())
 		return
 	}
@@ -326,10 +327,8 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 	if err != nil {
 		return zero, err
 	}
-	accCcy := acc.Currency
-
 	assetRef := r.FormValue("asset")
-	ccy := accCcy
+	ccy := acc.Currency
 	var asset *domain.Asset
 	if assetRef != "" {
 		asset, err = b.Asset(assetRef)
@@ -338,7 +337,7 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 		}
 		if asset != nil {
 			ccy = asset.Currency
-		} // an asset to be created will be priced in the account's currency
+		} // an asset to be created is priced in the currency entered, else the account's
 	}
 	if (kind == domain.Buy || kind == domain.Sell || kind == domain.Dividend) && assetRef == "" {
 		return zero, fmt.Errorf("a %s requires an asset", kind)
@@ -365,9 +364,10 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 		}
 	}
 
-	// Assets are created on the fly; accounts must already be declared.
+	// Assets are created on the fly, in the operation's currency (as the CLI
+	// does); accounts must already be declared.
 	if assetRef != "" && asset == nil {
-		if asset, err = portfolio.EnsureAsset(b, assetRef, accCcy, ""); err != nil {
+		if asset, err = portfolio.EnsureAsset(b, assetRef, ccy, ""); err != nil {
 			return zero, err
 		}
 	}
@@ -441,6 +441,7 @@ func (s *Server) txEditSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	parsed, err := parseTxForm(s.file.Book, r)
 	if err != nil {
+		s.revert()
 		s.renderTxEdit(w, http.StatusBadRequest, tx, err.Error())
 		return
 	}

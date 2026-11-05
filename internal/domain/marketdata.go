@@ -106,7 +106,9 @@ type ProxyQuotes struct {
 	Opens    *PriceSeries `json:"opens,omitempty"`
 }
 
-// Price returns the price series of an asset, creating it lazily.
+// Price returns the price series of an asset, creating it lazily: a WRITE,
+// for the refresh path. A reader indexes Prices directly (a nil series reads
+// as empty), or two concurrent readers race on the map.
 func (m *MarketData) Price(id AssetID) *PriceSeries {
 	if m.Prices == nil {
 		m.Prices = map[AssetID]*PriceSeries{}

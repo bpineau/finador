@@ -715,7 +715,9 @@ history, with quiet 1m/3m/1y range links), transaction entry/edit/delete
 (the edit page also renames the entry's asset everywhere, by its stable ID),
 CSV import, quote refresh.
 No web authentication: keep it on 127.0.0.1 (a loud warning is printed
-otherwise).
+otherwise). A POST from another site is refused (`Sec-Fetch-Site` / `Origin`),
+and on a loopback address so is any request whose `Host` is not a loopback
+name (DNS rebinding).
 
 ### Settings: `config` and `lock`
 
@@ -1104,8 +1106,9 @@ one repo. Local mode stays the default and the fallback.
   (tmp + fsync + rename). The full spec is [docs/FORMAT.md](docs/FORMAT.md).
 - KDF: Argon2id, time=3, memory=64 MiB. Parameters are bounds-checked before
   derivation, so a forged file cannot OOM the process.
-- No telemetry, no external resources; the only network calls are Yahoo quote
-  endpoints, and only when you allow them.
+- No telemetry, no external resources. The only network calls are the quote
+  sources (Yahoo, then FT and Morningstar as fallbacks; never with `--offline`)
+  and, in GitHub mode, the GitHub Contents API that syncs the encrypted file.
 
 Implementation notes and trade-offs are journaled in
 `docs/superpowers/DECISIONS.md`; the original spec and the phase-by-phase

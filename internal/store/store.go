@@ -254,3 +254,19 @@ func (f *File) Compact() error {
 	})
 	return f.reseal(recs)
 }
+
+// Revert drops every unsaved change to the Book: it is rebuilt from the
+// records last persisted, keeping the in-memory quote cache. A long-lived
+// holder of a File (the web server) calls it when a mutation fails halfway or
+// its Save fails, or the next successful Save of an unrelated change would
+// persist what was reported as failed.
+func (f *File) Revert() error {
+	book, err := replay(f.entries)
+	if err != nil {
+		return fmt.Errorf("%s: unreadable content: %w", f.Path, err)
+	}
+	book.Market = f.Book.Market
+	f.Book = book
+	f.snap = snapshotOf(book)
+	return nil
+}

@@ -36,7 +36,8 @@ func serveCmd(a *app) *cobra.Command {
 				return err
 			}
 			a.ensureFresh(cmd, f)
-			if host != "127.0.0.1" && host != "localhost" && host != "::1" {
+			loopback := host == "127.0.0.1" || host == "localhost" || host == "::1"
+			if !loopback {
 				fmt.Fprintf(cmd.ErrOrStderr(),
 					"WARNING: %s exposes your portfolio beyond this machine (no web authentication)\n", addr)
 			}
@@ -46,7 +47,11 @@ func serveCmd(a *app) *cobra.Command {
 			// One batched quote call per tick, so the page a user leaves open
 			// tracks the session instead of the quarter hour it was loaded in.
 			go srv.AutoRefresh(ctx, 2*time.Minute)
-			httpSrv := &http.Server{Addr: addr, Handler: srv.Handler()}
+			handler := srv.Handler()
+			if loopback {
+				handler = web.LoopbackOnly(handler)
+			}
+			httpSrv := &http.Server{Addr: addr, Handler: handler}
 			errc := make(chan error, 1)
 			go func() { errc <- httpSrv.ListenAndServe() }()
 			fmt.Fprintf(cmd.OutOrStdout(), "finador on http://%s - Ctrl-C to stop\n", addr)

@@ -42,11 +42,10 @@ func (s *Server) importUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	// if an error occurs mid-file, the in-memory Book retains already-added lines
-	// (unsaved); the next successful save will persist them - "last write wins"
-	// posture assumed (D9), the error is displayed.
+	// All or nothing: a bad line drops the lines already added before it.
 	added, skipped, err := portfolio.ImportCSV(s.file.Book, file)
 	if err != nil {
+		s.revert()
 		http.Redirect(w, r, "/import?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
