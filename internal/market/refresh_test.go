@@ -1111,3 +1111,30 @@ func TestRestatementWithoutARatioClaimsNothing(t *testing.T) {
 		t.Errorf("actions = %v, expected none", sum.Actions)
 	}
 }
+
+// TestRefreshDropsAnotherInstrumentsQuotes: the asset's ticker and currency
+// were edited (maybe on another device) after its series was fetched today.
+// The old numbers belong to another instrument: they are dropped and fetched
+// again, even though the series reads as fresh.
+func TestRefreshDropsAnotherInstrumentsQuotes(t *testing.T) {
+	b := bookWithTrade(t)
+	cw8, _ := b.Asset("cw8")
+	old := *cw8
+	old.Ticker, old.Currency = "CW8.US", domain.USD
+	b.Market.Prices = map[domain.AssetID]*domain.PriceSeries{"cw8": {
+		Points:    []domain.PricePoint{{Date: mustDate("2026-05-15"), Close: 10}},
+		FetchedAt: domain.Today(), Quote: old.QuoteKey(),
+	}}
+	src := &fakeSource{daily: map[string]DailyData{
+		"CW8.PA":   {Currency: domain.EUR, Closes: []domain.PricePoint{{Date: mustDate("2026-05-15"), Close: 550}}},
+		"EURUSD=X": {Currency: domain.USD, Closes: []domain.PricePoint{{Date: mustDate("2026-05-15"), Close: 1.1}}},
+	}}
+	Refresh(context.Background(), b, src, false)
+	s := b.Market.Prices["cw8"]
+	if c, _, _ := s.At(mustDate("2026-05-15")); c != 550 {
+		t.Fatalf("close = %v, want 550: the other instrument's number survived", c)
+	}
+	if s.Quote != cw8.QuoteKey() {
+		t.Fatalf("series not re-keyed: %q", s.Quote)
+	}
+}

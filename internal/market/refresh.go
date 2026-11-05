@@ -39,6 +39,16 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		if asset.Kind != domain.Security || asset.Ticker == "" {
 			continue
 		}
+		// A series fetched for another instrument (the ticker, ISIN or currency
+		// was edited, maybe on another device) holds numbers that are not this
+		// asset's, possibly in another currency: drop them and fetch afresh.
+		key := asset.QuoteKey()
+		if old := b.Market.Prices[asset.ID]; old != nil && old.Quote != "" && old.Quote != key {
+			delete(b.Market.Prices, asset.ID)
+			delete(b.Market.Dividends, asset.ID)
+			sum.Warnings = append(sum.Warnings, fmt.Sprintf(
+				"%s: ticker, ISIN or currency changed - cached quotes dropped, history fetched again", asset.Ticker))
+		}
 		series := b.Market.Price(asset.ID)
 		if !force && !series.FetchedAt.Before(today) {
 			continue
@@ -93,6 +103,7 @@ func Refresh(ctx context.Context, b *domain.Book, src Source, force bool) Summar
 		}
 		series.Merge(data.Closes)
 		series.FetchedAt = today
+		series.Quote = key
 		if series.HistFrom.IsZero() || from.Before(series.HistFrom) {
 			series.HistFrom = from // remember how deep we have fetched
 		}

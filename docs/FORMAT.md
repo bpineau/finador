@@ -678,7 +678,8 @@ file:
 
 ```json
 {
-  "prices":    {"<asset-id>": {"points":[{"d":"2024-01-20","c":450.0}], "fetchedAt":"2024-01-21"}},
+  "prices":    {"<asset-id>": {"points":[{"d":"2024-01-20","c":450.0}], "fetchedAt":"2024-01-21",
+                              "quote":"CW8.PA|LU1681043599|EUR"}},
   "fx":        {"USD":        {"points":[{"d":"…","c":1.08}],            "fetchedAt":"…"}},
   "dividends": {"<asset-id>": [{"exDate":"2024-03-10","amount":1.25}]},
   "spotAt":    "2024-01-21T16:14:00+01:00",
@@ -687,6 +688,13 @@ file:
                                 "opens":  {"points":[{"d":"…","c":0.98}], "fetchedAt":"…"}}}
 }
 ```
+
+`quote` (optional) names the instrument a price series was fetched for:
+`ticker|isin|currency` of the asset at fetch time. When the asset's current
+key differs (its ticker, ISIN or currency was edited, on any device), the
+series and the asset's dividends belong to another instrument: a reader drops
+them and fetches again. A series without it predates the field and adopts
+the current key at its next fetch.
 
 `proxies` holds, for a fund priced once a day and published with a lag, the
 raw quotes of the listed instrument that carries it past its last published

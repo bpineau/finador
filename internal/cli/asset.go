@@ -12,6 +12,7 @@ import (
 
 	"finador/internal/domain"
 	"finador/internal/market"
+	"finador/internal/store"
 )
 
 func assetCmd(a *app) *cobra.Command {
@@ -248,11 +249,13 @@ func assetEdit(a *app) *cobra.Command {
 		Example: "  finador asset edit cw8 --group equities/world --withholding 15%",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.mutate(func(b *domain.Book) error {
+			return a.mutateFile(func(f *store.File) error {
+				b := f.Book
 				asset, err := b.Asset(args[0])
 				if err != nil {
 					return err
 				}
+				quoteKey := asset.QuoteKey()
 				if name != "" {
 					asset.Name = name
 				}
@@ -279,7 +282,17 @@ func assetEdit(a *app) *cobra.Command {
 				if err := b.CheckAssetRefs(asset); err != nil {
 					return err
 				}
+				if err := f.Save(); err != nil {
+					return err
+				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Asset %s updated\n", asset.ID)
+				if asset.QuoteKey() != quoteKey {
+					// Another instrument now: the cached quotes are not its own.
+					b.Market.Forget(asset.ID)
+					if err := f.SaveCache(); err != nil {
+						return err
+					}
+				}
 				return nil
 			})
 		},

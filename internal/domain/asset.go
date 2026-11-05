@@ -70,3 +70,10 @@ type Asset struct {
 	// (net = gross × (1−w)); manual Dividend lines are assumed already net.
 	Withholding float64 `json:"withholding,omitempty"`
 }
+
+// QuoteKey names the instrument an asset's quotes are fetched for: its
+// ticker, ISIN and currency. Cached quotes fetched under another key belong
+// to another instrument (see PriceSeries.Quote).
+func (a *Asset) QuoteKey() string {
+	return a.Ticker + "|" + a.ISIN + "|" + string(a.Currency)
+}

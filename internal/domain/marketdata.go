@@ -22,6 +22,11 @@ type PriceSeries struct {
 	// earliest data point: a young security's history may start later). It lets
 	// the refresh back-fill deep history once without re-fetching it forever.
 	HistFrom Date `json:"histFrom,omitzero"`
+	// Quote is the instrument the series was fetched for (Asset.QuoteKey). An
+	// asset whose ticker, ISIN or currency changed since, here or on another
+	// device, no longer owns these numbers: the refresh drops them. Empty in a
+	// cache written before the field existed (adopted at the next fetch).
+	Quote string `json:"quote,omitempty"`
 }
 
 // At returns the last close at or before d (forward-fill), with its date.
@@ -104,6 +109,14 @@ type ProxyQuotes struct {
 	OnOpen   bool         `json:"onOpen,omitempty"`
 	Closes   *PriceSeries `json:"closes"`
 	Opens    *PriceSeries `json:"opens,omitempty"`
+}
+
+// Forget drops everything cached for an asset: its price series, dividends
+// and proxy quotes.
+func (m *MarketData) Forget(id AssetID) {
+	delete(m.Prices, id)
+	delete(m.Dividends, id)
+	delete(m.Proxies, id)
 }
 
 // Price returns the price series of an asset, creating it lazily: a WRITE,

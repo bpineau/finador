@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
@@ -256,6 +257,7 @@ func (s *Server) assetEditSubmit(w http.ResponseWriter, r *http.Request) {
 	// asset is a live pointer in the book: apply the edit, but restore the previous
 	// state if validation or save fails so the in-memory book stays consistent.
 	prev := *asset
+	quoteKey := asset.QuoteKey()
 	asset.Kind, asset.Name, asset.Ticker, asset.ISIN = f.kind, f.name, f.ticker, f.isin
 	asset.Aliases, asset.Currency, asset.Group, asset.Withholding = f.aliases, f.ccy, f.group, f.withholding
 	if err := s.file.Book.CheckAssetRefs(asset); err != nil {
@@ -267,6 +269,13 @@ func (s *Server) assetEditSubmit(w http.ResponseWriter, r *http.Request) {
 		*asset = prev
 		s.renderAssetEdit(w, http.StatusInternalServerError, asset, "could not save: "+err.Error())
 		return
+	}
+	if asset.QuoteKey() != quoteKey {
+		// Another instrument now: the cached quotes are not its own.
+		s.file.Book.Market.Forget(asset.ID)
+		if err := s.file.SaveCache(); err != nil {
+			log.Printf("edit asset: cache not saved: %v", err)
+		}
 	}
 	if err := s.syncSaved(r.Context(), "web: edit asset"); err != nil {
 		s.renderAssetEdit(w, http.StatusInternalServerError, asset, "saved locally, but could not sync to the remote: "+err.Error())
