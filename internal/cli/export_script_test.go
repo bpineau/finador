@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -48,12 +49,29 @@ func TestWriteScriptEmitsReplayOrder(t *testing.T) {
 	if err := writeScript(&out, b); err != nil {
 		t.Fatal(err)
 	}
-	buyAt := strings.Index(out.String(), "finador asset buy")
-	sellAt := strings.Index(out.String(), "finador asset sell")
+	buyAt := strings.Index(out.String(), "fin asset buy")
+	sellAt := strings.Index(out.String(), "fin asset sell")
 	if buyAt < 0 || sellAt < 0 {
 		t.Fatalf("script does not carry both trades:\n%s", out.String())
 	}
 	if buyAt > sellAt {
 		t.Fatalf("script emits the sell before the buy, replaying in the wrong order:\n%s", out.String())
+	}
+}
+
+// TestShqIsLiteralInARealShell: whatever a name or a note holds, /bin/sh reads
+// it back verbatim: no substitution, no expansion, no word splitting.
+func TestShqIsLiteralInARealShell(t *testing.T) {
+	for _, s := range []string{
+		"plain", "two words", "literal $(printf SUBSTITUTED)", "back `printf TICKED`",
+		"it's", `a "quoted" \ word`, "line one\nline two", "$HOME ~ * ? [x] ; | & < >", "",
+	} {
+		out, err := exec.Command("/bin/sh", "-c", "printf %s "+shq(s)).Output()
+		if err != nil {
+			t.Fatalf("sh on %q: %v", shq(s), err)
+		}
+		if string(out) != s {
+			t.Errorf("shq(%q) = %s reads back as %q", s, shq(s), out)
+		}
 	}
 }

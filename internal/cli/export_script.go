@@ -3,7 +3,8 @@ package cli
 import (
 	"fmt"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,28 +12,28 @@ import (
 	"finador/internal/portfolio"
 )
 
-// writeScript dumps the book as a replayable sequence of finador commands:
-// config, accounts, assets, then every ledger record in replay order, labels
-// last. Running the script against a freshly `finador init`-ed file rebuilds
-// an equivalent portfolio (entry IDs and import hashes are regenerated, so
+// writeScript dumps the book as a replayable shell script of finador commands:
+// init of the destination named as its argument, accounts, assets, config,
+// then every ledger record in replay order, labels last. It rebuilds an
+// equivalent portfolio (entry IDs and import hashes are regenerated, so
 // the copy does not merge/sync as the same lineage - it is a rebuild recipe,
 // not a backup; the encrypted file itself is the backup).
 func writeScript(w io.Writer, b *domain.Book) error {
 	var s strings.Builder
-	s.WriteString("# finador portfolio dump - replay into a fresh file:\n")
-	s.WriteString("#   finador --db new.fin init && sh this-file.sh\n")
-
-	keys := make([]string, 0, len(b.Config))
-	for k := range b.Config {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		fmt.Fprintf(&s, "finador config set %s %s\n", shq(k), shq(b.Config[k]))
-	}
+	// Every command names the NEW file: a bare `finador` would write to the
+	// default ledger, the very one this dump came from. `set -eu` stops at
+	// the first error, so an existing destination (init refuses it) or a
+	// refused command never leaves a half-applied rebuild.
+	s.WriteString("#!/bin/sh\n")
+	s.WriteString("# finador portfolio dump - rebuild it into a NEW file:\n")
+	s.WriteString("#   sh this-file.sh new.fin\n")
+	s.WriteString("set -eu\n")
+	s.WriteString("db=${1:?usage: sh this-file.sh new.fin}\n")
+	s.WriteString("fin() { finador --db \"$db\" \"$@\"; }\n")
+	s.WriteString("fin init\n")
 
 	for _, acc := range b.Accounts {
-		fmt.Fprintf(&s, "finador account add %s", shq(acc.Name))
+		fmt.Fprintf(&s, "fin account add %s", shq(acc.Name))
 		if acc.Currency != domain.EUR {
 			fmt.Fprintf(&s, " --ccy %s", acc.Currency)
 		}
@@ -47,7 +48,7 @@ func writeScript(w io.Writer, b *domain.Book) error {
 
 	for _, a := range b.Assets {
 		arg := assetRef(a)
-		fmt.Fprintf(&s, "finador asset add %s", shq(arg))
+		fmt.Fprintf(&s, "fin asset add %s", shq(arg))
 		if a.Kind == domain.Property {
 			s.WriteString(" --kind property")
 		}
@@ -55,7 +56,7 @@ func writeScript(w io.Writer, b *domain.Book) error {
 			fmt.Fprintf(&s, " --name %s", shq(a.Name))
 		}
 		if a.ISIN != "" {
-			fmt.Fprintf(&s, " --isin %s", a.ISIN)
+			fmt.Fprintf(&s, " --isin %s", shq(a.ISIN))
 		}
 		if a.Currency != domain.EUR {
 			fmt.Fprintf(&s, " --ccy %s", a.Currency)
@@ -68,10 +69,12 @@ func writeScript(w io.Writer, b *domain.Book) error {
 		}
 		s.WriteString("\n")
 		if a.Withholding != 0 {
-			fmt.Fprintf(&s, "finador asset edit %s --withholding %s%%\n",
+			fmt.Fprintf(&s, "fin asset edit %s --withholding %s%%\n",
 				shq(arg), strconv.FormatFloat(a.Withholding*100, 'f', -1, 64))
 		}
 	}
+
+	writeConfig(&s, b)
 
 	// Replay order, not merely date order: each emitted command mints a fresh
 	// id, and those ids come out in emission order (domain.NewID is monotonic
@@ -90,7 +93,7 @@ func writeScript(w io.Writer, b *domain.Book) error {
 		if errA != nil || errB != nil {
 			continue // dangling label: nothing to recreate it against
 		}
-		fmt.Fprintf(&s, "finador label add %s --account %s --asset %s\n",
+		fmt.Fprintf(&s, "fin label add %s --account %s --asset %s\n",
 			shq(l.Name), shq(acc.Name), shq(assetRef(asset)))
 	}
 
@@ -120,25 +123,29 @@ func writeTx(s *strings.Builder, b *domain.Book, t *domain.Transaction) error {
 	}
 	switch t.Kind {
 	case domain.Buy, domain.Sell:
-		fmt.Fprintf(s, "finador asset %s %s %s %s %s --account %s --ccy %s%s\n",
+		fmt.Fprintf(s, "fin asset %s %s %s %s %s --account %s --ccy %s%s\n",
 			kindWord(t.Kind), assetArg, t.Quantity.String(), amount, t.Date, shq(acc.Name), ccy, note)
-	case domain.Dividend, domain.Fee:
-		fmt.Fprintf(s, "finador asset %s %s %s %s --account %s --ccy %s%s\n",
+	case domain.Fee:
+		if t.Asset == "" { // charged to the account itself
+			fmt.Fprintf(s, "fin cash fee %s %s %s --ccy %s%s\n", shq(acc.Name), amount, t.Date, ccy, note)
+			return nil
+		}
+		fmt.Fprintf(s, "fin asset fee %s %s %s --account %s --ccy %s%s\n",
+			assetArg, amount, t.Date, shq(acc.Name), ccy, note)
+	case domain.Dividend:
+		fmt.Fprintf(s, "fin asset %s %s %s %s --account %s --ccy %s%s\n",
 			kindWord(t.Kind), assetArg, amount, t.Date, shq(acc.Name), ccy, note)
 	case domain.Deposit, domain.Withdraw:
-		fmt.Fprintf(s, "finador cash %s %s %s %s --ccy %s%s\n",
+		fmt.Fprintf(s, "fin cash %s %s %s %s --ccy %s%s\n",
 			kindWord(t.Kind), shq(acc.Name), amount, t.Date, ccy, note)
 	case domain.Statement:
 		if t.Asset != "" {
-			fmt.Fprintf(s, "finador asset set %s %s --at %s --account %s --ccy %s%s\n",
+			fmt.Fprintf(s, "fin asset set %s %s --at %s --account %s --ccy %s%s\n",
 				assetArg, amount, t.Date, shq(acc.Name), ccy, note)
 			return nil
 		}
-		fmt.Fprintf(s, "finador cash set %s %s --at %s --ccy %s\n",
-			shq(acc.Name), amount, t.Date, ccy)
-		if t.Note != "" {
-			fmt.Fprintf(s, "# note on the statement above: %s\n", t.Note)
-		}
+		fmt.Fprintf(s, "fin cash set %s %s --at %s --ccy %s%s\n",
+			shq(acc.Name), amount, t.Date, ccy, note)
 	default:
 		return fmt.Errorf("transaction %s: unmapped kind %v", t.ID, t.Kind)
 	}
@@ -173,12 +180,30 @@ func assetRef(a *domain.Asset) string {
 	return a.Name
 }
 
-// shq quotes a script argument when it needs it: plain tokens pass through,
-// anything with spaces or shell-significant characters is double-quoted
-// (Go syntax, which a POSIX shell reads identically for these strings).
+// writeConfig emits the settings. One that names an account is written with
+// the account's name: the rebuild mints new ids, so an id would point at
+// nothing there.
+func writeConfig(s *strings.Builder, b *domain.Book) {
+	for _, k := range slices.Sorted(maps.Keys(b.Config)) {
+		v := b.Config[k]
+		if k == "default-account" {
+			if acc, err := b.Account(v); err == nil {
+				v = acc.Name
+			}
+		}
+		fmt.Fprintf(s, "fin config set %s %s\n", shq(k), shq(v))
+	}
+}
+
+// shq quotes a script argument for a POSIX shell: a plain token passes
+// through, anything else is single-quoted, where nothing is special (no
+// $(...), no backtick, no backslash, a newline stays literal); a single
+// quote inside closes the quoting, is escaped, then reopens it. A name or a
+// note from a broker statement never runs.
 func shq(s string) string {
-	if s != "" && !strings.ContainsAny(s, " \t'\"\\$`#|&;()<>*?[]{}~") {
+	const plain = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/:%@+=,-"
+	if s != "" && strings.Trim(s, plain) == "" {
 		return s
 	}
-	return strconv.Quote(s)
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

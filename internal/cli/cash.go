@@ -37,13 +37,16 @@ Which subcommand to use:
 		flowCmd(a, "withdraw", domain.Withdraw,
 			"Cash leaving an account - a withdrawal, a transfer or what a purchase spent (neutral for performance)",
 			"  finador cash withdraw \"Livret A\" 2000"),
+		flowCmd(a, "fee", domain.Fee,
+			"A fee charged to the account itself, on no security (account keeping, custody): a loss of exactly the fee",
+			"  finador cash fee \"CTO Meridia\" 12.50 2026-03-31"),
 		cashSet(a),
 	)
 	return cmd
 }
 
 func cashSet(a *app) *cobra.Command {
-	var at, ccy string
+	var at, ccy, note string
 	cmd := &cobra.Command{
 		Use:     "set <account> <balance>",
 		Short:   "Set the observed balance of an account (gaps between statements count as performance - use deposit for external contributions)",
@@ -76,6 +79,7 @@ func cashSet(a *app) *cobra.Command {
 				tx := b.Add(domain.Transaction{
 					Date: date, Account: acc.ID, Kind: domain.Statement,
 					Amount: domain.Money{Amount: amount, Currency: effectiveCcy},
+					Note:   note,
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s: %s on %s\n", tx.ID, acc.Name, tx.Amount, tx.Date)
 				return nil
@@ -84,6 +88,7 @@ func cashSet(a *app) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&at, "at", "", "date YYYY-MM-DD (default: today)")
 	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: account currency)")
+	cmd.Flags().StringVar(&note, "note", "", "free note")
 	return cmd
 }
 

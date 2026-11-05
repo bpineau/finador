@@ -444,7 +444,7 @@ finador asset add <ticker|name> [--kind security|property] [--name n]
                   [--isin LU…] [--alias a]... [--ccy EUR] [--group path]
 finador asset edit <asset> [--name n] [--ticker t] [--isin i] [--group g] [--ccy c]
                    [--add-alias a]... [--rm-alias a]... [--withholding 15%]
-finador asset set <asset> <value> [--at YYYY-MM-DD] [--account acc] [--ccy c]
+finador asset set <asset> <value> [--at YYYY-MM-DD] [--account acc] [--ccy c] [--note n]
 finador asset list
 finador asset rm <asset>              # refused while transactions reference it
 ```
@@ -465,7 +465,8 @@ finador asset dividend <asset> <amount> [date] [--account acc] [--ccy c] [--note
 finador asset fee     <asset> <amount> [date] [--account acc] [--ccy c] [--note n]
 finador cash deposit  <account> <amount> [date] [--ccy c] [--note n]
 finador cash withdraw <account> <amount> [date] [--ccy c] [--note n]
-finador cash set      <account> <balance> [--at YYYY-MM-DD] [--ccy c]
+finador cash fee      <account> <amount> [date] [--ccy c] [--note n]   # charged to the account, on no security
+finador cash set      <account> <balance> [--at YYYY-MM-DD] [--ccy c] [--note n]
 ```
 
 Price syntax: `@550` is a unit price (total = qty × 550); a bare `5500` is the
@@ -636,13 +637,17 @@ finador export [scope] [--account ref] [--at YYYY-MM-DD] [--ccy USD] [--label l]
                [--asset refs] [--exclude refs] > assets.csv
 finador export pea > pea.csv     # scoped: an envelope, a group or a label
 finador export pea --tree        # envelope-grouped text (see `value --tree`)
-finador export --script          # replayable finador commands (rebuild recipe)
+finador export --script > dump.sh  # replayable finador commands (rebuild recipe)
+sh dump.sh rebuilt.fin             # rebuilds into a NEW file, never the one dumped
 ```
 
-`--script` dumps the whole book as the sequence of finador commands that
-rebuilds it (config, accounts, assets, every transaction, labels): a readable,
-diffable rebuild recipe. Entry ids are regenerated on replay, so the copy is a
-new lineage - the encrypted file itself remains the real backup.
+`--script` dumps the whole book as a shell script of finador commands that
+rebuilds it (accounts, assets, config, every transaction, labels): a readable,
+diffable rebuild recipe. Its one argument is the file to create: every command
+writes there (`--db`), `init` refuses an existing file, and the script stops at
+the first error. Names and notes are single-quoted, never interpreted. Entry ids
+are regenerated on replay, so the copy is a new lineage - the encrypted file
+itself remains the real backup.
 
 Writes a CSV to stdout, one row per holding (securities, properties AND cash):
 `kind,ticker,name,isin,gross,net,currency,note`, each valued (gross and after estimated latent

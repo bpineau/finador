@@ -166,7 +166,7 @@ func assetIncomeCmd(a *app, use string, kind domain.TxKind, short, example strin
 }
 
 func assetSet(a *app) *cobra.Command {
-	var at, account, ccy string
+	var at, account, ccy, note string
 	var labels []string
 	cmd := &cobra.Command{
 		Use:     "set <asset> <value>",
@@ -201,6 +201,7 @@ func assetSet(a *app) *cobra.Command {
 				tx := b.Add(domain.Transaction{
 					Date: date, Account: acc.ID, Asset: asset.ID, Kind: domain.Statement,
 					Amount: domain.Money{Amount: value, Currency: effectiveCcy},
+					Note:   note,
 				})
 				fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s = %s on %s\n", tx.ID, asset.Name, tx.Amount, tx.Date)
 				if err := applyLabels(b, acc.ID, asset.ID, labels); err != nil {
@@ -213,6 +214,7 @@ func assetSet(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&at, "at", "", "date YYYY-MM-DD (default: today)")
 	cmd.Flags().StringVar(&account, "account", "", "account (name or id)")
 	cmd.Flags().StringVar(&ccy, "ccy", "", "currency (default: asset currency)")
+	cmd.Flags().StringVar(&note, "note", "", "free note")
 	cmd.Flags().StringArrayVar(&labels, "label", nil, "tag the (account, asset) pair with this label (repeatable)")
 	return cmd
 }

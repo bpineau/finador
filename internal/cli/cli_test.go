@@ -5,7 +5,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1412,33 +1411,38 @@ func TestPerfTree(t *testing.T) {
 // double-quoted (strconv.Quote) tokens writeScript produces.
 func splitScript(t *testing.T, line string) []string {
 	t.Helper()
+	// A POSIX shell's word splitting, as far as the script uses it: blanks
+	// separate words, '...' is literal, a backslash escapes one character.
 	var args []string
-	for i := 0; i < len(line); {
-		for i < len(line) && line[i] == ' ' {
+	var word strings.Builder
+	inWord := false
+	for i := 0; i < len(line); i++ {
+		switch c := line[i]; {
+		case c == ' ':
+			if inWord {
+				args = append(args, word.String())
+				word.Reset()
+				inWord = false
+			}
+		case c == '\'':
+			j := strings.IndexByte(line[i+1:], '\'')
+			if j < 0 {
+				t.Fatalf("unterminated quote in %q", line)
+			}
+			word.WriteString(line[i+1 : i+1+j])
+			i += j + 1
+			inWord = true
+		case c == '\\' && i+1 < len(line):
 			i++
+			word.WriteByte(line[i])
+			inWord = true
+		default:
+			word.WriteByte(c)
+			inWord = true
 		}
-		if i >= len(line) {
-			break
-		}
-		if line[i] == '"' {
-			j := i + 1
-			for j < len(line) && (line[j] != '"' || line[j-1] == '\\') {
-				j++
-			}
-			tok, err := strconv.Unquote(line[i : j+1])
-			if err != nil {
-				t.Fatalf("unquote %q: %v", line[i:j+1], err)
-			}
-			args = append(args, tok)
-			i = j + 1
-			continue
-		}
-		j := i
-		for j < len(line) && line[j] != ' ' {
-			j++
-		}
-		args = append(args, line[i:j])
-		i = j
+	}
+	if inWord {
+		args = append(args, word.String())
 	}
 	return args
 }
@@ -1463,17 +1467,16 @@ func TestExportScriptRoundTrip(t *testing.T) {
 	script := run(t, db1, "export", "--script")
 
 	db2 := filepath.Join(t.TempDir(), "rebuilt.fin")
-	run(t, db2, "init")
+	if !strings.Contains(script, "set -eu\n") || !strings.Contains(script, `fin() { finador --db "$db" "$@"; }`) {
+		t.Fatalf("the script does not pin its destination:\n%s", script)
+	}
 	for line := range strings.SplitSeq(script, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+		if !strings.HasPrefix(line, "fin ") {
+			continue // the header: comments, set -eu, db=, the fin function
 		}
 		args := splitScript(t, line)
-		if len(args) == 0 || args[0] != "finador" {
-			t.Fatalf("unexpected script line: %q", line)
-		}
-		run(t, db2, args[1:]...)
+		run(t, db2, args[1:]...) // "fin init" included: db2 does not exist yet
 	}
 
 	// stripIDs blanks the random, regenerated id column of the list views, and
@@ -1664,5 +1667,42 @@ func TestRefreshPrintsTheSplitCommands(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("%q missing from the refresh report:\n%s", want, out)
 		}
+	}
+}
+
+// TestExportScriptRebuildsFeesNotesAndDefaultAccount: an account-level fee,
+// the notes of both kinds of statement and a default-account set by id all
+// survive the rebuild.
+func TestExportScriptRebuildsFeesNotesAndDefaultAccount(t *testing.T) {
+	db1 := newDB(t)
+	run(t, db1, "account", "add", "CTO Meridia")
+	run(t, db1, "asset", "add", "Maison Familiale", "--kind", "property")
+	id := strings.Fields(run(t, db1, "account", "list"))
+	var accID string
+	for _, f := range id {
+		if len(f) > 20 {
+			accID = f
+		}
+	}
+	run(t, db1, "config", "set", "default-account", accID)
+	run(t, db1, "cash", "fee", "CTO Meridia", "12.50", "2026-03-31", "--note", "custody")
+	run(t, db1, "cash", "set", "CTO Meridia", "1000", "--at", "2026-03-31", "--note", "from the PDF")
+	run(t, db1, "asset", "set", "Maison Familiale", "450000", "--at", "2026-03-31", "--note", "estimate $(x)")
+	script := run(t, db1, "export", "--script")
+
+	db2 := filepath.Join(t.TempDir(), "rebuilt.fin")
+	for line := range strings.SplitSeq(script, "\n") {
+		if line = strings.TrimSpace(line); strings.HasPrefix(line, "fin ") {
+			run(t, db2, splitScript(t, line)[1:]...)
+		}
+	}
+	txs := run(t, db2, "tx", "list")
+	for _, want := range []string{"custody", "from the PDF", "estimate $(x)", "12.5"} {
+		if !strings.Contains(txs, want) {
+			t.Errorf("rebuilt ledger lost %q:\n%s", want, txs)
+		}
+	}
+	if got := strings.TrimSpace(run(t, db2, "config", "get", "default-account")); !strings.Contains(got, "CTO Meridia") {
+		t.Errorf("default-account rebuilt as %q, want the account's name", got)
 	}
 }
