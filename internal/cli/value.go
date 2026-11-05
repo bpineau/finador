@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -154,7 +155,7 @@ func parseWhatIf(b *domain.Book, pairs []string) (map[domain.AssetID]portfolio.P
 			return nil, fmt.Errorf("--what-if %s: %w", ref, err)
 		}
 		price, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
-		if err != nil || price < 0 {
+		if err != nil || price < 0 || math.IsNaN(price) || math.IsInf(price, 0) {
 			return nil, fmt.Errorf("--what-if %s: invalid price %q", ref, val)
 		}
 		out[asset.ID] = portfolio.PriceOverride{Price: price, Kind: "what-if"}

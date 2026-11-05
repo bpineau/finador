@@ -75,6 +75,15 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 		return zero, err
 	}
 
+	// The same rules as the web form and `asset buy`: a trade or a dividend
+	// names its asset, a trade its quantity.
+	if (kind == domain.Buy || kind == domain.Sell || kind == domain.Dividend) && get("asset") == "" {
+		return zero, fmt.Errorf("a %s requires an asset", kind)
+	}
+	if (kind == domain.Buy || kind == domain.Sell) && get("quantity") == "" {
+		return zero, fmt.Errorf("quantity required for a %s", kind)
+	}
+
 	tx := domain.Transaction{Date: date, Account: acc.ID, Kind: kind, Note: get("note")}
 
 	if ref := get("asset"); ref != "" {
@@ -92,6 +101,9 @@ func rowToTx(b *domain.Book, get func(string) string) (domain.Transaction, error
 		}
 	}
 	tx.Quantity = qty.Abs()
+	if (kind == domain.Buy || kind == domain.Sell) && tx.Quantity.IsZero() {
+		return zero, fmt.Errorf("quantity required for a %s", kind)
+	}
 
 	var amount decimal.Decimal
 	switch {

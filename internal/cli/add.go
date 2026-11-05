@@ -91,6 +91,9 @@ func parseTradeTail(rest []string, qty decimal.Decimal) (total decimal.Decimal, 
 			if perr != nil {
 				return total, date, fmt.Errorf("invalid price %q: %w", arg, perr)
 			}
+			if p.IsNegative() {
+				return total, date, fmt.Errorf("invalid price %q: a price is never negative (a negative quantity makes a sell)", arg)
+			}
 			total = p.Mul(qty.Abs())
 		} else if d, derr := domain.ParseDate(arg); derr == nil {
 			date = d

@@ -229,3 +229,22 @@ func TestManualMatches(t *testing.T) {
 		})
 	}
 }
+
+// TestImportCSVRejectsMalformedTrade: a buy names its asset and a quantity,
+// as the web form and `asset buy` already require; nothing is created.
+func TestImportCSVRejectsMalformedTrade(t *testing.T) {
+	for _, csv := range []string{
+		"date,kind,account,amount,currency\n2026-01-02,buy,Envelope,99,EUR\n",
+		"date,kind,account,asset,amount,currency\n2026-01-02,buy,Envelope,GTWR,99,EUR\n",
+		"date,kind,account,asset,quantity,amount,currency\n2026-01-02,sell,Envelope,GTWR,0,99,EUR\n",
+	} {
+		b := domain.NewBook()
+		addAccount(t, b, "Envelope", domain.EUR)
+		if _, _, err := ImportCSV(b, strings.NewReader(csv)); err == nil {
+			t.Errorf("malformed trade imported:\n%s", csv)
+		}
+		if len(b.Transactions) != 0 {
+			t.Errorf("a rejected line left %d transaction(s)", len(b.Transactions))
+		}
+	}
+}
