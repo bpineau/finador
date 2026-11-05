@@ -254,6 +254,7 @@ func Import(b *domain.Book, r io.Reader, opts Options) (Result, error) {
 		assets:      map[string]*domain.Asset{},
 		missing:     map[string]bool{},
 		ignored:     map[string]int{},
+		claimed:     map[domain.TxID]bool{},
 	}
 	for _, row := range rows {
 		if err := im.row(row); err != nil && !errors.Is(err, errUnknownAsset) {
@@ -291,7 +292,12 @@ func Import(b *domain.Book, r io.Reader, opts Options) (Result, error) {
 // GuardReconcile the single candidate adopts the line's importHash - the only
 // write this makes - and an ambiguity adopts nothing, in either policy.
 func (im *importer) guard(st staged, policy Guard, res *Result) (Match, bool) {
-	hits := portfolio.ManualMatches(im.b, st.tx)
+	// A hand entry stands for ONE event: once it has covered a line it is
+	// spent, so two identical trades with distinct broker ids are never both
+	// hidden behind it. (An adoption spends it by stamping its importHash.)
+	hits := slices.DeleteFunc(portfolio.ManualMatches(im.b, st.tx), func(m *domain.Transaction) bool {
+		return im.claimed[m.ID]
+	})
 	if len(hits) == 0 {
 		return Match{}, false
 	}
@@ -307,6 +313,7 @@ func (im *importer) guard(st staged, policy Guard, res *Result) (Match, bool) {
 		match.Adopted = true
 		res.Adopted++
 	default:
+		im.claimed[hits[0].ID] = true
 		res.Matched++
 	}
 	return match, true
@@ -323,6 +330,7 @@ type importer struct {
 	actions     []CorporateAction
 	beforeSince int
 	txs         []staged
+	claimed     map[domain.TxID]bool // hand entries that already covered a line
 }
 
 // staged is one mapped statement line waiting to be written, kept with what

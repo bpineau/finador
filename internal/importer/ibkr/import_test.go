@@ -763,3 +763,31 @@ func TestCorporateActionsRespectSince(t *testing.T) {
 		t.Errorf("corporate actions = %+v, want only the March 18 one", res.CorporateActions)
 	}
 }
+
+// TestGuardSpendsTheHandEntry: two identical buys the same day are two
+// events; the one entry typed by hand covers one of them, never both.
+func TestGuardSpendsTheHandEntry(t *testing.T) {
+	const twin = `Statement,Header,Field Name,Field Value
+Statement,Data,Title,Activity Statement
+Account Information,Header,Field Name,Field Value
+Account Information,Data,Base Currency,EUR
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,EUR,CW8,"2026-03-02, 09:31:02",1,100,100,-100,0,100,0,0,O
+Trades,Data,Order,Stocks,EUR,CW8,"2026-03-02, 14:05:40",1,100,100,-100,0,100,0,0,O
+Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Security ID,Listing Exch,Multiplier,Type,Code
+Financial Instrument Information,Data,Stocks,CW8,AMUNDI MSCI WORLD UCITS ETF,87654321,LU1681043599,SBF,1,ETF,
+`
+	b := samedayBook(t)
+	b.Add(domain.Transaction{Date: mustDate(t, "2026-03-02"), Account: "cto-meridia", Asset: "cw8",
+		Kind: domain.Buy, Quantity: dec("1"), Amount: money("100", domain.EUR), Note: "typed by hand"})
+	res, err := Import(b, strings.NewReader(twin), Options{Account: "cto-meridia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Matched != 1 || res.Added != 1 {
+		t.Fatalf("matched=%d added=%d, want 1 and 1: one hand entry hid two trades", res.Matched, res.Added)
+	}
+	if n := len(b.Transactions); n != 2 {
+		t.Fatalf("%d transactions, want 2 (the hand entry and the second trade)", n)
+	}
+}
