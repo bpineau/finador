@@ -49,3 +49,20 @@ type Backend interface {
 	// (e.g. "github:owner/repo/path@branch").
 	Describe() string
 }
+
+// Offline wraps a backend so that it never reaches the network: every request
+// answers ErrOffline, which the sync layer already treats as a lost connection
+// (reads use the local copy, a write stays dirty and is pushed by the next
+// online command). It backs --offline, which promises no network access at
+// all, the remote included.
+func Offline(b Backend) Backend { return offlineBackend{b} }
+
+type offlineBackend struct{ Backend }
+
+func (offlineBackend) Fetch(context.Context) ([]byte, Version, error) { return nil, "", ErrOffline }
+
+func (offlineBackend) Push(context.Context, []byte, Version, string) (Version, error) {
+	return "", ErrOffline
+}
+
+func (offlineBackend) CheckAccess(context.Context) error { return ErrOffline }

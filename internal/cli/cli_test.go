@@ -863,6 +863,7 @@ func TestAccountEdit(t *testing.T) {
 }
 
 func TestPerfColors(t *testing.T) {
+	t.Setenv("NO_COLOR", "") // an inherited NO_COLOR rightly wins over FINADOR_FORCE_COLOR
 	db := newDB(t)
 	run(t, db, "account", "add", "PEA Zephyr")
 	run(t, db, "asset", "add", "CW8.PA", "--alias", "cw8")

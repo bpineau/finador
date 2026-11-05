@@ -26,8 +26,10 @@ func assetCmd(a *app) *cobra.Command {
 Which subcommand to use:
   buy/sell      - quoted security you trade: requires a quantity and a price.
   dividend/fee  - income or cost on a security (no quantity, just an amount).
-  set           - observed value of a property or unlisted holding; the gap
-                  since the previous statement counts as performance.
+  set           - observed value of a property (the whole estimate, each new
+                  one a re-declaration, neutral for performance) or of an
+                  unlisted security already bought (read per share; its
+                  change counts as performance).
   add/edit/rm   - declare, update or remove an asset definition.`,
 		Example: "  finador asset buy CW8 20 @450 2024-01-20",
 	}

@@ -314,3 +314,26 @@ func TestHelpShowsTheWorkingCopyAsDbDefault(t *testing.T) {
 		t.Errorf("--db default should name the working copy under %s:\n%s", want, out)
 	}
 }
+
+// TestOfflineNeverReachesTheRemote: --offline promises no network at all, the
+// GitHub sync included. The write stands locally, dirty, and the next online
+// command pushes it.
+func TestOfflineNeverReachesTheRemote(t *testing.T) {
+	remoteEnv(t)
+	fake := &fakeBackend{}
+	configureRemote(t, fake)
+	mustRunRemote(t, fake, "--offline", "init")
+	mustRunRemote(t, fake, "--offline", "account", "add", "CTO Meridia")
+	if out := mustRunRemote(t, fake, "--offline", "account", "list"); !strings.Contains(out, "CTO Meridia") {
+		t.Fatalf("the offline write is not readable locally:\n%s", out)
+	}
+	if _, present := fake.snapshot(); present {
+		t.Fatal("an --offline command pushed to the remote")
+	}
+
+	mustRunRemote(t, fake, "sync")
+	data, present := fake.snapshot()
+	if !present || len(data) == 0 {
+		t.Fatal("the next online command did not push the offline writes")
+	}
+}

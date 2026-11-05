@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -59,7 +58,7 @@ func remoteAdopt(a *app) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read %s: %w", src, err)
 			}
-			if err := s.Adopt(cmd.Context(), data, "finador adopt "+filepath.Base(src), force); err != nil {
+			if err := s.Adopt(cmd.Context(), data, "finador adopt", force); err != nil {
 				return remoteError(err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(),

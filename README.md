@@ -79,7 +79,9 @@ previous `set` counts as performance.**
 | Record the **observed balance** of an envelope | `cash set` | change vs the previous balance = **performance** |
 
 The first `asset set` / `cash set` on an account is treated as an *acquisition* (an
-external flow), not as performance - only later changes count.
+external flow), not as performance - only later changes count, except for a
+property: every re-estimate of a property is a re-declaration, an external flow
+too.
 
 **Cash never moves on its own**: buys, sells, dividends and fees leave a declared
 balance strictly alone. Recording a purchase and recording the cash it consumed
@@ -159,10 +161,11 @@ tracking, and `perf` per fund / `--label`.
 
 - **Basis = what you put in.** A `TaxOnGains` envelope's basis is the sum of its `buy`
   costs. For a buy-and-hold PEA that equals your *versements*. If internal churn or
-  dividend reinvestment made your cost basis differ from your real versements, anchor
-  the exact figure with `finador cash deposit "PEA Zephyr" 150000` and enter the buys
-  at cost (the cash nets to ~0) - the deposit then defines the basis whatever happened
-  inside the envelope.
+  dividend reinvestment made your cost basis differ from your real versements, enter
+  the buys so that their totals add up to the versements (adjust one buy's total):
+  the basis is exactly that sum. Do not anchor it with a `cash deposit`: cash is
+  declarative and a buy never spends it, so the deposit would stay in the envelope as
+  cash on top of the funds, counted twice in the gross value.
 - **A fund with no Yahoo quote?** Value it with `finador asset set "<fund>" <current
   value>` instead of relying on `refresh` (the statement is the price fallback).
 
@@ -831,8 +834,10 @@ date,kind,account,asset,quantity,price,amount,currency,group,note
 
 - `kind` ∈ `buy, sell, deposit, withdraw, dividend, fee, statement`.
 - Give `price` (unit) or `amount` (total); the other is derived.
-- Unknown accounts and assets are created on the fly (assets as securities with
-  the reference as ticker).
+- Accounts must be declared first (`account add`): an unknown one fails the
+  import. Unknown assets are created on the fly (as securities with the
+  reference as ticker).
+- A `buy` or `sell` names its `asset` and a `quantity`; a `dividend` its `asset`.
 - **Idempotent**: every row is fingerprinted; re-importing the same file adds
   nothing. Two genuinely identical same-day rows must differ by their `note`.
   Rows you later edit with `tx edit` keep their fingerprint and stay skipped.
@@ -1022,8 +1027,9 @@ you bought (`asset buy`, its quantity and cost: until a valuation exists the
 position is worth its cost), then maintain dated `asset set` valuations, each
 read as the value of the quantity held that day (a later buy or sell rescales
 it per share). A valuation of a security the account does not hold is refused.
-A property needs no buy: its `asset set` is the whole estimate, and perf treats
-the first one as an acquisition and later changes as performance.
+The change between two valuations of a security is performance. A property
+needs no buy: each `asset set` is the whole estimate, a re-declaration that
+perf treats as an external flow (neutral), never as performance.
 
 **Fixing history.** `tx list --asset cw8` → `tx edit <id-prefix> --qty 12 --total 6600` →
 done; every figure recomputes. `asset edit` renames, regroups, retickers or

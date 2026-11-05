@@ -95,7 +95,9 @@ go test ./internal/store -run 'TestMerge/.+' -v           # one subtest
 `no test files`) on every package and nothing else printed: any `FAIL`, any vet
 or lint line, any gofmt diff is a failure. It takes a bit over a minute (the
 `-race` pass is most of it). Run it before every commit; the pre-commit hook
-(`.githooks/pre-commit`, installed by `make hooks`) runs the same gate.
+(`.githooks/pre-commit`, installed by `make hooks`) runs the same gate minus
+the `-race` pass, so run `make check` (or `make race`) yourself after touching
+`internal/web` or `internal/store`.
 `golangci-lint` is optional locally (the Makefile warns and skips) but do not
 introduce warnings; `.golangci.yml` documents the few deliberate exclusions.
 There is **no CI** on this repository: the local gate is all there is, so do not

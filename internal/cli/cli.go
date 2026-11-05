@@ -306,8 +306,14 @@ func (a *app) dataSource() (*remote.Syncer, bool, error) {
 		return nil, false, nil
 	}
 	backend := a.remoteBackend
-	if backend == nil {
+	switch {
+	case backend == nil && a.offline:
+		backend = remote.NewGitHub(*cfg.GitHub, "") // never reached: no token needed
+	case backend == nil:
 		backend = remote.NewGitHub(*cfg.GitHub, a.githubToken(cfg))
+	}
+	if a.offline {
+		backend = remote.Offline(backend) // --offline means no network, GitHub included
 	}
 	s, err := remote.NewSyncer(backend, *cfg.GitHub, cfg.ReadPullDuration())
 	if err != nil {
