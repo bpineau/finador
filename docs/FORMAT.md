@@ -586,9 +586,10 @@ identical across saves, so syncing (e.g. git) sees a minimal diff.
 
 ### 6.2 Atomic write
 
-The file is written atomically: write to `<path>.tmp`, `fsync`, `close`, rotate the
-existing file to `<path>.bak`, then `rename(tmp, path)`. The `.bak` is the previous
-full version.
+The file is written atomically: write to `<path>.tmp`, `fsync`, `close`, keep the
+existing file as `<path>.bak` (a hard link, so `path` never goes missing; a rename
+where links are unsupported), then `rename(tmp, path)` and `fsync` the directory.
+The `.bak` is the previous full version.
 
 ### 6.3 Optimistic concurrency + lock
 
@@ -600,10 +601,13 @@ full version.
 
 ### 6.4 Compaction
 
-A writer may **compact**: rewrite a minimal log from the current Book (dropping
-superseded and tombstoned records) with a fresh chain and fresh `ts` on every
-record. This is a full-file rewrite and is rarely needed; it changes ids of nothing
-(entity ids are stable) but does discard dead history.
+A writer may **compact**: keep only the latest record of every entity (the one the
+fold ends on), **with its original `ts` and payload**, ordered by `ts` instant and
+re-sealed as a fresh chain. A deleted entity keeps its tombstone. Both rules
+matter to §6.5: a fresh `ts` would let compacted old content win over a newer
+edit made on another copy, and a dropped tombstone would let a stale copy
+resurrect the entity. This is a full-file rewrite and is rarely needed; it
+discards superseded history only.
 
 ### 6.5 Merging diverged copies
 
@@ -623,8 +627,11 @@ on different devices:
    payloads count as one write. If genuinely different payloads share the exact
    latest instant, that is a true conflict: surface it to the user, who picks the
    survivor. (With nanosecond stamps from two machines this is vanishingly rare.)
-3. **A tombstone winner keeps the entity deleted**: emit nothing for it. Any
-   other winner is emitted with its **original `ts` and payload bytes preserved**.
+3. **Emit every winner with its original `ts` and payload bytes preserved**, a
+   tombstone included: it keeps the entity deleted, and it keeps the delete
+   known to the next merge with a copy that still holds the entity (dropping
+   it would resurrect the entity there). Readers already fold a tombstone
+   whose entity has no earlier record as a no-op.
 4. **Re-seal** the winners, ordered by their `ts` instants (a stable sort), as a
    fresh chain (new nonces, new head) - the merged file is a normal ledger again.
 

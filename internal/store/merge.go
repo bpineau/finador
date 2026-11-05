@@ -96,7 +96,8 @@ func (f *File) sameLedger(other *File) bool {
 // no loss; concurrent edits of the same entity are resolved last-writer-wins by
 // ts; a true tie (same entity, equal ts, different payload) is handed to
 // resolve, which returns the index of the candidate to keep. On success f is
-// re-sealed as a fresh chained log (winners' original ts preserved) and written
+// re-sealed as a fresh chained log (winners' original ts preserved, a delete
+// kept as its tombstone so a later merge cannot resurrect it) and written
 // atomically; f.Book/entries/snap/disk are updated like Save/Compact.
 func (f *File) Merge(other *File, resolve func(Conflict) (int, error)) (MergeStats, error) {
 	if !f.sameLedger(other) {
@@ -128,7 +129,7 @@ func (f *File) Merge(other *File, resolve func(Conflict) (int, error)) (MergeSta
 	}
 
 	var stats MergeStats
-	var winners []record // non-tombstone winners, sorted by ts at the end
+	var winners []record // one record per entity, sorted by ts at the end
 
 	for _, k := range order {
 		recs := groups[k]
@@ -173,8 +174,11 @@ func (f *File) Merge(other *File, resolve func(Conflict) (int, error)) (MergeSta
 			stats.Conflicts++
 		}
 
-		// A tombstone winner means the entity stays deleted: omit it. A live
-		// winner is emitted, preserving its original ts and payload.
+		// Every winner is emitted with its original ts and payload, a
+		// tombstone included: dropping it would forget the delete, and the
+		// next merge with a copy that still holds the entity would bring it
+		// back.
+		winners = append(winners, winner.rec)
 		if isTombstone(winner.rec.K) {
 			continue
 		}
@@ -182,7 +186,6 @@ func (f *File) Merge(other *File, resolve func(Conflict) (int, error)) (MergeSta
 		if winner.fromOther {
 			stats.FromOther++
 		}
-		winners = append(winners, winner.rec)
 	}
 
 	// Output records sorted by instant (preserving each record's own ts), so

@@ -206,6 +206,11 @@ cmd/finador → cli ─┬→ store ──→ domain
   RFC3339Nano renders a whole second without a fraction and `'Z' > '.'`, so a
   string compare elects the OLDER write in the last-writer-wins merge. See
   `store/merge.go tsInstant`; the Android client had the same bug.
+- **A delete must outlive every merge and compaction** (D56): both emit the
+  tombstone and keep each record's original `ts`. Dropping either lets a
+  stale copy (a phone that never pulled) resurrect a delete or beat a newer
+  edit. In the sync layer, a working copy whose bytes differ from the
+  `synced` hash in its state holds local changes: never pull over it.
 - **An edit is not a re-import**: a `tx-edit` must carry `importHash` through
   unchanged, or replaying the same broker statement duplicates the corrected
   transaction. Read the other way round, that is what lets `--reconcile` stamp

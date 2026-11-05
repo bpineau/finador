@@ -467,3 +467,73 @@ func TestMergeEntityID(t *testing.T) {
 		t.Fatalf("idRef round-trip: %v %q", err, ref.ID)
 	}
 }
+
+// TestMergeKeepsTombstone: a delete that wins a merge survives as a tombstone,
+// so merging the same stale copy again (a phone that never pulled) cannot
+// bring the transaction back.
+func TestMergeKeepsTombstone(t *testing.T) {
+	f1, f2 := twoCopies(t, "pw")
+	sealRecords(t, f1, []record{
+		txRec(kTx, "X", "2026-06-13T10:00:00Z", "create"),
+		txDelRec("X", "2026-06-13T12:00:00Z"),
+	})
+	sealRecords(t, f2, []record{
+		txRec(kTx, "X", "2026-06-13T10:00:00Z", "create"),
+	})
+	for round := 1; round <= 2; round++ {
+		if _, err := f1.Merge(f2, rejectResolve(t)); err != nil {
+			t.Fatal(err)
+		}
+		back, err := Open(f1.Path, "pw")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(back.Book.Transactions) != 0 {
+			t.Fatalf("round %d: deleted X resurrected: %+v", round, back.Book.Transactions)
+		}
+	}
+
+	// The other direction too: the stale copy absorbs the delete.
+	if _, err := f2.Merge(f1, rejectResolve(t)); err != nil {
+		t.Fatal(err)
+	}
+	if len(f2.Book.Transactions) != 0 {
+		t.Fatalf("stale copy kept X after merging the delete: %+v", f2.Book.Transactions)
+	}
+}
+
+// TestCompactKeepsTsAndTombstones: compaction keeps each entity's own ts and
+// its tombstone, so a newer edit made elsewhere still wins a later merge and a
+// stale copy cannot resurrect a delete.
+func TestCompactKeepsTsAndTombstones(t *testing.T) {
+	f1, f2 := twoCopies(t, "pw")
+	base := []record{
+		txRec(kTx, "X", "2026-06-13T10:00:00Z", "v1"),
+		txRec(kTx, "Y", "2026-06-13T10:00:00Z", "y"),
+	}
+	sealRecords(t, f1, append(append([]record(nil), base...),
+		txRec(kTxEdit, "X", "2026-06-13T10:30:00Z", "v1 (older local edit)"),
+		txDelRec("Y", "2026-06-13T11:00:00Z"),
+	))
+	sealRecords(t, f2, append(append([]record(nil), base...),
+		txRec(kTxEdit, "X", "2026-06-14T10:00:00Z", "v2 (newer remote edit)"),
+	))
+
+	if err := f1.Compact(); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(f1.entries); got != 2 {
+		t.Fatalf("compacted log holds %d records, want 2 (X's latest + Y's tombstone)", got)
+	}
+	if _, err := f1.Merge(f2, rejectResolve(t)); err != nil {
+		t.Fatal(err)
+	}
+	if !hasTxNote(f1.Book, "X", "v2 (newer remote edit)") {
+		t.Fatalf("the newer edit lost to a compacted older one: %+v", f1.Book.Transactions)
+	}
+	for _, tx := range f1.Book.Transactions {
+		if tx.ID == "Y" {
+			t.Fatal("compaction forgot Y's delete: the stale copy resurrected it")
+		}
+	}
+}

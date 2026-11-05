@@ -1143,3 +1143,61 @@ func TestNoHomeDirectoryIsReported(t *testing.T) {
 		t.Error("NewSyncer should fail when the working copy has no home")
 	}
 }
+
+// TestSavedButUnpushedCopySurvivesSync: a write saved the working copy, then
+// the process died before AfterWrite could mark it dirty. The copy's bytes
+// differ from the last synced ones, so the next Sync pushes them instead of
+// pulling the older remote over them.
+func TestSavedButUnpushedCopySurvivesSync(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &fakeBackend{data: []byte("v1"), sha: "sha1", counter: 1}
+	s := newSyncer(t, b, &now)
+	if _, err := s.ForWrite(context.Background(), (&stubMerge{}).fn); err != nil {
+		t.Fatal(err)
+	}
+	writeCopy(t, s, "v2 saved locally") // the save; AfterWrite never ran
+
+	if _, err := s.Sync(context.Background(), (&stubMerge{}).fn); err != nil {
+		t.Fatal(err)
+	}
+	if got := readCopy(t, s); got != "v2 saved locally" {
+		t.Fatalf("the saved write was clobbered by a pull: copy = %q", got)
+	}
+	if string(b.data) != "v2 saved locally" {
+		t.Fatalf("the saved write never reached the remote: %q", b.data)
+	}
+}
+
+// TestSaveDuringPushStaysDirty: a second save lands while the first one is
+// being pushed. The push succeeds with the first bytes, but the copy now holds
+// more: it must stay a local change, pushed next time, never pulled over.
+func TestSaveDuringPushStaysDirty(t *testing.T) {
+	now := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	b := &fakeBackend{data: []byte("v1"), sha: "sha1", counter: 1}
+	s := newSyncer(t, b, &now)
+	if _, err := s.ForWrite(context.Background(), (&stubMerge{}).fn); err != nil {
+		t.Fatal(err)
+	}
+	writeCopy(t, s, "v2")
+	b.onPush = func() {
+		b.onPush = nil
+		writeCopy(t, s, "v3 saved during the push")
+	}
+	if _, err := s.AfterWrite(context.Background(), "msg", (&stubMerge{}).fn); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, dirty := s.Status(); !dirty {
+		t.Fatal("a save made during the push reads as synced")
+	}
+
+	now = now.Add(2 * time.Hour) // stale: a clean copy would be pulled now
+	if _, err := s.Sync(context.Background(), (&stubMerge{}).fn); err != nil {
+		t.Fatal(err)
+	}
+	if got := readCopy(t, s); got != "v3 saved during the push" {
+		t.Fatalf("the second save was lost: copy = %q", got)
+	}
+	if string(b.data) != "v3 saved during the push" {
+		t.Fatalf("the second save never reached the remote: %q", b.data)
+	}
+}

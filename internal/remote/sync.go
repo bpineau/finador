@@ -21,6 +21,36 @@ type state struct {
 	SHA      Version   `json:"sha"`      // last-known remote blob sha; "" means "remote has no file yet"
 	LastPull time.Time `json:"lastPull"` // when the working copy was last refreshed from the remote
 	Dirty    bool      `json:"dirty"`    // working copy has local changes not yet on the remote
+
+	// Synced is the sha256 of the working-copy bytes known to match the remote
+	// at SHA (set by a pull, a push, an adoption). A copy whose bytes differ
+	// holds local changes even when Dirty says otherwise: a save that crashed
+	// before its push, or one that landed while a push was in flight. Empty in
+	// a state written before the field existed: Dirty alone decides then.
+	Synced string `json:"synced,omitempty"`
+}
+
+// digest is the Synced fingerprint of some working-copy bytes.
+func digest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// localChanges reports whether the working copy holds anything the remote
+// lacks: the Dirty flag, or bytes that differ from the last synced ones. A
+// pull must never run while it is true, or it would clobber them.
+func (s *Syncer) localChanges(st state) bool {
+	if st.Dirty {
+		return true
+	}
+	if st.Synced == "" {
+		return false
+	}
+	data, err := os.ReadFile(s.copyPath)
+	if err != nil {
+		return false // no copy: nothing to lose
+	}
+	return digest(data) != st.Synced
 }
 
 // MergeFunc reconciles the remote file (at remotePath) INTO the local working
@@ -120,6 +150,7 @@ func (s *Syncer) Adopt(ctx context.Context, data []byte, message string, force b
 	st.SHA = newSHA
 	st.LastPull = s.now()
 	st.Dirty = false
+	st.Synced = digest(data)
 	return s.saveState(st)
 }
 
@@ -144,7 +175,7 @@ func (s *Syncer) Status() (sha string, lastPull time.Time, dirty bool) {
 	if err != nil {
 		return "", time.Time{}, false
 	}
-	return string(st.SHA), st.LastPull, st.Dirty
+	return string(st.SHA), st.LastPull, s.localChanges(st)
 }
 
 // now returns the current time via the (overridable) clock, always set in NewSyncer.
@@ -236,6 +267,7 @@ func (s *Syncer) pull(ctx context.Context, st *state) (offline bool, err error) 
 		st.SHA = v
 		st.LastPull = s.now()
 		st.Dirty = false
+		st.Synced = digest(data)
 		return false, nil
 	case errors.Is(err, ErrRemoteMissing):
 		st.SHA = ""
@@ -282,6 +314,10 @@ func (s *Syncer) pushCopy(ctx context.Context, st *state, message string, merge 
 		case perr == nil:
 			st.SHA = newSHA
 			st.Dirty = false
+			// Synced names the bytes just pushed, not the copy: a save that
+			// landed during the request differs from them and stays a local
+			// change for the next access to push.
+			st.Synced = digest(data)
 			st.LastPull = s.now()
 			return false, nil
 
@@ -358,7 +394,7 @@ func (s *Syncer) ForRead(ctx context.Context) (warnings []string, err error) {
 	}
 
 	// INVARIANT 4 / dirty-not-clobbered: never pull over unpushed local edits.
-	if st.Dirty {
+	if s.localChanges(st) {
 		return nil, nil
 	}
 
@@ -404,7 +440,7 @@ func (s *Syncer) ForWrite(ctx context.Context, merge MergeFunc) (warnings []stri
 		return nil, err
 	}
 
-	if st.Dirty {
+	if s.localChanges(st) {
 		// Push the unpushed edits before mutating again so we build on the
 		// freshest reconciled base. pushCopy merges on conflict; offline keeps
 		// the copy dirty and lets us proceed.
@@ -468,7 +504,7 @@ func (s *Syncer) Sync(ctx context.Context, merge MergeFunc) (warnings []string, 
 		return nil, err
 	}
 
-	if st.Dirty {
+	if s.localChanges(st) {
 		offline, perr := s.pushCopy(ctx, &st, "finador: sync", merge)
 		// Persist state regardless: Dirty stays true on failure, protecting the
 		// unpushed working copy from a clobbering refresh below or on next read.

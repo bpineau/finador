@@ -1485,3 +1485,29 @@ un drapeau de version dans le JSON (le magic, déjà authentifié comme AAD, fai
 ce travail). **Android** a son propre sidecar, local à l'appareil, et son
 propre client Yahoo qui date les croisés en UTC : il doit porter la datation
 de pofo (`crossSessionDay`) puis monter son propre magic.
+
+## D56 - La fusion et la compaction gardent les tombstones et les `ts` d'origine
+
+*2026-11-05.*
+
+**Le symptôme :** quand une suppression gagnait une fusion, §6.5 disait de
+ne rien émettre pour l'entité. Le fichier fusionné oubliait donc la
+suppression, et la fusion suivante avec une copie restée ancienne (un
+téléphone qui n'a pas tiré) ressuscitait la transaction. `compact` faisait
+pire : tombstones jetés, et chaque enregistrement re-daté à l'instant de la
+compaction, si bien qu'un vieux contenu compacté battait une correction plus
+récente faite sur l'autre copie.
+
+**La règle retenue :** la fusion émet chaque gagnant, tombstone compris, avec
+son `ts` d'origine ; `compact` garde le dernier enregistrement de chaque
+entité (celui où s'arrête le replay), tombstone compris, avec son `ts`.
+Coût : une ligne par entité supprimée, pour toujours. Les deux lecteurs
+replient déjà un tombstone sans création préalable comme un no-op, donc aucun
+changement de version du format. **Écarté :** purger les tombstones après un
+délai (aucune copie ne garantit avoir tiré entre-temps). **Android** porte la
+même règle dans `Merge.kt` (il n'a pas de compaction).
+
+Même lot, la synchro GitHub (`remote/sync.go`) note dans son état le sha256
+des octets connus du distant (`synced`) : une copie qui en diffère contient
+des changements locaux même si `dirty` dit le contraire (sauvegarde coupée
+avant son push, ou survenue pendant un push), et un pull ne l'écrase jamais.

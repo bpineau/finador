@@ -15,9 +15,11 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"finador/internal/domain"
@@ -75,7 +77,7 @@ func Create(path, password string) (*File, error) {
 // Open reads and decrypts a file. A wrong password and a tampered file are
 // indistinguishable by construction: both yield domain.ErrBadPassword.
 func Open(path, password string) (*File, error) {
-	raw, err := os.ReadFile(path)
+	raw, stamp, err := readStamped(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("%s does not exist - run 'finador init' to create it", path)
@@ -98,8 +100,28 @@ func Open(path, password string) (*File, error) {
 		entries: entries, snap: snapshotOf(book),
 	}
 	f.loadCache()
-	f.disk, _ = stampOf(path)
+	f.disk = stamp
 	return f, nil
+}
+
+// readStamped reads a file and the (size, mtime) of the very bytes it read:
+// both come from one open descriptor, so a save landing meanwhile (an atomic
+// rename, a new inode) cannot lend its stamp to the older content.
+func readStamped(path string) ([]byte, diskStamp, error) {
+	fh, err := os.Open(path)
+	if err != nil {
+		return nil, diskStamp{}, err
+	}
+	defer fh.Close()
+	info, err := fh.Stat()
+	if err != nil {
+		return nil, diskStamp{}, err
+	}
+	raw, err := io.ReadAll(fh)
+	if err != nil {
+		return nil, diskStamp{}, err
+	}
+	return raw, diskStamp{size: info.Size(), mtime: info.ModTime().UnixNano()}, nil
 }
 
 // Save appends the records needed to materialize the current Book, re-emitting
@@ -198,37 +220,37 @@ func syncDir(path string) {
 	_ = d.Sync()
 }
 
-// Compact rewrites a minimal log from the current Book - dropping superseded and
-// tombstoned records - with a fresh chain. One full-file rewrite; rare.
+// Compact rewrites a minimal log: the latest record of every entity, with its
+// original ts, sealed as a fresh chain. Superseded records go; a deleted
+// entity keeps its tombstone (one line) and every record keeps its ts, so a
+// stale copy merged later can neither resurrect a delete nor win over a newer
+// edit just because the compaction looked recent. Unsaved changes are saved
+// first. One full-file rewrite; rare.
 func (f *File) Compact() error {
-	unlock, err := lockSidecar(f.Path + ".lock")
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	if f.disk != (diskStamp{}) {
-		if cur, ok := stampOf(f.Path); ok && cur != f.disk {
-			return fmt.Errorf("%s: %w", f.Path, ErrConcurrent)
+	if len(diff(f.snap, f.Book)) > 0 {
+		if err := f.Save(); err != nil {
+			return err
 		}
 	}
-
-	g := gcmOf(f.keyLog)
-	var entries []entry
-	prev := lastTagOrZero(entries)
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	for i, r := range diff(snapshot{}, f.Book) { // empty prev -> all creates
-		r.Ts = now // a compacted log re-stamps every record at compaction time
-		line, tag := sealLine(g, f.hdrHash, uint64(i+1), prev, r)
-		entries = append(entries, entry{line: line, tag: tag, rec: r})
-		prev = tag
+	latest := map[entityKey]record{}
+	var order []entityKey
+	for _, e := range f.entries {
+		id, err := entityID(e.rec)
+		if err != nil {
+			return fmt.Errorf("compact: unreadable record id: %w", err)
+		}
+		k := entityKey{class: classOf(e.rec.K), id: id}
+		if _, seen := latest[k]; !seen {
+			order = append(order, k)
+		}
+		latest[k] = e.rec // append order is what replay folds to
 	}
-	head := sealHead(g, f.hdrHash, len(entries), lastTagOrZero(entries))
-	out := writeLog(f.hdrLine, entries, head)
-	if err := atomicWrite(f.Path, out, true); err != nil {
-		return err
+	recs := make([]record, 0, len(order))
+	for _, k := range order {
+		recs = append(recs, latest[k])
 	}
-	f.entries = entries
-	f.snap = snapshotOf(f.Book)
-	f.disk, _ = stampOf(f.Path)
-	return nil
+	sort.SliceStable(recs, func(i, j int) bool {
+		return tsInstant(recs[i].Ts).Before(tsInstant(recs[j].Ts))
+	})
+	return f.reseal(recs)
 }
