@@ -334,8 +334,8 @@ out). A narrowed view (`--asset`, `--exclude`) falls back on a per-position
 estimate whose basis is `buy − sell` only (average cost): fold a trading
 commission into the trade's total, as the IBKR importer does, so both agree.
 A withholding tax, which the importer books as an `asset fee`, raises the
-envelope basis too: the latent tax is slightly underestimated. `--tax value:20%` taxes the whole value. `--tax none` (default) taxes
-nothing. Estimated tax shows up in `value`, on net curves and on the web.
+envelope basis too: the latent tax is slightly underestimated.
+`--tax value:20%` taxes the whole value. `--tax none` (default) taxes nothing. Estimated tax shows up in `value`, on net curves and on the web.
 Cash that *earns* (a fonds euros, a yielding balance) should be modelled as an
 asset rather than declared cash, otherwise its gain is never taxed.
 
