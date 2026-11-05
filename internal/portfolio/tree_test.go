@@ -82,3 +82,22 @@ func TestCSVCarriesEstimateNote(t *testing.T) {
 		t.Fatalf("estimate note missing from the CSV:\n%s", buf.String())
 	}
 }
+
+// TestStatementNeedsAHeldSecurity: a valuation of a security the account does
+// not hold would count for nothing (its quantity comes from buys): refused.
+// A held one, or a property, is accepted.
+func TestStatementNeedsAHeldSecurity(t *testing.T) {
+	b := treeBook(t)
+	acc, _ := b.Account("cto")
+	win, _ := b.Asset("win")
+	if err := CheckSecurityStatement(b, acc, win, mustDate("2026-01-01")); err == nil {
+		t.Error("a statement before the buy was accepted")
+	}
+	if err := CheckSecurityStatement(b, acc, win, mustDate("2026-01-02")); err != nil {
+		t.Errorf("a statement on a held security was refused: %v", err)
+	}
+	house := &domain.Asset{ID: "house", Kind: domain.Property, Name: "house", Currency: domain.EUR}
+	if err := CheckSecurityStatement(b, acc, house, mustDate("2026-01-01")); err != nil {
+		t.Errorf("a property statement was refused: %v", err)
+	}
+}

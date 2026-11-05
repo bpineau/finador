@@ -12,6 +12,7 @@ import (
 
 	"finador/internal/domain"
 	"finador/internal/market"
+	"finador/internal/portfolio"
 	"finador/internal/store"
 )
 
@@ -188,6 +189,9 @@ func assetSet(a *app) *cobra.Command {
 				}
 				acc, err := accountFor(b, account, asset)
 				if err != nil {
+					return err
+				}
+				if err := portfolio.CheckSecurityStatement(b, acc, asset, date); err != nil {
 					return err
 				}
 				effectiveCcy, err := currencyOr(ccy, asset.Currency)

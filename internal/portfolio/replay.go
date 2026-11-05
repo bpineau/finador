@@ -4,6 +4,7 @@
 package portfolio
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/shopspring/decimal"
@@ -96,4 +97,17 @@ func Sorted(b *domain.Book) []*domain.Transaction {
 		return 0
 	})
 	return txs
+}
+
+// CheckSecurityStatement refuses a valuation statement on a security that the
+// account does not hold at that date. A security's quantity comes from its
+// buys and sells only: such a statement would be read as the value of zero
+// shares, and the holding would silently count for nothing. Buy it first
+// (`asset buy`, at cost), then the statement re-prices it per share (D27).
+func CheckSecurityStatement(b *domain.Book, acc *domain.Account, asset *domain.Asset, at domain.Date) error {
+	if asset.Kind != domain.Security || Quantity(b, acc.ID, asset.ID, at).IsPositive() {
+		return nil
+	}
+	return fmt.Errorf("%s holds no %s on %s: a security's quantity comes from its buys - record it first "+
+		"(finador asset buy %q <qty> <total> %s --account %q), then set its value", acc.Name, asset.Name, at, asset.Name, at, acc.Name)
 }

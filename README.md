@@ -1012,9 +1012,13 @@ finador value --what-if vizr=280 --net
 finador value --what-if cw8=600 --what-if country=520000
 ```
 
-**Unlisted holdings.** Declare a `security` with no usable ticker, then maintain
-dated `asset set` valuations; perf treats the first statement as an acquisition
-and later changes as performance. The same mechanics value properties.
+**Unlisted holdings.** Declare a `security` with no usable ticker, record what
+you bought (`asset buy`, its quantity and cost: until a valuation exists the
+position is worth its cost), then maintain dated `asset set` valuations, each
+read as the value of the quantity held that day (a later buy or sell rescales
+it per share). A valuation of a security the account does not hold is refused.
+A property needs no buy: its `asset set` is the whole estimate, and perf treats
+the first one as an acquisition and later changes as performance.
 
 **Fixing history.** `tx list --asset cw8` → `tx edit <id-prefix> --qty 12 --total 6600` →
 done; every figure recomputes. `asset edit` renames, regroups, retickers or

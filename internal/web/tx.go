@@ -371,6 +371,11 @@ func parseTxForm(b *domain.Book, r *http.Request) (domain.Transaction, error) {
 			return zero, err
 		}
 	}
+	if kind == domain.Statement && asset != nil {
+		if err := portfolio.CheckSecurityStatement(b, acc, asset, date); err != nil {
+			return zero, err
+		}
+	}
 	tx.Account = acc.ID
 	if asset != nil {
 		tx.Asset = asset.ID
