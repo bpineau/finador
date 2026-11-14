@@ -1129,8 +1129,8 @@ one repo. Local mode stays the default and the fallback.
   and, in GitHub mode, the GitHub Contents API that syncs the encrypted file.
 
 Implementation notes and trade-offs are journaled in
-`docs/superpowers/DECISIONS.md`; the original spec and the phase-by-phase
-implementation plans live under `docs/superpowers/`.
+`docs/DECISIONS.md`; the ledger design notes (accounts, assets, cash, storage)
+live under `docs/design/`.
 
 ## Assumed limits
 

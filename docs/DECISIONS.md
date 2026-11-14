@@ -112,7 +112,7 @@ fourni par l'utilisateur (noms de groupes/enveloppes/notes) reste libre. **Choix
 toutes les chaînes visibles traduites (erreurs comprises) ; formats web anglais
 (1,234.56 €, Wednesday 10 June 2026) ; noms de périodes anglais (1d…1y, prev-yr,
 inception) - ce sont des ENTRÉES CLI, changement cassant assumé ; --by group|account ;
-paramètre web ?by=. Les commentaires de code et docs/superpowers/ restent en français
+paramètre web ?by=. Les commentaires de code et docs/DECISIONS.md et docs/design/ restent en français
 (pas une surface utilisateur). Le README perd ses sections changelog.
 
 ## D14 - Création à la volée, retrait « by asset », donut d'allocation (v0.7)

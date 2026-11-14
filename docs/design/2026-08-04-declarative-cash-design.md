@@ -289,7 +289,7 @@ valued at market rather than dated at the deposits and valued at cash.
 - `AGENTS.md` (symlinked as `CLAUDE.md`): replace the *Tracked vs untracked
   cash* invariant with the declarative rule; update the troubleshooting row on
   absurd TWR.
-- `docs/superpowers/DECISIONS.md`: new entry **D29 - le cash est déclaratif**,
+- `docs/DECISIONS.md`: new entry **D29 - le cash est déclaratif**,
   in French like its neighbours, recording what was rejected (explicit per
   account flag, fees debiting declared cash, always-adoption statements,
   adjusted closes).

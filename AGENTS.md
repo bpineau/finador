@@ -3,7 +3,7 @@
 Read this first; it should be all you need before acting. Deeper truth lives in
 three places: `README.md` (the complete user manual - its recipes must stay
 true), `docs/FORMAT.md` (the normative file-format spec) and
-`docs/superpowers/DECISIONS.md` (journal of non-obvious trade-offs, in French -
+`docs/DECISIONS.md` (journal of non-obvious trade-offs, in French -
 add an entry when you make one).
 
 ## What finador is, and what it is for
@@ -72,7 +72,7 @@ Read these first when a trade-off is unclear; they decide it.
 7. **CLI and web stay behaviourally identical.** They are two facades over one
    engine; a feature added to one is a bug in the other.
 8. **English everywhere** in code, docs and commits, except
-   `docs/superpowers/` which is French and stays French. Errors exit 1 with a
+   `docs/DECISIONS.md` and `docs/design/`, which are French and stay French. Errors exit 1 with a
    single `finador: …` line. **Never a typographic dash** (no em-dash, no
    en-dash): a plain hyphen, a comma or parentheses. Doc style is CLI examples
    with inline comments, not prose.
@@ -338,7 +338,7 @@ cmd/finador → cli ─┬→ store ──→ domain
       `docs/format-testdata/sample.ledger` still decodable, and
       `../finador-android/scripts/crossimpl.sh` green.
 - [ ] A non-obvious trade-off made? A numbered entry appended to
-      `docs/superpowers/DECISIONS.md` (French), and referenced from the trap or
+      `docs/DECISIONS.md` (French), and referenced from the trap or
       invariant it creates here.
 - [ ] Docs updated in the same commit: `README.md` if a command, a flag or an
       output changed (its recipes must stay true), this file if an invariant,
@@ -357,7 +357,9 @@ cmd/finador → cli ─┬→ store ──→ domain
 
 - `README.md` - the full user manual; keep its recipes true.
 - `docs/FORMAT.md` - the normative file-format spec (v3).
-- `docs/superpowers/DECISIONS.md` - the decision journal (French): D8
+- `docs/DECISIONS.md` - the decision journal (French): D8
   first-statement-is-a-flow, D10 optimistic locking, D26 importHash as the
   external reference, D27 cost fallback + per-share statements…
-- `docs/superpowers/plans/`, `specs/` - historical design docs, useful context.
+- `docs/design/` - ledger design notes (accounts, assets, declarative cash,
+  storage and format history), to be promoted into a formal ledger-semantics
+  spec next to `docs/FORMAT.md` for third-party clients (finador-android).
