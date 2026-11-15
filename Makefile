@@ -28,10 +28,10 @@ lint: ## Run golangci-lint (skipped with a warning if not installed)
 		echo "WARNING: golangci-lint not found, lint skipped (https://golangci-lint.run/docs/welcome/install/)"; fi
 
 test: ## Run all tests
-	go test ./... -count=1
+	go test ./... -count=1 -timeout 5m
 
 race: ## Run race-sensitive packages with -race
-	go test -race -count=1 ./internal/web/ ./internal/store/
+	go test -race -count=1 -timeout 5m ./internal/web/ ./internal/store/
 
 check: fmt-check vet lint test race ## Full quality gate
 

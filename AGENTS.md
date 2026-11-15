@@ -83,12 +83,12 @@ Read these first when a trade-off is unclear; they decide it.
 
 ```sh
 make build       # go build -trimpath -o bin/finador ./cmd/finador
-make test        # go test ./... -count=1
+make test        # go test ./... -count=1 -timeout 5m
 make race        # -race on web + store (the concurrency-sensitive packages)
 make check       # THE GATE: fmt-check + vet + lint + test + race
 
-go test ./internal/portfolio -run TestSeries -count=1     # one test
-go test ./internal/store -run 'TestMerge/.+' -v           # one subtest
+go test ./internal/portfolio -run TestSeries -count=1 -timeout 5m  # one test
+go test ./internal/store -run 'TestMerge/.+' -v -timeout 5m        # one subtest
 ```
 
 `make check` is the single completion gate. Green looks like `ok` (or
